@@ -17,15 +17,6 @@ result:
       text: |
         configured Python available
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -63,15 +54,6 @@ result:
       r: []
       python: []
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -87,15 +69,6 @@ result:
         [starting new worker]
         [idle]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: >-
@@ -107,15 +80,6 @@ result:
       text: |
         packaging available
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -154,15 +118,6 @@ result:
       r: []
       python: []
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -190,15 +145,6 @@ result:
         uv output:
         synthetic uv failure
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -237,15 +183,6 @@ result:
       r: []
       python: []
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: assert os.getpid() == original_pid; print('worker retained')
@@ -255,15 +192,6 @@ result:
       text: |
         worker retained
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -277,15 +205,6 @@ result:
         [starting new worker]
         [idle]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: |
@@ -303,12 +222,3 @@ result:
       text: |
         configured Python available
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

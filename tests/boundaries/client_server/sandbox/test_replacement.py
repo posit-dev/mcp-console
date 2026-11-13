@@ -24,7 +24,7 @@ from support.processes import (
     stop_process_group,
     stop_process_id,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.sandbox_observation import observed_sandbox_descendants
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, SANDBOX, requires
 from support.suites import run_this_suite
@@ -164,7 +164,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
 
                 # Retirement is complete while replacement is held before ready.
                 # Preserve the failure and each public phase observation.
-                assert without_meta(result) == {
+                assert result == {
                     "content": [
                         {
                             "type": "text",
@@ -180,7 +180,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
                     ],
                     "isError": True,
                 }, result
-                assert without_meta(client.send(session="default", timeout_ms=0)) == {
+                assert client.send(session="default", timeout_ms=0) == {
                     "content": [
                         {
                             "type": "text",
@@ -194,7 +194,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
                 assert last_tool_text(client) == "[idle]"
 
                 client.send(r="echo echo")
-                assert without_meta(client.transcript[-1]["result"]) == {
+                assert client.transcript[-1]["result"] == {
                     "content": [{"type": "text", "text": "zod: echo\n"}],
                     "isError": False,
                 }, client.transcript[-2:]

@@ -10,15 +10,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -35,15 +26,6 @@ result:
       text: |
         partial attachment requires restart
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: assert id(attachment_object) == attachment_identity; 42
@@ -53,15 +35,6 @@ result:
       text: |
         42
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -73,15 +46,6 @@ result:
         [starting new worker]
         [idle]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: assert 'attachment_object' not in globals(); int(r['40L + 2L'])
@@ -91,12 +55,3 @@ result:
       text: |
         42
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

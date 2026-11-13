@@ -10,15 +10,6 @@ result:
       text: |
         zod stdin length: 1030
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: input without request
@@ -31,15 +22,6 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: |
@@ -50,15 +32,6 @@ result:
       text: |
         zod stdin: followup
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: request input
@@ -69,15 +42,6 @@ result:
         [input requested: "zod> "]
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: ""
@@ -88,15 +52,6 @@ result:
 
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: |
@@ -107,15 +62,6 @@ result:
       text: |
         zod stdin: prompted
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: input without request then request input
@@ -128,15 +74,6 @@ result:
         [input requested: "second> "]
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: |
@@ -147,15 +84,6 @@ result:
       text: |
         zod stdin: first|second
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: echo echo
@@ -167,15 +95,6 @@ result:
       text: |
         zod: echo
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: input without request
@@ -185,15 +104,6 @@ result:
       text: |
         zod stdin: stale
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: echo echo
@@ -204,12 +114,3 @@ result:
       text: |
         zod: echo
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

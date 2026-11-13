@@ -9,15 +9,6 @@ result:
       text: |
         default
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   note: Record beta's question before starting its worker.
@@ -27,15 +18,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: print('alpha')
@@ -46,15 +28,6 @@ result:
       text: |
         alpha
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: print('beta')
@@ -66,15 +39,6 @@ result:
       text: |
         beta
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   note: Alpha has completed its baseline.
@@ -84,15 +48,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   note: The default measurement is complete.
@@ -101,12 +56,3 @@ result:
     - type: text
       text: "[done]"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

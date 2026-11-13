@@ -10,15 +10,6 @@ result:
     - type: text
       text: "[prepared]"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -36,15 +27,6 @@ result:
         [input requested: "second> "]
         Ada|Lovelace
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -65,15 +47,6 @@ result:
         [input requested: "after> "]
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: |
@@ -84,15 +57,6 @@ result:
       text: |
         direct|callback
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -104,15 +68,6 @@ result:
         [input requested: "color> "]
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: bl
@@ -124,15 +79,6 @@ result:
 
         [waiting for stdin]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   stdin: |
@@ -143,15 +89,6 @@ result:
       text: |
         [1] "color blue"
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -165,12 +102,3 @@ result:
       text: |
         [input requested: "quoted \"prompt\"\n> "]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

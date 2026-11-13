@@ -23,15 +23,6 @@ result:
             count: 986
           - " argument tail`, expected one of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   json:
@@ -55,15 +46,6 @@ result:
             count: 1004
           - " argument tail`, expected `interrupt` or `restart`"
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   json:
@@ -87,15 +69,6 @@ result:
             count: 1009
           - ' argument tail", expected u64'
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: echo ready
@@ -105,12 +78,3 @@ result:
       text: |
         zod: ready
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

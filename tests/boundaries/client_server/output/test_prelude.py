@@ -18,7 +18,7 @@ from support.checkpoints import release_fixture_checkpoint
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.processes import stop_process
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -62,7 +62,7 @@ zod: echo
                 client,
             )
             client.receive(timed_out)
-            assert without_meta(without_elapsed_result(timed_out["result"])) == {
+            assert without_elapsed_result(timed_out["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -84,9 +84,7 @@ zod: echo
                 client,
             )
             client.send(session="default", timeout_ms=0)
-            assert without_meta(
-                without_elapsed_result(client.transcript[-1]["result"])
-            ) == {
+            assert without_elapsed_result(client.transcript[-1]["result"]) == {
                 "content": [
                     {
                         "type": "text",

@@ -6,9 +6,9 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use rmcp::{
-    RoleClient, ServiceExt,
-    model::CallToolRequestParams,
-    service::{ClientInitializeError, Peer},
+    RoleClient,
+    model::{CallToolRequestParams, ClientConfig, Implementation, ProtocolVersion},
+    service::{ClientInitializeError, ClientLifecycleMode, ClientServiceExt, Peer},
 };
 use tokio::process::Command;
 
@@ -17,7 +17,7 @@ use crate::cli::ConfigOverrides;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 // Private opt-in metadata; older servers can ignore the request and retain the
 // ordinary warmup checks without implementing another command or tool.
-pub(crate) const RUNTIME_META: &str = "io.github.t-kalinowski.mcp-console/warmup-runtime";
+pub(crate) const RUNTIME_META: &str = "io.github.posit-dev.mcp-console/warmup-runtime";
 // Private launch hint: old selected releases can ignore it and retain ordinary
 // preparation. Capture it before configuration can affect child environments.
 pub(crate) const PREPARATION_ENVIRONMENT: &str = "MCP_CONSOLE_TRUSTED_WARMUP";
@@ -97,7 +97,20 @@ fn check(mut command: Command, timeout: Duration) -> Result<bool, Box<dyn std::e
         let stdin = child.stdin.take().expect("piped server stdin");
         let mut failures = 0;
         let mut checked_runtimes = false;
-        match tokio::time::timeout(timeout, ().serve((stdout, stdin))).await {
+        let client = ClientConfig::new(
+            Default::default(),
+            Implementation::new("mcp-console-warmup", env!("MCP_CONSOLE_VERSION")),
+        );
+        let lifecycle = ClientLifecycleMode::Auto {
+            preferred_versions: vec![ProtocolVersion::LATEST],
+            legacy_version: Some(ProtocolVersion::LATEST_WITH_INITIALIZE),
+        };
+        match tokio::time::timeout(
+            timeout,
+            client.serve_with_lifecycle((stdout, stdin), lifecycle),
+        )
+        .await
+        {
             Ok(Ok(mut client)) => {
                 match tokio::time::timeout(timeout, client.list_all_tools()).await {
                     Ok(Ok(tools)) => {
@@ -339,6 +352,9 @@ async fn evaluate(
                 .and_then(serde_json::Value::as_bool);
             return Ok((output, is_error, r_available));
         }
+        // Status notices are complete lines without a trailing newline. Keep
+        // the next reply separate without altering partial runtime output.
+        output.push('\n');
         // An observation timeout does not cancel or authorize replaying the cell.
         arguments = serde_json::Map::new();
     }

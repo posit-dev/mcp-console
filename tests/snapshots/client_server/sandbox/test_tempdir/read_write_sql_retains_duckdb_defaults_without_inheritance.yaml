@@ -16,8 +16,7 @@ result:
     title: MCP Console
     version: <Console version>
     description: >-
-      An interactive workbench for agents working with data in R, Python, and
-      SQL.
+      An interactive workbench for agents working in R, Python, and SQL.
     websiteUrl: https://github.com/posit-dev/mcp-console
   instructions: >-
     Persistent Python and SQL REPL for calculations, data exploration and
@@ -285,12 +284,3 @@ result:
       text: |
         DuckDB retains native storage defaults without inherited environment
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

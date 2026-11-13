@@ -9,15 +9,6 @@ result:
       text: |
         zod: echo
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 server stderr: >-
   mcp-console: transcript recording disabled: recording path must be UTF-8

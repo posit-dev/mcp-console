@@ -9,15 +9,6 @@ result:
       text: |
         zod: complete after release
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: emit image before completion
@@ -29,15 +20,6 @@ result:
         <leading newline>[elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   session: default
@@ -48,15 +30,6 @@ result:
       data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
       mimeType: image/png
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 live journal:
   while first call was running:
@@ -78,15 +51,6 @@ live journal:
         artifactId: 1
         path: capture/sessions/001/cell-002-001.png
     isError: false
-    _meta:
-      io.modelcontextprotocol/serverInfo:
-        name: mcp-console
-        title: MCP Console
-        version: <Console version>
-        description: >-
-          An interactive workbench for agents working with data in R, Python, and
-          SQL.
-        websiteUrl: https://github.com/posit-dev/mcp-console
   Markdown projection:
     live before result: true
     each snapshot retained as an exact prefix: true

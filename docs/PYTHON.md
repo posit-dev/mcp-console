@@ -25,6 +25,8 @@ with MCPConsole() as console:
 Keep the connection open to retain state.
 Closing it ends all its sessions; reconnecting starts with a fresh default session.
 
+The official Python MCP SDK handles [protocol selection and request metadata](API.md#protocol-compatibility), preferring MCP 2026-07-28 while retaining compatibility with older servers.
+
 Use [AsyncMCPConsole](https://posit-dev.github.io/mcp-console/python/reference/asyncmcpconsole/) with `async with` and `await` for asynchronous code.
 Enter and close an async connection in the same task.
 The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) documents launch commands, working directories, environment options, and exact signatures.

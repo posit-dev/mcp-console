@@ -21,7 +21,7 @@ from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
 from support.normalization import code, normalize_process_diagnostic
 from support.native import LOADER_VARIABLE, build_interposer
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.r import r_test_environment
 from support.discovery import DiscoveryGate, discovery_environment
 from support.suites import run_this_suite
@@ -322,7 +322,7 @@ def wait_for_send_admission(client: McpClient, *, session: str = "default") -> N
     while True:
         result = client.send(session=session, timeout_ms=0)
         if result.get("isError"):
-            assert without_meta(result) == {
+            assert result == {
                 "content": [
                     {
                         "type": "text",

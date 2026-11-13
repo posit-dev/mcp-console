@@ -11,7 +11,7 @@ arguments:
   - <output>
 directory: <project>
 session: <warmup-pid>
-request: initialize
+request: server/discover
 log: |
   MCP Console warmup
   warmup stderr

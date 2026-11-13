@@ -17,6 +17,7 @@ from boundaries.client_server.server.test_no_r import no_r_environment
 from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.events import Events
 from support.normalization import code
+from support.progress import elapsed_progress, normalize_elapsed
 from support.records import Transcript
 from support.requirements import POSIX, R, SANDBOX, SQL, requires
 from support.suites import run_this_suite
@@ -188,7 +189,7 @@ def test_starts_one_detached_warmup_with_the_selected_launch(
                     "arguments": expected_arguments,
                     "directory": str(project),
                     "session": pid,
-                    "request": "initialize",
+                    "request": "server/discover",
                 }, observed
                 log = Path(matches[0][1])
                 assert log.parent == root / "console-home/logs", log
@@ -327,6 +328,18 @@ def test_pinned_release_without_send_checks_discovery_and_skips_runtime_warmup(
                     with Path(os.environ["TEST_WARMUP_REQUESTS"]).open("a") as record:
                         record.write(json.dumps(request) + "\n")
                     method = request["method"]
+                    if method == "server/discover":
+                        print(
+                            json.dumps(
+                                {
+                                    "jsonrpc": "2.0",
+                                    "id": request["id"],
+                                    "error": {"code": -32601, "message": "Method not found"},
+                                }
+                            ),
+                            flush=True,
+                        )
+                        continue
                     if method == "initialize":
                         result = {
                             "protocolVersion": request["params"]["protocolVersion"],
@@ -401,6 +414,7 @@ def test_pinned_release_without_send_checks_discovery_and_skips_runtime_warmup(
         ), log.read_text()
         observed = [json.loads(line) for line in requests.read_text().splitlines()]
         assert [request["method"] for request in observed] == [
+            "server/discover",
             "initialize",
             "notifications/initialized",
             "tools/list",
@@ -408,6 +422,91 @@ def test_pinned_release_without_send_checks_discovery_and_skips_runtime_warmup(
         ], observed
         assert observed[-1]["params"]["cursor"] == "second-page", observed
         return [{"tools": ["execute", "inspect"], "log": log.read_text()}]
+
+
+@requires(POSIX)
+def test_running_notice_keeps_the_next_result_on_its_own_line(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        requests = root / "requests.json"
+        proxy = Path(__file__).resolve().parents[3] / "fixtures/warmup_polling_proxy.py"
+        commands = root / "commands"
+        commands.mkdir()
+        wrapper = commands / "uvx"
+        wrapper.write_text(
+            "#!/bin/sh\nexec "
+            + shlex.join(
+                [sys.executable, str(proxy), str(binary), str(root), str(requests)]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+        result = configure(
+            binary,
+            root,
+            "claude",
+            "--pin-version",
+            "9.8.7",
+            extra_environment={
+                "PATH": str(commands) + os.pathsep + os.environ["PATH"],
+            },
+        )
+        assert result.returncode == 0 and not result.stderr, result
+        match = re.search(
+            r"^Background warmup started \(PID (\d+)\)\. Log: (.+)$",
+            result.stdout,
+            re.MULTILINE,
+        )
+        assert match is not None, result
+        pid, log = int(match[1]), Path(match[2])
+        with Events() as events:
+            try:
+                events.watch_process(pid)
+            except ProcessLookupError:
+                pass
+            else:
+                assert pid in events.wait(60), log.read_text()
+        calls = [
+            entry
+            for entry in json.loads(requests.read_text())
+            if entry["input"]["method"] == "tools/call"
+        ]
+        assert len(calls) == 3, calls
+        arguments = [entry["input"]["params"]["arguments"] for entry in calls]
+        assert arguments[0] == {"python": "None", "timeout_ms": 300000}, calls
+        assert arguments[1]["timeout_ms"] == 0, calls
+        notice = calls[1]["result"]["content"][0]["text"]
+        age, silent = elapsed_progress(notice)
+        assert age >= 0 and silent, notice
+        assert calls[1]["result"]["content"] == [{"type": "text", "text": notice}], (
+            calls
+        )
+        assert normalize_elapsed(notice) == (
+            "\n[elapsed: <elapsed>s since admission; no new output]"
+            "\n[running; poll with an empty send]"
+        ), notice
+        assert arguments[2] == {"session": "default", "timeout_ms": 300000}, calls
+        assert calls[2]["result"]["content"] == [
+            {"type": "text", "text": "mcp-console warmup: Python OK\n"}
+        ], calls
+        log_text = log.read_text()
+        assert notice in log_text, log_text
+        normalized = normalize_elapsed(log_text)
+        assert normalized == (
+            "MCP Console warmup\n"
+            "Server: OK\n"
+            "R: SKIP (disabled)\n"
+            "Checking Python...\nPython: OK\n"
+            "\n[elapsed: <elapsed>s since admission; no new output]\n"
+            "[running; poll with an empty send]\n"
+            "SQL: SKIP (disabled)\n"
+            "Shutdown: OK\n"
+            "All checks passed. Runtime caches are warm.\n"
+        ), log_text
+        return [{"log": normalized}]
 
 
 @requires(POSIX, R, SQL)

@@ -28,7 +28,7 @@ from support.processes import (
     child_process_identities,
     live_processes,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.r import r_test_environment, reference_r_error
 from support.resolvers import (
     ir_requirements,
@@ -1058,7 +1058,7 @@ def test_rejects_preparation_while_automatic_r_resolver_is_running(
             readable, _, _ = select.select([client.stdout], [], [], 10)
             assert readable, "preparation waited for the active R resolver"
             client.receive(preparation)
-            assert without_meta(preparation["result"]) == {
+            assert preparation["result"] == {
                 "content": [
                     {
                         "type": "text",

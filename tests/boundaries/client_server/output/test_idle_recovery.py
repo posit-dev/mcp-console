@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server._harness import wait_for_marker
 from boundaries.client_server.output.test_recovery import cancel_result, recovery_client
 from support.checkpoints import release_fixture_checkpoint
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -29,7 +29,7 @@ def test_cancelled_idle_input_poll_retains_prompt(binary: Path) -> Transcript:
             reached.path.parent, "zod-idle-input-cell-completed", client
         )
         client.receive(requested)
-        assert without_meta(requested["result"]) == {
+        assert requested["result"] == {
             "content": [{"type": "text", "text": "[done]"}],
             "isError": False,
         }, requested
@@ -43,7 +43,7 @@ def test_cancelled_idle_input_poll_retains_prompt(binary: Path) -> Transcript:
         cancel_result(client, pending, reached, release)
         profile.pause_results(False)
         result = client.send(session="default", timeout_ms=0)
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {
                     "type": "text",
@@ -53,7 +53,7 @@ def test_cancelled_idle_input_poll_retains_prompt(binary: Path) -> Transcript:
             ],
             "isError": False,
         }, result
-        assert without_meta(client.send(timeout_ms=0)) == {
+        assert client.send(timeout_ms=0) == {
             "content": [{"type": "text", "text": "\n[waiting for stdin]"}],
             "isError": False,
         }

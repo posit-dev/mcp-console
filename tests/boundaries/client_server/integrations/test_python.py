@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "python"))
 
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
+from support.client import server_identity
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.r import r_test_environment, reference_plots
 from support.normalization import code
@@ -574,7 +575,9 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 ).read_bytes() == emitted.encode()
                 transcript = json.loads(capture.read_text(encoding="utf-8"))
                 output = next(
-                    entry["result"] for entry in transcript if "send" in entry
+                    entry["result"]
+                    for entry in transcript
+                    if entry["input"]["method"] == "tools/call"
                 )
                 assert output["content"] == [{"type": "text", "text": result.text}]
                 # Check the original byte budget and complete raw log before
@@ -582,15 +585,7 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 output["content"][0]["text"] = result.text.replace(
                     session.name, "<run ID>"
                 ).replace(os.sep, "/")
-                initialize = transcript[0]["input"]
-                assert initialize["params"]["clientInfo"] == {
-                    "name": "mcp",
-                    "version": "0.1.0",
-                }
-                initialize["params"]["clientInfo"] = {
-                    "name": "acceptance-test",
-                    "version": "1.0.0",
-                }
+                assert transcript[0]["input"]["method"] == "server/discover"
                 transcripts.append(
                     [
                         {
@@ -616,10 +611,12 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         gate = Path(directory) / "startup.py"
+        capture = Path(directory) / "requests.jsonl"
         gate.write_text(
             # fmt: python
             code("""
                 import json
+                from pathlib import Path
                 import subprocess
                 import sys
 
@@ -628,12 +625,16 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
                     # Release on the SDK's initialize fallback, without a timing sleep.
                     # The real server sees every request, including the pending discovery.
                     pending.append(sys.stdin.buffer.readline())
-                child = subprocess.Popen(sys.argv[1:], stdin=subprocess.PIPE)
+                capture = Path(sys.argv[1])
+                capture.write_bytes(b"".join(pending))
+                child = subprocess.Popen(sys.argv[2:], stdin=subprocess.PIPE)
                 try:
                     for message in pending:
                         child.stdin.write(message)
                     child.stdin.flush()
                     for message in sys.stdin.buffer:
+                        with capture.open("ab") as record:
+                            record.write(message)
                         child.stdin.write(message)
                         child.stdin.flush()
                 finally:
@@ -643,11 +644,32 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
         )
         settings = options(binary, execution)
         settings["command"] = sys.executable
-        settings["args"] = ["-u", str(gate), str(binary), *settings["args"]]
+        settings["args"] = [
+            "-u",
+            str(gate),
+            str(capture),
+            str(binary),
+            *settings["args"],
+        ]
         with MCPConsole(**settings) as console:
             result = console.send(r="echo initialized")
             assert result.text == "zod: initialized\n", result
-        return [{"startup_kept_one_lifecycle": True, "output": result.text}]
+        requests = [json.loads(line) for line in capture.read_text().splitlines()]
+        methods = [request["method"] for request in requests]
+        assert methods == [
+            "server/discover",
+            "initialize",
+            "notifications/initialized",
+            "tools/list",
+            "tools/call",
+        ], requests
+        return [
+            {
+                "startup_kept_one_lifecycle": True,
+                "requests": methods,
+                "output": result.text,
+            }
+        ]
 
 
 @requires(POSIX, R)
@@ -994,7 +1016,11 @@ def test_native_openai_agents_server(binary: Path, execution: Execution) -> Tran
             tools = await server.list_tools()
             assert [tool.name for tool in tools] == ["send"]
             result = await server.call_tool("send", {"r": "emit image"})
-            return [result.model_dump(mode="json", by_alias=True, exclude_none=True)]
+            recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
+            return [{"result": recorded}]
 
     return asyncio.run(exercise())
 
@@ -1050,11 +1076,14 @@ def test_native_openai_agents_waits_for_console_output(
             result = await server.call_tool("send", {"r": "stall", "timeout_ms": 6_000})
             assert time.monotonic() - started >= 5.9
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
             text = recorded["content"][0]["text"]
             _, silent = elapsed_progress(text)
             assert silent
             recorded["content"][0]["text"] = normalize_elapsed(text)
-            return [recorded]
+            return [{"result": recorded}]
 
     return asyncio.run(exercise())
 
@@ -1425,7 +1454,8 @@ def test_callable_tools_preserve_image_results(
                 error_call = next(
                     entry
                     for entry in transcript
-                    if entry.get("send") == image_error_arguments
+                    if entry["input"].get("params", {}).get("arguments")
+                    == image_error_arguments
                 )
                 error_result = error_call["result"]
                 assert error_result["isError"] is True, error_result
@@ -1452,7 +1482,8 @@ def test_callable_tools_preserve_image_results(
                 image_calls = [
                     entry
                     for entry in transcript
-                    if entry.get("send") == image_arguments
+                    if entry["input"].get("params", {}).get("arguments")
+                    == image_arguments
                 ]
                 assert len(image_calls) == 4, image_calls
                 for image_call in [*image_calls, error_call]:
@@ -1463,15 +1494,7 @@ def test_callable_tools_preserve_image_results(
                         "data": expected_image,
                     }, image
                     image["data"] = "<PNG byte-identical to live Rscript page 1>"
-                initialize = transcript[0]["input"]
-                assert initialize["method"] == "initialize"
-                client_info = initialize["params"]["clientInfo"]
-                assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
-                # Normalize SDK identity before the full canonical-handshake comparison.
-                initialize["params"]["clientInfo"] = {
-                    "name": "acceptance-test",
-                    "version": "1.0.0",
-                }
+                assert transcript[0]["input"]["method"] == "server/discover"
                 transcripts.append(
                     [
                         {

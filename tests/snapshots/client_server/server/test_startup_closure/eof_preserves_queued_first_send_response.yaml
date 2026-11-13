@@ -14,15 +14,6 @@ result:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 exit_status: 0
 stderr: ""

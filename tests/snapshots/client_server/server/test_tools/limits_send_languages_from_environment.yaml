@@ -16,8 +16,7 @@ result:
     title: MCP Console
     version: <Console version>
     description: >-
-      An interactive workbench for agents working with data in R, Python, and
-      SQL.
+      An interactive workbench for agents working in R, Python, and SQL.
     websiteUrl: https://github.com/posit-dev/mcp-console
   instructions: >-
     Persistent custom-worker R and SQL REPL. Reuse objects across calls to
@@ -230,12 +229,3 @@ result:
     - type: text
       text: "`python` cells are disabled by `MCP_CONSOLE_LANGUAGES`"
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

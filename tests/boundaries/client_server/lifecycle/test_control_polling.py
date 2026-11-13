@@ -15,7 +15,7 @@ from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -53,7 +53,7 @@ def test_interrupt_preserves_active_poll_output(
             control.wait_for(waiting["id"], "poll_ownership_observed")
             try:
                 client.send(session="default", timeout_ms=0)
-                assert without_meta(client.transcript[-1]["result"]) == {
+                assert client.transcript[-1]["result"] == {
                     "content": [
                         {
                             "type": "text",
@@ -64,9 +64,7 @@ def test_interrupt_preserves_active_poll_output(
                 }
                 client.send(control="interrupt", timeout_ms=0)
                 assert elapsed_progress(last_tool_text(client))[1] is False
-                assert without_meta(
-                    without_elapsed_result(client.transcript[-1]["result"])
-                ) == {
+                assert without_elapsed_result(client.transcript[-1]["result"]) == {
                     "content": [
                         {"type": "text", "text": "\n[running; poll with an empty send]"}
                     ],
@@ -178,7 +176,7 @@ def test_interrupt_preserves_completed_response_delivery(
                     result_release.release()
                     write_release.release()
                 client.receive(interrupt)
-                assert without_meta(without_elapsed_result(interrupt["result"])) == {
+                assert without_elapsed_result(interrupt["result"]) == {
                     "content": [
                         {"type": "text", "text": "\n[running; poll with an empty send]"}
                     ],
