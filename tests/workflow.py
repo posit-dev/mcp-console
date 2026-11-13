@@ -317,6 +317,8 @@ class WorkflowTests(unittest.TestCase):
             "format-tests",
             "development-tests",
             "client-tests",
+            "python-bootstrap-tests",
+            "python-distribution-tests",
         ]
         for script in (
             "scripts/validate_runtime_sources.py",
@@ -328,6 +330,8 @@ class WorkflowTests(unittest.TestCase):
             "tests/format.py",
             "tests/development.py",
             "tests/mcp_client.py",
+            "tests/python_bootstrap.py",
+            "tests/python_distribution.py",
             "tests/architecture.py",
             "scripts/cargo",
         ):

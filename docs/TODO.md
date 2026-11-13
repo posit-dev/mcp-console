@@ -55,6 +55,20 @@ Recurring release checks belong in [Release](../RELEASE.md).
   Verify the complete suite without requiring provider builds from source.
   This pin concerns development checks, not the versions Console can embed.
 
+## Python distribution
+
+- [ ] **PK-1 — Complete the thin Python release workflow.**
+  The [distribution preparation command](../RELEASE.md#prepare-a-thin-python-distribution) builds native ZIPs and a pure Python project; the current workflow still publishes five native wheels.
+  Retain native wheel builds, ABI audits, and floor-runtime acceptance as intermediates.
+  Add wrapper and relocated-bundle acceptance on all five targets, then publish and verify GitHub archives before the pure Python wheel.
+  Keep tag/commit checks and manual build-only runs; adapt public-index hash checks to the single wrapper wheel.
+  Reruns must reuse retained bytes and reject conflicting published assets.
+  Update Windows installed-distribution inspection to find the cached native bundle rather than relying on wheel RECORD.
+  Preserve `configure-client --no-uvx`'s persistent-command contract: `current_exe()` now points into the native cache, so its temporary-uv detection cannot find the original Python environment.
+  Carry launcher provenance into client registration or establish another persistent install path before enabling publication.
+  Exercise real HTTPS failures, startup deadlines, Windows inheritable handles/control events, and Linux empty-PATH sandbox launches from the final cache layout.
+  Update first-use installation documentation when the workflow switches.
+
 ## Documentation and agent usability
 
 - [ ] **DX-1 — Evaluate tool-description changes with agents.**

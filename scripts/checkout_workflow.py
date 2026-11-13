@@ -407,6 +407,15 @@ def main() -> None:
             ("client-tests", ["uv", "run", "--script", "tests/mcp_client.py"]),
             ("release-tests", [sys.executable, "tests/release.py"]),
         ]
+    tooling.extend(
+        [
+            ("python-bootstrap-tests", [sys.executable, "tests/python_bootstrap.py"]),
+            (
+                "python-distribution-tests",
+                [sys.executable, "tests/python_distribution.py"],
+            ),
+        ]
+    )
     core = [
         ("runtime-sources", [sys.executable, "scripts/validate_runtime_sources.py"]),
         *(tooling if full else []),

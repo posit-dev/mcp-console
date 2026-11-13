@@ -80,6 +80,63 @@ This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
 An ABI report alone is not runtime or sandbox acceptance.
 
+## Prepare a thin Python distribution
+
+`scripts/build-python-distribution.py` prepares a separate pure Python project and five native ZIP archives from a complete set of audited native wheels.
+The release workflow still publishes native wheels; the remaining switch is tracked in [Open work](docs/TODO.md#python-distribution).
+The root Maturin backend continues to own source and editable installations.
+
+After the native wheel checks above pass, collect the five wheels in one directory:
+
+```sh
+python3 scripts/build-python-distribution.py dist --out prepared
+uv build --wheel --out-dir prepared/pypi prepared/python-project
+```
+
+The output directory must not already exist.
+For a local development rehearsal, pass `--allow-dev`; that option does not make development artifacts publishable.
+The command copies the Python package and its extras, creates `py3-none-any` wheel metadata, and embeds a manifest with exact archive names, sizes, and SHA-256 digests.
+It carries macOS deployment floors from the native wheel tags; the Python launcher also checks the supported architecture and Linux glibc floor.
+Unsupported native layouts fail preparation rather than losing libraries during relocation.
+The converter does not replace ABI or installed-runtime acceptance.
+
+Each ZIP preserves the native executable's installation prefix, companion binaries, and license/provenance files.
+Console's own license is included as `share/licenses/mcp-console/console-LICENSE`.
+Existing compiled companion identity checks remain in force.
+
+Installing the prepared Python wheel requires no Rust build or binary download.
+Its `mcp-console` entry point fetches the exact native bundle on first use and uses the cached bundle thereafter.
+All installation messages go to stderr, leaving stdout available for MCP.
+Unix replaces the launcher with the native process; Windows retains its handle inheritance and exit-status forwarding.
+
+Prefetch before starting a client with a short MCP startup timeout:
+
+```sh
+mcp-console-install
+mcp-console-install --print-path
+```
+
+For a local rehearsal or disconnected host, install the matching ZIP explicitly:
+
+```sh
+mcp-console-install --archive prepared/native/mcp-console-VERSION-TARGET.zip
+```
+
+The local archive must match the manifest in the installed Python wheel.
+`--print-path` never downloads; it fails if the pinned bundle is absent.
+See [Python bootstrap variables](docs/ENVIRONMENT.md#python-bootstrap) for cache placement, offline mode, and an explicit native executable.
+
+The cache uses version, target, and archive digest directories.
+Downloads are streamed, checked before extraction, staged on the same filesystem, and published by directory rename while holding a per-artifact OS lock.
+The launcher trusts completed files in the user's cache; it does not hash the entire native payload on every invocation.
+Interrupted staging directories and old versions may consume disk until removed manually.
+Do not remove a bundle while its processes are running.
+Uninstalling the Python package leaves this shared cache in place.
+
+The wrapper never checks for newer native releases.
+Upgrades use a new Python wheel and its pinned manifest.
+GitHub archives must be public and verified before publishing the referencing wheel; never replace an asset behind a published hash.
+
 ## Linux floor validation
 
 Run on a matching native Docker host with the evidence directory shared with the daemon:

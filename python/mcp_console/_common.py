@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import sysconfig
 from collections.abc import Sequence
 from pathlib import Path
@@ -18,7 +19,8 @@ def stdio_command(
     command: Command | None, args: Sequence[Command] | None
 ) -> tuple[str, list[str]]:
     if command is None:
-        candidate = Path(sysconfig.get_path("scripts")) / "mcp-console"
+        executable = "mcp-console.exe" if sys.platform == "win32" else "mcp-console"
+        candidate = Path(sysconfig.get_path("scripts")) / executable
         command = (
             candidate if os.access(candidate, os.X_OK) else shutil.which("mcp-console")
         )

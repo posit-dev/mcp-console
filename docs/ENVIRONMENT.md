@@ -61,6 +61,23 @@ It does rerun R's native startup files.
 Use [interpreter selection](RUNTIME_CONFIGURATION.md#python-environment-selection) for projects rather than depending on ambient activation.
 In particular, `VIRTUAL_ENV` selects Python only through the configured `active_venv` choice; `UV_PYTHON` is not a substitute for `python:`.
 
+## Python bootstrap
+
+The [thin Python distribution](../RELEASE.md#prepare-a-thin-python-distribution) reads these variables before starting the native executable.
+They apply to wheels built with the separate distribution preparation command, not to the currently published native Unix wheels.
+They are separate from worker package preparation and Console's sandbox settings.
+
+| Variable                   | Effect                                                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_CONSOLE_BINARY_CACHE` | Absolute directory for downloaded native bundles. Defaults to `~/.cache/mcp-console/native` on Linux (honoring an absolute `XDG_CACHE_HOME`), `~/Library/Caches/mcp-console/native` on macOS, and `%LOCALAPPDATA%/mcp-console/native` on Windows.        |
+| `MCP_CONSOLE_OFFLINE`      | `1`, `true`, or `yes`, case-insensitive, forbids network installation. A completed cached bundle or a matching `mcp-console-install --archive PATH` remains usable. This does not restrict the native program's network access.                          |
+| `MCP_CONSOLE_BINARY`       | Absolute path to an existing trusted native Console executable. Bypasses download and Python release matching; keep that executable's complete companion bundle together. An invalid path fails without falling back. Unset it before using `--archive`. |
+
+The bootstrap uses Python's HTTPS certificate and proxy configuration.
+It does not interpret pip's or uv's index, proxy, or offline command-line options.
+`MCP_CONSOLE_HOME` continues to control Console configuration and session storage; it does not move the binary cache.
+Imports and construction of Python client configuration do not download a bundle.
+
 ## Python and reticulate
 
 | Variable                             | Effect during built-in Python setup                                                                                                                |
