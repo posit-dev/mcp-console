@@ -1,13 +1,12 @@
 #!/usr/bin/env -S uv run --script
 
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.client import McpClient
+from support.client import McpClient, server_identity
 from support.execution import DIRECT
 from support.previews import live_recording_events, session_directory
 from support.records import Transcript
@@ -29,11 +28,6 @@ def request_metadata(version: str = PROTOCOL_VERSION) -> dict[str, Any]:
         },
         "io.modelcontextprotocol/clientCapabilities": {},
     }
-
-
-def server_identity(binary: Path) -> dict[str, str]:
-    version = subprocess.check_output([binary, "--version"], text=True).strip()
-    return {"name": "mcp-console", "version": version.removeprefix("mcp-console ")}
 
 
 @requires(R, WORKER)
@@ -134,6 +128,7 @@ def test_legacy_clients_keep_initialization_and_result_shapes(
         client.initialize_and_list_tools()
         initialized = client.transcript[0]["result"]
         assert initialized["protocolVersion"] == "2025-11-25", initialized
+        assert initialized["serverInfo"] == server_identity(binary), initialized
         listed = client.transcript[-1]["result"]
         assert set(listed) == {"tools"}, listed
         assert client.request("ping")["result"] == {}

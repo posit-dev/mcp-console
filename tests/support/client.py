@@ -17,6 +17,21 @@ SERVER_REAP_SECONDS = 2
 CASE_RESPONSE_RESERVE_SECONDS = SERVER_SHUTDOWN_SECONDS + SERVER_REAP_SECONDS + 1
 
 
+def server_identity(binary: Path) -> dict[str, str]:
+    """The `Implementation` Console reports in handshakes and modern results."""
+    version = subprocess.check_output([binary, "--version"], text=True).strip()
+    return {
+        "name": "mcp-console",
+        "title": "MCP Console",
+        "version": version.removeprefix("mcp-console "),
+        "description": (
+            "An interactive workbench for agents working with data in R, Python, "
+            "and SQL."
+        ),
+        "websiteUrl": "https://github.com/posit-dev/mcp-console",
+    }
+
+
 class TextReader:
     """Descriptor-backed text with an explicit buffer and bounded reads."""
 

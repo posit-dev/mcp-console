@@ -498,8 +498,14 @@ fn responses_to_tool_result(
     response_to_tool_result(combined, call, transcript, deliveries, delivery)
 }
 
+/// Console's identity in legacy handshakes and modern result metadata.
 fn implementation() -> Implementation {
     Implementation::new("mcp-console", env!("MCP_CONSOLE_VERSION"))
+        .with_title("MCP Console")
+        .with_description(
+            "An interactive workbench for agents working with data in R, Python, and SQL.",
+        )
+        .with_website_url("https://github.com/posit-dev/mcp-console")
 }
 
 /// Modern results identify their sender independently of connection state.
