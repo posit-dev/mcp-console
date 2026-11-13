@@ -556,7 +556,10 @@ class ReleaseScriptTests(ReleaseFixture):
                                 "capabilities": {"tools": {}},
                                 "serverInfo": {
                                     "name": "mcp-console",
+                                    "title": "MCP Console",
                                     "version": os.environ.get("FAKE_MCP_VERSION", version),
+                                    "description": "A fixture description.",
+                                    "websiteUrl": "https://example.com/mcp-console",
                                 },
                             },
                         }
