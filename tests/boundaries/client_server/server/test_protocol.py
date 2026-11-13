@@ -17,7 +17,7 @@ from support.suites import run_this_suite
 
 PROTOCOL_VERSION = "2026-07-28"
 SERVER_INFO = "io.modelcontextprotocol/serverInfo"
-RUNTIME_META = "io.github.t-kalinowski.mcp-console/warmup-runtime"
+RUNTIME_META = "io.github.posit-dev.mcp-console/warmup-runtime"
 
 
 def request_metadata(version: str = PROTOCOL_VERSION) -> dict[str, Any]:

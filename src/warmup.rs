@@ -17,7 +17,7 @@ use crate::cli::ConfigOverrides;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 // Private opt-in metadata; older servers can ignore the request and retain the
 // ordinary warmup checks without implementing another command or tool.
-pub(crate) const RUNTIME_META: &str = "io.github.t-kalinowski.mcp-console/warmup-runtime";
+pub(crate) const RUNTIME_META: &str = "io.github.posit-dev.mcp-console/warmup-runtime";
 // Private launch hint: old selected releases can ignore it and retain ordinary
 // preparation. Capture it before configuration can affect child environments.
 pub(crate) const PREPARATION_ENVIRONMENT: &str = "MCP_CONSOLE_TRUSTED_WARMUP";

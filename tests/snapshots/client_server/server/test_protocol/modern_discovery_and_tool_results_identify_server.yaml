@@ -13,7 +13,7 @@ input:
         name: mcp
         version: 0.1.0
       io.modelcontextprotocol/clientCapabilities: {}
-      io.github.t-kalinowski.mcp-console/warmup-runtime: true
+      io.github.posit-dev.mcp-console/warmup-runtime: true
 result:
   resultType: complete
   content:
@@ -22,7 +22,7 @@ result:
         modern client
   isError: false
   _meta:
-    io.github.t-kalinowski.mcp-console/warmup-runtime:
+    io.github.posit-dev.mcp-console/warmup-runtime:
       r: true
     io.modelcontextprotocol/serverInfo:
       name: mcp-console
