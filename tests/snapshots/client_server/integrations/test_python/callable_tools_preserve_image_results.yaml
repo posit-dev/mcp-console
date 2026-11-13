@@ -9,7 +9,7 @@ fixture: >-
   a live Rscript reference. The proxy records MCP exchanges; adapter
   results are checked in Python.
 ---
-!same-as MCP initialization for this execution mode
+!same-as modern MCP initialization for this execution mode
 ---
 send:
   r: |

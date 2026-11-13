@@ -7,7 +7,7 @@ fixture: >-
   reference. The proxy records MCP exchanges; Python asserts result
   preservation and notebook display without model API calls.
 ---
-!same-as MCP initialization for this execution mode
+!same-as modern MCP initialization for this execution mode
 ---
 send:
   r: |

@@ -76,12 +76,18 @@ fn set_console_version() {
 fn bind_private_runner() {
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let output = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    // OUT_DIR is <target prefix>/<profile>/build/<package>/out.
+    // OUT_DIR is <target prefix>/<profile>/build/<package directories>/out.
+    // Cargo 1.100 split <package>-<hash> into <package>/<hash>, so locate
+    // `build` by name rather than by depth.
     // Native bundles require Cargo's default shared build/target layout: Cargo
     // does not expose the caller's --target-dir to build scripts. A separate
     // build.build-dir is unsupported for running the Cargo output; wheels use
     // wheel-data independently. See RELEASE.md.
-    let prefix = output.ancestors().nth(4).unwrap();
+    let prefix = output
+        .ancestors()
+        .find(|directory| directory.file_name().is_some_and(|name| name == "build"))
+        .and_then(|build| build.ancestors().nth(2))
+        .expect("OUT_DIR is not below Cargo's <profile>/build directory");
     println!("cargo:rerun-if-changed=sandbox-runner.json");
     println!("cargo:rerun-if-changed=target/sandbox-runner-build.json");
     let target = std::env::var("TARGET").expect("Cargo did not provide its build target");
