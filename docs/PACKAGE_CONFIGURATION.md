@@ -108,6 +108,23 @@ Managed temporary storage can redirect worker plotting and general caches into p
 The resolver's persistent caches remain separate from that worker storage.
 The pinned native companion has its own build cache, which is not worker-writable.
 
+### Cache retention
+
+Console checks managed caches before preparing runtimes.
+By default, it removes the complete `dependencies` directory after 14 days since the last reset and recreates it for fresh preparation.
+Set [`retention.cache_days`](CONFIGURATION.md#environment-and-caches) to change that interval, or `null` to disable resets.
+The first launch with retention support starts the interval without removing an existing cache.
+
+Active Console processes retain their cache even while idle.
+If another process is using it when a reset is due, cleanup waits for a later launch after those users have exited.
+Continuous overlapping sessions can therefore postpone cleanup beyond the configured interval.
+There is no background timer or disk-size quota.
+
+Cleanup applies only to Console's `dependencies` subtree, including managed interpreters and installed packages.
+The next preparation may need to download and install them again.
+Host caches, existing external Python environments, the companion's build cache, and other files beside `dependencies` are preserved.
+Before using automatic cleanup with a shared cache, stop older Console versions that do not participate in its lifetime locks.
+
 ## Host cache selection
 
 To reuse tool caches:

@@ -66,7 +66,7 @@ All relative configuration paths use it, including paths written in a global fil
 ## Select languages and runtimes
 
 Use R lists for nested settings, character vectors for lists of strings, and `TRUE` or `FALSE` for booleans.
-`NULL` omits a field from a newly constructed object; empty vectors and mappings are retained.
+`NULL` omits a field from a newly constructed object, except for the cleanup settings described below; empty vectors and mappings are retained.
 The [ConsoleConfig reference](https://posit-dev.github.io/mcp-console/r/reference/consoleconfig/) lists all fields and their accepted values.
 
 To expose only R and SQL, use installed R packages, and limit the connection to one session:
@@ -114,6 +114,18 @@ config <- ConsoleConfig(
 
 Startup code must leave a user-created connection selected on the chosen interpreter.
 If it fails, SQL remains unavailable until an explicit restart; Console does not silently use its default DuckDB connection.
+
+## Configure storage retention
+
+The `retention` settings control the managed cache reset interval and recording retention, both in days.
+Each defaults to 14; an explicit `NULL` disables that cleanup, while an omitted field keeps earlier settings.
+
+```r
+config <- ConsoleConfig(retention = list(cache_days = 14, recordings_days = 30))
+config@retention@recordings_days <- NULL
+```
+
+See [cache locations](https://posit-dev.github.io/mcp-console/package_configuration/#cache-locations) and [recording retention](https://posit-dev.github.io/mcp-console/recording_reference/) for cleanup timing and how to preserve recordings.
 
 ## Read one YAML file yourself
 

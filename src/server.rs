@@ -99,6 +99,7 @@ impl ConsoleServer {
                     .as_ref()
                     .cloned()
                     .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
+                sandbox.retention,
             ),
         });
         let prelaunch = worker.is_none();
@@ -108,6 +109,7 @@ impl ConsoleServer {
             .is_some_and(crate::settings::ProfileSelection::inherits_codex);
         let inheritance = Arc::new(sandbox::Inheritance::new(sandbox.profile.clone()));
         let startup_inheritance = inheritance.clone();
+        let cache_lease = std::sync::OnceLock::new();
         let startup = startup::Startup::new(
             input_closed,
             runtime,
@@ -121,6 +123,9 @@ impl ConsoleServer {
                 } else {
                     sandbox.clone()
                 };
+                // Failed preparation still owns cleanup; retain its cache lease
+                // with the initializer shared by the connection's sessions.
+                cache_lease.get_or_init(|| sandbox.cache_lease.clone());
                 let configuration = if let Some(program) = worker.clone() {
                     crate::worker_client::ClientConfiguration::new(
                         program,
@@ -150,6 +155,7 @@ impl ConsoleServer {
                     configuration.python_preparation(),
                     !configuration.python_only(),
                     configuration.startup_declaration(),
+                    sandbox.retention,
                 );
                 Ok(startup::PreparedRuntime {
                     configuration,

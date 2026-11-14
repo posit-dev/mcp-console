@@ -271,6 +271,16 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
 ",
             "# cache:\n#   directory: /absolute/path/to/console-cache\n",
         ),
+        Field::new(
+            "retention",
+            "\
+## Check storage when Console starts using it; no background scheduler.
+## Reset managed caches after this many days, once no other Console uses them.
+## Prune inactive recordings after this many days; a .keep file preserves one.
+## null disables the corresponding cleanup policy.
+",
+            "# retention:\n#   cache_days: 14\n#   recordings_days: 14\n",
+        ),
     ];
     let mut output = HEADER.to_owned();
     write_fields(

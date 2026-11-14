@@ -136,6 +136,7 @@ struct TranscriptState {
     r_available: bool,
     startup_requirements: crate::worker_client::Declaration,
     metadata_known: bool,
+    retention: crate::retention::Settings,
     storage: Arc<CaptureStorage>,
     active: Option<ActiveTranscript>,
     failure: Option<String>,
@@ -152,6 +153,8 @@ struct ActiveTranscript {
     sequence: u64,
     call_sessions: BTreeMap<u64, CallAssociation>,
     finished: bool,
+    retention: crate::retention::Settings,
+    retention_lease: Option<crate::retention::recordings::Lease>,
 }
 #[derive(Default)]
 struct CallAssociation {
@@ -244,6 +247,7 @@ impl Transcript {
             false,
             true,
             crate::worker_client::Declaration::default(),
+            crate::retention::Settings::default(),
         )
     }
     pub(crate) fn configured(
@@ -252,6 +256,7 @@ impl Transcript {
         python_preparation: bool,
         r_available: bool,
         startup_requirements: crate::worker_client::Declaration,
+        retention: crate::retention::Settings,
     ) -> Self {
         let storage = Arc::new(CaptureStorage::default());
         Self(
@@ -264,6 +269,7 @@ impl Transcript {
                 r_available,
                 startup_requirements,
                 metadata_known: true,
+                retention,
                 storage: storage.clone(),
                 active: None,
                 failure: None,
@@ -284,8 +290,18 @@ impl Transcript {
             Arc::from(session),
         )
     }
-    pub(crate) fn pending(working_directory: std::io::Result<PathBuf>) -> Self {
-        let value = Self::configured(working_directory, false, false, false, Default::default());
+    pub(crate) fn pending(
+        working_directory: std::io::Result<PathBuf>,
+        retention: crate::retention::Settings,
+    ) -> Self {
+        let value = Self::configured(
+            working_directory,
+            false,
+            false,
+            false,
+            Default::default(),
+            retention,
+        );
         value.0.lock().expect("transcript lock").metadata_known = false;
         value
     }
@@ -657,6 +673,8 @@ impl ActiveTranscript {
             sequence: 0,
             call_sessions: BTreeMap::new(),
             finished: false,
+            retention: configuration.retention,
+            retention_lease: None,
         };
         transcript.append(
             Event::RecordingStarted {
@@ -713,8 +731,21 @@ impl ActiveTranscript {
         }
         create_private_directory(&sessions, true)
             .map_err(|e| format!("failed to create {}: {e}", sessions.display()))?;
+        if let Err(error) =
+            crate::retention::recordings::prune(&sessions, self.retention.recordings_days)
+        {
+            let _ = writeln!(
+                std::io::stderr().lock(),
+                "mcp-console: recording cleanup failed: {error}"
+            );
+        }
         create_private_directory(&directory, false)
             .map_err(|e| format!("failed to create {}: {e}", directory.display()))?;
+        // Retain ownership even if relocating or publishing capture later fails.
+        self.retention_lease = Some(
+            crate::retention::recordings::Lease::new(&directory)
+                .map_err(|e| format!("failed to protect recording {}: {e}", directory.display()))?,
+        );
         self.writer.flush().map_err(|e| e.to_string())?;
         self.storage.relocate(&directory)?;
         self.writer = BufWriter::new(
@@ -870,6 +901,11 @@ impl ActiveTranscript {
         self.projections.take();
         if let Err(error) = self.storage.finalize() {
             errors.push(error);
+        }
+        if let Some(lease) = self.retention_lease.take()
+            && let Err(error) = lease.finish()
+        {
+            errors.push(format!("failed to finish recording retention: {error}"));
         }
         if errors.is_empty() {
             Ok(())

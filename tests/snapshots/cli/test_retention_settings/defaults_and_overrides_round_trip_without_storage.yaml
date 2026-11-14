@@ -1,0 +1,27 @@
+---
+retention:
+  cache_days: 14
+  recordings_days: 14
+pruned: {}
+---
+retention:
+  cache_days: 3
+  recordings_days: 14
+pruned:
+  retention:
+    cache_days: 3
+---
+retention:
+  cache_days: 14
+  recordings_days: ~
+pruned:
+  retention:
+    recordings_days: ~
+---
+retention:
+  cache_days: ~
+  recordings_days: 30
+pruned:
+  retention:
+    cache_days: ~
+    recordings_days: 30

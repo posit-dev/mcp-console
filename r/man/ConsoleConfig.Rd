@@ -16,7 +16,8 @@ ConsoleConfig(
   inherit_environment = NULL,
   tool = NULL,
   startup = NULL,
-  sessions = NULL
+  sessions = NULL,
+  retention = NULL
 )
 }
 \arguments{
@@ -66,6 +67,10 @@ creates and selects a SQL connection before the first cell in each session.}
 
 \item{sessions}{A list with \code{max}, a positive whole number limiting concurrent
 sessions. By default there is no limit.}
+
+\item{retention}{A list with \code{cache_days} and \code{recordings_days}, each a positive
+whole number of days or \code{NULL} to disable that cleanup. Both default to 14
+days. Omitted fields keep earlier configuration values.}
 }
 \value{
 An S7 configuration object.
@@ -83,7 +88,9 @@ return the same class, and passing either result to \code{\link[=console_tools]{
 further file discovery. Unspecified R selection uses the calling R installation
 at load or launch, below explicit configuration.
 
-\code{NULL} fields are omitted. Empty mappings and character vectors are retained.
+\code{NULL} fields are omitted, except within \code{retention}, where an explicit \code{NULL}
+disables the corresponding cleanup. Empty mappings and character vectors
+are retained.
 \code{as.list()} returns JSON-ready application settings; the launch-only choice
 \code{sandbox = FALSE} is not included in that document.
 A loaded R executable reset is retained as an explicit JSON \code{null}, so saving

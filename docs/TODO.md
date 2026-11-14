@@ -19,9 +19,9 @@ Recurring release checks belong in [Release](../RELEASE.md).
   Public output budgets do not bound these allocations.
   Define rejection, streaming or backpressure, and cancellation behavior before adding limits.
 
-- [ ] **RT-3 — Define recording retention and retrieval policy.**
-  [Recordings](RECORDING_REFERENCE.md) have per-output limits but no aggregate disk quota, automatic cleanup, built-in read tool, or redaction.
-  Select the required retention and retrieval behavior; protect active sessions and user-managed files.
+- [ ] **RT-3 — Decide recording quotas and retrieval support.**
+  [Recordings](RECORDING_REFERENCE.md) have per-output limits and configurable age-based cleanup, but no aggregate disk quota, built-in read tool, or redaction.
+  Decide whether these additional controls are needed.
 
 - [ ] **RT-4 — Replace the R DuckDB Arrow adapter when incremental data-frame fetching is supported.**
   The temporary adapter lives in [the SQL bridge](../src/sql/bridge.R).
