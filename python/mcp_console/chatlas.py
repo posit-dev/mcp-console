@@ -28,11 +28,15 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
     and requirements fields. `register_tool(console.send)` infers a schema from
     Python annotations and cannot describe those server settings.
 
-    Text results return text, and tool errors raise. A successful result
-    containing an image returns a `chatlas.ContentToolResult` carrying the
-    ordered text and image content, so providers receive the image content
-    and chat UIs can render it. [register()](chatlas.register.html) uses
-    chatlas's native MCP support instead, which also preserves image content.
+    Successful results return a `chatlas.ContentToolResult` carrying the
+    ordered text and image content, with the server's result `_meta`
+    forwarded verbatim in `extra` (e.g. its `io.modelcontextprotocol/serverInfo`
+    identity, which compatible chat UIs can use to attribute results;
+    the metadata is inert otherwise). Tool errors raise, and
+    requirements responses stay plain
+    text (they are configuration responses, not cell executions).
+    [register()](chatlas.register.html) uses chatlas's native MCP support
+    instead, which also preserves image content.
 
     Discovery includes every tool, even when the server has no `send` tool.
 
@@ -74,24 +78,53 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
 def _tool_result(result: CallToolResult) -> Any:
     """Convert a Console tool result into the chatlas tool's return value.
 
-    Text-only results stay plain text and errors raise. A successful result
-    containing an image becomes a
-    `ContentToolResult` whose value holds the ordered content, which chatlas
-    expands so providers receive text and image blocks.
+    Errors raise and requirements responses stay plain text, matching
+    `MCPConsole.send()`. Every other successful result becomes a
+    `ContentToolResult` whose value holds the ordered text and image content,
+    with the server's result `_meta` forwarded verbatim in `extra` (e.g. its
+    `io.modelcontextprotocol/serverInfo` identity, which compatible chat
+    UIs can use to attribute results; the metadata is inert otherwise). The value
+    follows the convention of chatlas's own MCP adapter (`Tool.from_mcp`):
+    text parts stay plain strings and `Content` objects carry images only,
+    so providers
+    serialize the value without special-casing (a bare `ContentText` value
+    produced an invalid Anthropic tool_result payload — posit-dev/chatlas#494).
     """
-    if result.is_error or not any(item.type == "image" for item in result.content):
+    if result.is_error:
+        return result_text(result)
+    if (
+        isinstance(result.structured_content, dict)
+        and "requirements" in result.structured_content
+    ):
         return result_text(result)
 
     from chatlas import ContentToolResult
-    from chatlas.types import ContentImageInline, ContentText
+    from chatlas.types import ContentImageInline
 
-    value = [
+    parts: list[str | ContentImageInline] = [
         ContentImageInline(data=item.data, image_content_type=item.mime_type)
         if item.type == "image"
-        else ContentText(text=content_text(item))
+        else content_text(item)
         for item in result.content
     ]
-    return ContentToolResult(value=value, model_format="as_is")
+    # A call gets exactly one result. Several parts become a list value,
+    # which chatlas unrolls for providers that only take text.
+    if len(parts) == 1:
+        value: str | ContentImageInline | list[str | ContentImageInline] = parts[0]
+    elif all(isinstance(part, str) for part in parts):
+        value = "\n".join(part for part in parts if isinstance(part, str))
+    else:
+        value = parts
+    # Forward the server's result `_meta` (e.g. its
+    # `io.modelcontextprotocol/serverInfo` identity) verbatim — the same
+    # convention-agnostic pass-through
+    # chatlas's own MCP adapter performs (posit-dev/chatlas#489).
+    # Presentation belongs to chat UIs, not this package.
+    meta = result.meta
+    return ContentToolResult(
+        value=value,
+        extra=dict(meta) if isinstance(meta, dict) and meta else {},
+    )
 
 
 def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
@@ -112,6 +145,8 @@ def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
         name=definition.name,
         description=definition.description or "",
         parameters=definition.input_schema,
+        # shinychat reads the definition title for multi-call group headers.
+        annotations={"title": definition.title} if definition.title else None,
         strict=False,
     )
 

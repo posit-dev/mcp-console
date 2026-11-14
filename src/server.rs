@@ -23,8 +23,9 @@ use rmcp::{
         common::Extension, router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters,
     },
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorCode,
-        Implementation, ServerCapabilities, ServerConfig,
+        CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
+        ErrorCode, Implementation, ListToolsResult, MetaObject, PaginatedRequestParams,
+        ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -175,7 +176,10 @@ impl ConsoleServer {
 
 #[tool_router]
 impl ConsoleServer {
-    #[tool]
+    // The static BaseMetadata title keeps aggregated client displays (such as
+    // shinychat multi-call groups) stable; per-call result titles still vary.
+    // Presentation names the language when the interface exposes exactly one.
+    #[tool(title = "Run code")]
     async fn send(
         &self,
         Extension(poll_all): Extension<PollAll>,
@@ -520,6 +524,30 @@ async fn responses_to_tool_result(
     aggregate_to_tool_result(combined, sessions, call, transcript, deliveries, delivery).await
 }
 
+/// Console's identity in legacy handshakes and modern result metadata.
+fn implementation() -> Implementation {
+    Implementation::new("mcp-console", env!("MCP_CONSOLE_VERSION"))
+        .with_title("MCP Console")
+        .with_description("An interactive workbench for agents working in R, Python, and SQL.")
+        .with_website_url("https://github.com/posit-dev/mcp-console")
+}
+
+/// Modern results identify their sender independently of connection state.
+/// Keep legacy result shapes unchanged; rmcp owns version negotiation.
+fn response_metadata(context: &RequestContext<RoleServer>) -> Option<MetaObject> {
+    context
+        .protocol_version()
+        .filter(|version| !version.has_initialize())
+        .map(|_| {
+            let mut meta = MetaObject::new();
+            meta.insert(
+                "io.modelcontextprotocol/serverInfo".into(),
+                serde_json::to_value(implementation()).expect("server implementation"),
+            );
+            meta
+        })
+}
+
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for ConsoleServer {
     fn get_info(&self) -> ServerConfig {
@@ -534,11 +562,22 @@ impl ServerHandler for ConsoleServer {
             ]));
         }
         ServerConfig::new(capabilities)
-            .with_server_info(Implementation::new(
-                "mcp-console",
-                env!("MCP_CONSOLE_VERSION"),
-            ))
+            .with_server_info(implementation())
             .with_instructions(self.instructions.clone())
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        let mut result = ListToolsResult::with_all_items(self.tool_router.list_all());
+        result.meta = response_metadata(&context);
+        if result.meta.is_some() {
+            // Discovery depends only on launch configuration, never a client session.
+            result = result.with_ttl_ms(0).with_cache_scope(CacheScope::Public);
+        }
+        Ok(result)
     }
 
     async fn call_tool(
@@ -546,6 +585,7 @@ impl ServerHandler for ConsoleServer {
         request: CallToolRequestParams,
         mut context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
+        let response_metadata = response_metadata(&context);
         context.extensions.insert(Instant::now());
         if request.name.as_ref() != "send" {
             return self
@@ -689,6 +729,13 @@ impl ServerHandler for ConsoleServer {
                 crate::warmup::RUNTIME_META.into(),
                 serde_json::json!({ "r": available }),
             );
+        }
+        // Add identity before recording and response-delivery wrapping so the
+        // canonical tool result retains the same metadata as the wire result.
+        if let Some(metadata) = response_metadata
+            && let Ok(CallToolResponse::Complete(result)) = &mut result
+        {
+            result.meta.get_or_insert_default().extend(metadata);
         }
         transcript.finish(call, &result);
         operation.complete();

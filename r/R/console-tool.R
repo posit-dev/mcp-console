@@ -20,6 +20,15 @@
 #' See `vignette("autonomous-report", package = "mcp.console")` for an explicit
 #' configuration, permission edits, inspection, and an ellmer launch.
 #'
+#' @section Result shape:
+#'
+#' Successful calls return an [ellmer::ContentToolResult] whose value holds
+#' the ordered text and image content.
+#' Its `extra` carries the server's result `_meta` and, under
+#' `io.modelcontextprotocol/serverInfo`, the identity the server reported in
+#' the handshake, which compatible chat UIs can use to attribute results.
+#' Errored results keep their existing unwrapped return shape.
+#'
 #' @section Executable resolution:
 #'
 #' * If `path` is supplied, `console_tools()` uses that executable directly.
@@ -103,7 +112,7 @@ console_tools <- function(
   ready <- FALSE
   on.exit(if (!ready) close_mcp_client(client), add = TRUE)
 
-  mcp_request(
+  initialized <- mcp_request(
     client,
     "initialize",
     list(
@@ -115,6 +124,8 @@ console_tools <- function(
       )
     )
   )
+  # Legacy tool results carry no identity; the handshake is its only source.
+  client$server_info <- initialized$serverInfo
   mcp_write(client, list(jsonrpc = "2.0", method = "notifications/initialized"))
 
   metadata <- list()
@@ -164,7 +175,7 @@ mcp_ellmer_tool <- function(metadata, client) {
         arguments = mcp_argument_value(arguments, metadata$inputSchema)
       )
     )
-    mcp_contents(result)
+    mcp_contents(result, client$server_info)
   }
   arguments <- rep(list(omitted), length(fields))
   arguments[required] <- rep(alist(argument = ), sum(required))
@@ -181,6 +192,12 @@ mcp_ellmer_tool <- function(metadata, client) {
     name = metadata$name,
     # The adapter owns schema conversion, including explicit nullable arguments.
     convert = FALSE,
+    # shinychat reads the definition title for multi-call group headers.
+    annotations = if (is.null(metadata$title)) {
+      list()
+    } else {
+      ellmer::tool_annotations(title = metadata$title)
+    },
     description = if (is.null(metadata$description)) {
       ""
     } else {
@@ -527,7 +544,7 @@ mcp_pump <- function(client, timeout) {
   invisible()
 }
 
-mcp_contents <- function(result) {
+mcp_contents <- function(result, server_info) {
   if (!is.null(result$structuredContent$requirements)) {
     return(ellmer::ContentText(as.character(jsonlite::toJSON(
       result$structuredContent,
@@ -548,18 +565,25 @@ mcp_contents <- function(result) {
   })
 
   # ellmer cannot attach images to an errored tool result. MCP Console includes
-  # the failure text in `content`, so pass the complete ordered content through.
-  if (isTRUE(result$isError) && length(content) == 0L) {
-    content <- list(ellmer::ContentText("mcp-console tool call failed."))
+  # the failure text in `content`, so pass the complete ordered content through
+  # in its unwrapped shape.
+  if (isTRUE(result$isError)) {
+    if (length(content) == 0L) {
+      content <- list(ellmer::ContentText("mcp-console tool call failed."))
+    }
+    return(if (length(content) == 1L) content[[1L]] else content)
   }
 
-  if (length(content) == 0L) {
-    ""
-  } else if (length(content) == 1L) {
-    content[[1L]]
-  } else {
-    content
-  }
+  # Successful results return a ContentToolResult so `extra` can carry the
+  # result `_meta` and the server's identity. A modern server stamps the
+  # identity on each result; this legacy client supplies the one from the
+  # handshake under the same key. Presentation belongs to chat UIs.
+  extra <- as.list(result[["_meta"]])
+  extra[["io.modelcontextprotocol/serverInfo"]] <- server_info
+  ellmer::ContentToolResult(
+    value = if (length(content) == 1L) content[[1L]] else content,
+    extra = extra
+  )
 }
 
 json_object <- function(x = list()) {

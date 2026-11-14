@@ -72,9 +72,9 @@ edition = "2021"
         )
         run(*build)
         self.assertEqual(run(str(executable)), "dependency cached\n")
-        dependency = next(
-            (self.root / "target/debug/deps").glob("libcache_fixture-*.rlib")
-        )
+        # Cargo 1.100 moved dependency artifacts from deps/ into per-package
+        # build directories, so find the rlib wherever this Cargo placed it.
+        (dependency,) = (self.root / "target/debug").rglob("libcache_fixture-*.rlib")
         dependency_time = dependency.stat().st_mtime_ns
         modified = (self.root / "src/main.rs").stat().st_mtime_ns
         self.write("src/main.rs", source.replace("cached", "source"))

@@ -937,7 +937,10 @@ where
 {
     pub(crate) fn new(read: R, write: W, deliveries: ResponseDeliveries) -> Self {
         Self {
-            inner: AsyncRwTransport::new_server(read, write),
+            // The SDK's default 16 MiB line limit drops a longer request
+            // without a response, leaving its caller waiting. The peer is the
+            // launching client, so accept its requests at any length.
+            inner: AsyncRwTransport::new_server(read, write).with_max_line_length(usize::MAX),
             deliveries,
             send_observer: None,
             recording: None,

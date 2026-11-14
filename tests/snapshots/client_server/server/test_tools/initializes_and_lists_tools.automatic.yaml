@@ -13,7 +13,11 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
+    title: MCP Console
     version: <Console version>
+    description: >-
+      An interactive workbench for agents working in R, Python, and SQL.
+    websiteUrl: https://github.com/posit-dev/mcp-console
   instructions: >-
     Persistent R, Python, and SQL REPL for calculations, data exploration
     and analysis, database queries, debugging, simulations, and plots. Reuse
@@ -28,6 +32,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: >-
         Persistent R, Python, and SQL REPL for calculations, data exploration
         and analysis, database queries, debugging, simulations, and plots. Reuse

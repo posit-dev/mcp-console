@@ -61,6 +61,17 @@ server shutdown.
 See \code{vignette("autonomous-report", package = "mcp.console")} for an explicit
 configuration, permission edits, inspection, and an ellmer launch.
 }
+\section{Result shape}{
+
+
+Successful calls return an \link[ellmer:ContentToolResult]{ellmer::ContentToolResult} whose value holds
+the ordered text and image content.
+Its \code{extra} carries the server's result \verb{_meta} and, under
+\code{io.modelcontextprotocol/serverInfo}, the identity the server reported in
+the handshake, which compatible chat UIs can use to attribute results.
+Errored results keep their existing unwrapped return shape.
+}
+
 \section{Executable resolution}{
 
 \itemize{

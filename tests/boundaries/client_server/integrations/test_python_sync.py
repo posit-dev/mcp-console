@@ -129,7 +129,13 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
                 .read_text(encoding="utf-8")
                 .splitlines()
             ]
-            call, cancellation, recovery, interrupt = requests[3:]
+            assert [request["method"] for request in requests[:4]] == [
+                "server/discover",
+                "initialize",
+                "notifications/initialized",
+                "tools/list",
+            ], requests
+            call, cancellation, recovery, interrupt = requests[4:]
             assert cancellation["method"] == "notifications/cancelled"
             assert cancellation["params"]["requestId"] == call["id"]
             assert recovery["params"]["arguments"] == {"python": "recovered"}

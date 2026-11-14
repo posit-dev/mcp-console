@@ -17,7 +17,11 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.installation import installed_console
 from support.linux_sandbox import retain_system_bwrap
 from support.normalization import code
-from support.presentation import assert_tool_guidance, without_descriptions
+from support.presentation import (
+    assert_tool_guidance,
+    definition_title,
+    without_descriptions,
+)
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.requirements import POSIX, R, SQL, requires
 from support.resolvers import expose_uv
@@ -100,6 +104,7 @@ def test_configures_captured_tool_surface(
                     baseline = schema
                 else:
                     expected = without_descriptions(baseline)
+                    expected["title"] = definition_title(set(languages))
                     for field in {"r", "python", "sql"} - set(languages):
                         del expected["inputSchema"]["properties"][field]
                     assert schema == expected

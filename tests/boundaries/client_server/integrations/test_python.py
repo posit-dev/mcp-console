@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "python"))
 
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
+from support.client import server_identity
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.r import r_test_environment, reference_plots
 from support.normalization import code
@@ -31,6 +32,19 @@ from support.resolvers import (
     recording_uv_environment,
 )
 from support.suites import run_this_suite
+
+
+def adapter_text(value):
+    """Unwrap a chatlas ContentToolResult to its text, passing through plain text.
+
+    Cross-adapter comparisons exercise result equivalence; the chatlas
+    adapter's ContentToolResult shape is asserted by its dedicated tests.
+    """
+    from chatlas import ContentToolResult
+
+    if isinstance(value, ContentToolResult):
+        value = value.value
+    return getattr(value, "text", value)
 
 
 def options(binary: Path, execution: Execution) -> dict:
@@ -101,6 +115,7 @@ def test_clients_and_adapters_discover_multiple_tools_without_send(
             ):
                 value = invoke()
                 values[adapter] = await value if inspect.isawaitable(value) else value
+            values = {adapter: adapter_text(value) for adapter, value in values.items()}
             assert values == dict.fromkeys(
                 ("responses", "agents", "anthropic", "chatlas"), definition.name
             ), values
@@ -365,6 +380,7 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
         ):
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
+        outputs = [adapter_text(output) for output in outputs]
         assert outputs == ["42\n"] * 6, outputs
         try:
             output = console.send(**arguments, timeout_ms=60_000)
@@ -559,7 +575,9 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 ).read_bytes() == emitted.encode()
                 transcript = json.loads(capture.read_text(encoding="utf-8"))
                 output = next(
-                    entry["result"] for entry in transcript if "send" in entry
+                    entry["result"]
+                    for entry in transcript
+                    if entry["input"]["method"] == "tools/call"
                 )
                 assert output["content"] == [{"type": "text", "text": result.text}]
                 # Check the original byte budget and complete raw log before
@@ -567,15 +585,7 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 output["content"][0]["text"] = result.text.replace(
                     session.name, "<run ID>"
                 ).replace(os.sep, "/")
-                initialize = transcript[0]["input"]
-                assert initialize["params"]["clientInfo"] == {
-                    "name": "mcp",
-                    "version": "0.1.0",
-                }
-                initialize["params"]["clientInfo"] = {
-                    "name": "acceptance-test",
-                    "version": "1.0.0",
-                }
+                assert transcript[0]["input"]["method"] == "server/discover"
                 transcripts.append(
                     [
                         {
@@ -601,10 +611,12 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         gate = Path(directory) / "startup.py"
+        capture = Path(directory) / "requests.jsonl"
         gate.write_text(
             # fmt: python
             code("""
                 import json
+                from pathlib import Path
                 import subprocess
                 import sys
 
@@ -613,12 +625,16 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
                     # Release on the SDK's initialize fallback, without a timing sleep.
                     # The real server sees every request, including the pending discovery.
                     pending.append(sys.stdin.buffer.readline())
-                child = subprocess.Popen(sys.argv[1:], stdin=subprocess.PIPE)
+                capture = Path(sys.argv[1])
+                capture.write_bytes(b"".join(pending))
+                child = subprocess.Popen(sys.argv[2:], stdin=subprocess.PIPE)
                 try:
                     for message in pending:
                         child.stdin.write(message)
                     child.stdin.flush()
                     for message in sys.stdin.buffer:
+                        with capture.open("ab") as record:
+                            record.write(message)
                         child.stdin.write(message)
                         child.stdin.flush()
                 finally:
@@ -628,11 +644,32 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
         )
         settings = options(binary, execution)
         settings["command"] = sys.executable
-        settings["args"] = ["-u", str(gate), str(binary), *settings["args"]]
+        settings["args"] = [
+            "-u",
+            str(gate),
+            str(capture),
+            str(binary),
+            *settings["args"],
+        ]
         with MCPConsole(**settings) as console:
             result = console.send(r="echo initialized")
             assert result.text == "zod: initialized\n", result
-        return [{"startup_kept_one_lifecycle": True, "output": result.text}]
+        requests = [json.loads(line) for line in capture.read_text().splitlines()]
+        methods = [request["method"] for request in requests]
+        assert methods == [
+            "server/discover",
+            "initialize",
+            "notifications/initialized",
+            "tools/list",
+            "tools/call",
+        ], requests
+        return [
+            {
+                "startup_kept_one_lifecycle": True,
+                "requests": methods,
+                "output": result.text,
+            }
+        ]
 
 
 @requires(POSIX, R)
@@ -707,6 +744,12 @@ def test_callable_tools_follow_connected_server_fields(
             (anthropic.to_dict()["input_schema"], lambda: anthropic.call(arguments)),
         )
         outputs = []
+        # shinychat reads the definition title for multi-call group headers;
+        # custom workers that advertise no title keep annotations empty.
+        if live_tool.title is not None:
+            assert chat_tool.annotations["title"] == live_tool.title
+        else:
+            assert chat_tool.annotations is None
         assert chat_tool.schema["function"]["strict"] is False
         assert agent.strict_json_schema is False
         assert responses.definition["strict"] is False
@@ -730,8 +773,9 @@ def test_callable_tools_follow_connected_server_fields(
                 assert not validator.is_valid(arguments | {omitted: value}), schema
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
-        assert all(output == outputs[0] for output in outputs), outputs
-        return outputs[0]
+        texts = [adapter_text(output) for output in outputs]
+        assert all(text == texts[0] for text in texts), outputs
+        return texts[0]
 
     async def exercise():
         transcript = []
@@ -978,7 +1022,11 @@ def test_native_openai_agents_server(binary: Path, execution: Execution) -> Tran
             tools = await server.list_tools()
             assert [tool.name for tool in tools] == ["send"]
             result = await server.call_tool("send", {"r": "emit image"})
-            return [result.model_dump(mode="json", by_alias=True, exclude_none=True)]
+            recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
+            return [{"result": recorded}]
 
     return asyncio.run(exercise())
 
@@ -1034,11 +1082,14 @@ def test_native_openai_agents_waits_for_console_output(
             result = await server.call_tool("send", {"r": "stall", "timeout_ms": 6_000})
             assert time.monotonic() - started >= 5.9
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
             text = recorded["content"][0]["text"]
             _, silent = elapsed_progress(text)
             assert silent
             recorded["content"][0]["text"] = normalize_elapsed(text)
-            return [recorded]
+            return [{"result": recorded}]
 
     return asyncio.run(exercise())
 
@@ -1083,7 +1134,9 @@ def test_chatlas_callable_registers_concrete_schema(
             tools = chat.get_tools()
             assert [tool.name for tool in tools] == ["send"]
             tool = next(tool for tool in tools if tool.name == "send")
-            return [{"output": await tool.func(r="echo callable chatlas")}]
+            return [
+                {"output": adapter_text(await tool.func(r="echo callable chatlas"))}
+            ]
 
     return asyncio.run(exercise())
 
@@ -1114,7 +1167,7 @@ def test_sync_callable_and_framework_tools(
         chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
         chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
         assert not inspect.iscoroutinefunction(chat_tool.func)
-        transcript.append({"chatlas": chat_tool.func(r="echo chatlas")})
+        transcript.append({"chatlas": adapter_text(chat_tool.func(r="echo chatlas"))})
 
         anthropic_tool = next(
             tool
@@ -1194,7 +1247,7 @@ def test_callable_tools_preserve_image_results(
     from anthropic.lib.tools import ToolError
     from anthropic.types.beta import BetaToolResultBlockParam
     from chatlas import ContentToolResult
-    from chatlas.types import ContentImageInline, ContentText
+    from chatlas.types import ContentImageInline
     from openai.types.responses import ResponseFunctionToolCall
     from openai.types.responses.response_input_item_param import FunctionCallOutput
     from pydantic import TypeAdapter
@@ -1229,11 +1282,16 @@ def test_callable_tools_preserve_image_results(
     def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
-        assert result.extra is None, result.extra
+        info = result.extra["io.modelcontextprotocol/serverInfo"]
+        assert info["name"] == "mcp-console", result.extra
+        # Text parts stay plain strings, matching chatlas's own MCP adapter
+        # (Tool.from_mcp): providers can serialize the value as-is (a bare
+        # ContentText produced an invalid Anthropic tool_result payload —
+        # posit-dev/chatlas#494).
         kinds = [type(item) for item in result.value]
-        assert kinds == [ContentText, ContentImageInline, ContentText], kinds
+        assert kinds == [str, ContentImageInline, str], kinds
         text, image, after = result.value
-        assert (text.text, after.text) == ("before image\n", "after image\n")
+        assert (text, after) == ("before image\n", "after image\n")
         assert image.image_content_type == "image/png"
         assert image.data == expected_image
 
@@ -1347,7 +1405,7 @@ def test_callable_tools_preserve_image_results(
                     }
                 )
             text = await invoke({"r": 'cat("text\\n")'})
-            assert text == "text\n", (adapter, type(text), text)
+            assert adapter_text(text) == "text\n", (adapter, type(text), text)
             try:
                 await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
             except RuntimeError as rejected:
@@ -1402,7 +1460,8 @@ def test_callable_tools_preserve_image_results(
                 error_call = next(
                     entry
                     for entry in transcript
-                    if entry.get("send") == image_error_arguments
+                    if entry["input"].get("params", {}).get("arguments")
+                    == image_error_arguments
                 )
                 error_result = error_call["result"]
                 assert error_result["isError"] is True, error_result
@@ -1429,7 +1488,8 @@ def test_callable_tools_preserve_image_results(
                 image_calls = [
                     entry
                     for entry in transcript
-                    if entry.get("send") == image_arguments
+                    if entry["input"].get("params", {}).get("arguments")
+                    == image_arguments
                 ]
                 assert len(image_calls) == 4, image_calls
                 for image_call in [*image_calls, error_call]:
@@ -1440,15 +1500,7 @@ def test_callable_tools_preserve_image_results(
                         "data": expected_image,
                     }, image
                     image["data"] = "<PNG byte-identical to live Rscript page 1>"
-                initialize = transcript[0]["input"]
-                assert initialize["method"] == "initialize"
-                client_info = initialize["params"]["clientInfo"]
-                assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
-                # Normalize SDK identity before the full canonical-handshake comparison.
-                initialize["params"]["clientInfo"] = {
-                    "name": "acceptance-test",
-                    "version": "1.0.0",
-                }
+                assert transcript[0]["input"]["method"] == "server/discover"
                 transcripts.append(
                     [
                         {
@@ -1470,6 +1522,100 @@ def test_callable_tools_preserve_image_results(
         )
 
     return asyncio.run(run())
+
+
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_chatlas_tool_returns_tool_result_for_text(
+    binary: Path, execution: Execution
+) -> Transcript:
+    from chatlas import ContentToolResult
+
+    async def exercise(console) -> dict:
+        tool = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+
+        async def invoke(arguments):
+            result = tool.func(**arguments)
+            return await result if inspect.isawaitable(result) else result
+
+        result = await invoke({"r": "echo text"})
+        assert isinstance(result, ContentToolResult), type(result)
+        assert result.error is None
+        # A single text part becomes a plain string, matching chatlas's own
+        # MCP adapter (Tool.from_mcp): providers serialize the value as-is
+        # (posit-dev/chatlas#494).
+        assert isinstance(result.value, str)
+        assert result.value == "zod: text\n"
+        info = result.extra["io.modelcontextprotocol/serverInfo"]
+        assert info["name"] == "mcp-console", result.extra
+        return {"type": type(result).__name__, "text": result.value}
+
+    async def asynchronous() -> dict:
+        async with AsyncMCPConsole(**options(binary, execution)) as console:
+            return await exercise(console)
+
+    async_result = asyncio.run(asynchronous())
+    with MCPConsole(**options(binary, execution)) as console:
+        sync_result = asyncio.run(exercise(console))
+    assert sync_result == async_result
+    return [sync_result]
+
+
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_chatlas_tool_forwards_result_meta(
+    binary: Path, execution: Execution
+) -> Transcript:
+    async def exercise(console) -> dict:
+        tool = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+
+        async def invoke(arguments):
+            result = tool.func(**arguments)
+            return await result if inspect.isawaitable(result) else result
+
+        # The server's standard identity arrives untouched on every
+        # result. Presentation belongs to chat UIs, not this adapter.
+        noted = (
+            await invoke(
+                {"r": "echo 42", "note": "Check the <answer> first.\nSecond line."}
+            )
+        ).extra["io.modelcontextprotocol/serverInfo"]
+        assert noted["name"] == "mcp-console", noted
+        assert isinstance(noted["version"], str) and noted["version"], noted
+
+        assert (await invoke({"python": "echo snake"})).extra[
+            "io.modelcontextprotocol/serverInfo"
+        ]["name"] == "mcp-console"
+
+        assert (await invoke({"note": "Just a thought"})).extra[
+            "io.modelcontextprotocol/serverInfo"
+        ]["name"] == "mcp-console"
+
+        # Image results carry the same identity; no display html is composed.
+        assert (await invoke({"r": "emit image"})).extra[
+            "io.modelcontextprotocol/serverInfo"
+        ]["name"] == "mcp-console"
+
+        # Polls carry the identity too.
+        assert (await invoke({})).extra["io.modelcontextprotocol/serverInfo"][
+            "name"
+        ] == "mcp-console"
+
+        return {"noted": noted["name"]}
+
+    async def asynchronous() -> dict:
+        async with AsyncMCPConsole(**options(binary, execution)) as console:
+            return await exercise(console)
+
+    async_result = asyncio.run(asynchronous())
+    with MCPConsole(**options(binary, execution)) as console:
+        sync_result = asyncio.run(exercise(console))
+    assert sync_result == async_result
+    return [sync_result]
 
 
 def test_thread_configuration_preserves_existing_servers(binary: Path) -> Transcript:

@@ -2126,6 +2126,411 @@ runner: orphan
 
 
 class TranscriptDiscoveryTests(TranscriptRunnerFixture):
+    def write_compaction_inputs(self, data: dict) -> None:
+        shutil.copy2(ROOT / "tests/fixtures/transcript_compaction.py", self.suite)
+        self.suite.with_suffix(".json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_send_shorthand_tracks_canonical_discovery_context(self) -> None:
+        from yaml12 import Yaml, read_yaml
+
+        def exchange(name: str, method: str) -> dict:
+            entry = {
+                "input": {
+                    "method": method,
+                    "params": {
+                        "_meta": {
+                            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                            "io.modelcontextprotocol/clientCapabilities": {},
+                            "io.modelcontextprotocol/clientInfo": {
+                                "name": name + "-client",
+                                "version": "1",
+                            },
+                        }
+                    },
+                },
+                "result": {
+                    "resultType": "complete",
+                    "_meta": {
+                        "io.modelcontextprotocol/serverInfo": {
+                            "name": name + "-server",
+                            "version": "1",
+                        }
+                    },
+                },
+            }
+            if method == "tools/call":
+                entry["input"]["params"].update(name="send", arguments={"python": "42"})
+            return entry
+
+        def discovery(name: str) -> list[dict]:
+            return [exchange(name, "server/discover"), exchange(name, "tools/list")]
+
+        def call(label: str, name: str, method: str = "tools/call") -> dict:
+            return {"scenario": label, **exchange(name, method)}
+
+        first_call = call("first", "first")
+        initialization = discovery("first")
+        transcript = [
+            call("before", "first"),
+            *initialization,
+            first_call,
+            call("unannounced-second", "second"),
+            *discovery("second"),
+            call("second", "second"),
+            call("unannounced-first", "first"),
+            call("unmatched-discovery", "unknown", "server/discover"),
+            call("after-unmatched-discovery", "second"),
+            *discovery("first"),
+            call("unmatched-initialization", "unknown", "initialize"),
+            call("after-unmatched-initialization", "first"),
+        ]
+        data = {
+            "initialization": initialization,
+            "initialization_companions": {"second.yaml": discovery("second")},
+            "transcript": transcript,
+            "record_companions": False,
+        }
+        self.write_compaction_inputs(data)
+        updated = self.run_runner("--full", "--update", "--jobs", "1")
+        self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
+        snapshot = self.snapshots / "selected.yaml"
+        records = read_yaml(snapshot, multi=True)
+        references = [entry for entry in records if isinstance(entry, Yaml)]
+        self.assertEqual([entry.tag for entry in references], ["!same-as"] * 3)
+        first, second, first_again = references
+        self.assertNotEqual(first.value, second.value)
+        self.assertEqual(first.value, first_again.value)
+        originals = {
+            entry["scenario"]: entry for entry in transcript if "scenario" in entry
+        }
+        entries = {
+            entry["scenario"]: entry for entry in records if isinstance(entry, dict)
+        }
+        self.assertEqual(entries.keys(), originals.keys())
+        self.assertEqual(len(records), len(originals) + len(references))
+        for label, original in originals.items():
+            with self.subTest(scenario=label):
+                expected = (
+                    {"scenario": label, "send": {"python": "42"}, "result": {}}
+                    if label in {"first", "second"}
+                    else original
+                )
+                self.assertEqual(entries[label], expected)
+        strict = self.run_runner("--full", "--jobs", "1")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
+        changed = exchange("second", "tools/call")
+        first_call.update(changed)
+        self.write_compaction_inputs(data)
+        differing = self.run_runner("client_server/server/test_tools::selected")
+        self.assertNotEqual(differing.returncode, 0)
+        self.assertIn(f"--- {snapshot.relative_to(self.root)}\n", differing.stderr)
+        self.assertIn("differs from its snapshot", differing.stderr)
+
+    def test_send_shorthand_preserves_unexpected_metadata_and_result_types(
+        self,
+    ) -> None:
+        from copy import deepcopy
+        from yaml12 import Yaml, read_yaml
+
+        request_meta = {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": {"name": "fixture", "version": "1"},
+            "io.modelcontextprotocol/clientCapabilities": {
+                "experimental": {"flag": True}
+            },
+        }
+        result_meta = {
+            "io.modelcontextprotocol/serverInfo": {
+                "name": "mcp-console",
+                "version": "<Console version>",
+            }
+        }
+
+        def exchange(
+            label: str,
+            request: dict | None,
+            result: dict | None,
+            result_type: object = "complete",
+        ) -> dict:
+            params = {"name": "send", "arguments": {"note": label}}
+            response = {"content": []}
+            if result_type is not ...:
+                response["resultType"] = result_type
+            if request is not None:
+                params["_meta"] = request
+            if result is not None:
+                response["_meta"] = result
+            return {
+                "scenario": label,
+                "input": {"method": "tools/call", "params": params},
+                "result": response,
+            }
+
+        initialization = [
+            {
+                "input": {
+                    "method": "server/discover",
+                    "params": {"_meta": request_meta},
+                },
+                "result": {"resultType": "complete", "_meta": result_meta},
+            }
+        ]
+        missing = deepcopy(request_meta)
+        del missing["io.modelcontextprotocol/clientCapabilities"]
+        changed_request = deepcopy(request_meta)
+        changed_request["io.modelcontextprotocol/clientInfo"]["name"] = "other-client"
+        changed_result = deepcopy(result_meta)
+        changed_result["io.modelcontextprotocol/serverInfo"]["name"] = "other-server"
+        changed_type = deepcopy(request_meta)
+        changed_type["io.modelcontextprotocol/clientCapabilities"]["experimental"][
+            "flag"
+        ] = 1
+        cases = {
+            "canonical": (request_meta, result_meta),
+            "repeated": (request_meta, result_meta),
+            "absent": (None, None),
+            "missing-request": (None, result_meta),
+            "missing-result": (request_meta, None),
+            "empty": ({}, {}),
+            "missing": (missing, result_meta),
+            "additional": (
+                request_meta | {"extra": "request"},
+                result_meta | {"extra": "result"},
+            ),
+            "additional-request": (request_meta | {"extra": "request"}, result_meta),
+            "additional-result": (request_meta, result_meta | {"extra": "result"}),
+            "changed": (changed_request, changed_result),
+            "changed-request": (changed_request, result_meta),
+            "changed-result": (request_meta, changed_result),
+            "changed-type": (changed_type, result_meta),
+            "missing-type": (request_meta, result_meta, ...),
+            "input-required": (request_meta, result_meta, "input_required"),
+            "task": (request_meta, result_meta, "task"),
+            "unknown-type": (request_meta, result_meta, "future_result"),
+            "null-type": (request_meta, result_meta, None),
+            "payload": (request_meta, result_meta),
+            "extra-params": (request_meta, result_meta),
+            "extra-message": (request_meta, result_meta),
+            "other-tool": (request_meta, result_meta),
+            "other-method": (request_meta, result_meta),
+        }
+        calls = {
+            label: exchange(label, *arguments) for label, arguments in cases.items()
+        }
+        payload = calls["payload"]
+        payload["input"]["params"]["arguments"].update(
+            _meta=request_meta, resultType="complete"
+        )
+        payload["result"]["structuredContent"] = {
+            "_meta": result_meta,
+            "resultType": "complete",
+        }
+        calls["extra-params"]["input"]["params"]["extra"] = "retained"
+        calls["extra-message"]["input"]["extra"] = "retained"
+        calls["other-tool"]["input"]["params"]["name"] = "another"
+        calls["other-method"]["input"]["method"] = "tools/list"
+        calls["precompacted"] = {
+            "scenario": "precompacted",
+            "send": {"note": "precompacted"},
+            "result": {"resultType": "complete", "content": []},
+        }
+        prefix = [exchange("before", request_meta, result_meta), *initialization]
+        transcript = [*prefix, *calls.values()]
+        data = {
+            "initialization": initialization,
+            "initialization_companions": {},
+            "transcript": transcript,
+            "record_companions": True,
+        }
+        self.write_compaction_inputs(data)
+        updated = self.run_runner("--full", "--update", "--jobs", "1")
+        self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
+        self.assertEqual(
+            read_yaml(self.snapshots / "initializes_and_lists_tools.yaml", multi=True),
+            initialization,
+        )
+        self.assertEqual(
+            read_yaml(self.snapshots / "selected.wire.yaml", multi=True),
+            [{"payload": transcript}],
+        )
+        originals = {
+            entry["scenario"]: entry for entry in transcript if "scenario" in entry
+        }
+        for suffix in ("", ".mcp"):
+            records = read_yaml(self.snapshots / f"selected{suffix}.yaml", multi=True)
+            self.assertEqual(sum(isinstance(entry, Yaml) for entry in records), 1)
+            entries = {
+                entry["scenario"]: entry for entry in records if isinstance(entry, dict)
+            }
+            self.assertEqual(entries.keys(), originals.keys())
+            for label, entry in entries.items():
+                original = originals[label]
+                if label in {"canonical", "repeated", "payload"}:
+                    expected = {
+                        "scenario": label,
+                        "send": original["input"]["params"]["arguments"],
+                        "result": {
+                            key: value
+                            for key, value in original["result"].items()
+                            if key not in {"_meta", "resultType"}
+                        },
+                    }
+                elif label == "precompacted":
+                    expected = {
+                        "scenario": label,
+                        "input": {
+                            "method": "tools/call",
+                            "params": {"name": "send", "arguments": original["send"]},
+                        },
+                        "result": original["result"],
+                    }
+                else:
+                    expected = original
+                self.assertEqual(entry, expected, (suffix, label))
+        strict = self.run_runner("--full", "--jobs", "1")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
+        mutations = {
+            "missing-request": exchange("canonical", None, result_meta),
+            "missing-result": exchange("canonical", request_meta, None),
+            "missing-metadata": exchange("canonical", None, None),
+            "precompacted": {
+                "scenario": "canonical",
+                "send": {"note": "canonical"},
+                "result": {"resultType": "complete", "content": []},
+            },
+            "missing-type": exchange("canonical", request_meta, result_meta, ...),
+            "input-required": exchange(
+                "canonical", request_meta, result_meta, "input_required"
+            ),
+            "task": exchange("canonical", request_meta, result_meta, "task"),
+            "unknown-type": exchange(
+                "canonical", request_meta, result_meta, "future_result"
+            ),
+            "null-type": exchange("canonical", request_meta, result_meta, None),
+        }
+        snapshot = self.snapshots / "selected.yaml"
+        for label, changed in mutations.items():
+            with self.subTest(mutation=label):
+                calls["canonical"] = changed
+                data["transcript"] = [*prefix, *calls.values()]
+                self.write_compaction_inputs(data)
+                differing = self.run_runner("client_server/server/test_tools::selected")
+                self.assertNotEqual(differing.returncode, 0)
+                self.assertIn(
+                    f"--- {snapshot.relative_to(self.root)}\n", differing.stderr
+                )
+                self.assertIn("differs from its snapshot", differing.stderr)
+
+    def test_result_only_transcripts_elide_verified_standard_fields(self) -> None:
+        from copy import deepcopy
+        from yaml12 import Yaml, read_yaml
+
+        metadata = {
+            "io.modelcontextprotocol/serverInfo": {
+                "name": "mcp-console",
+                "version": "<Console version>",
+            }
+        }
+        result = {
+            "content": [{"type": "text", "text": "adapter output"}],
+            "isError": False,
+            "_meta": metadata,
+            "resultType": "complete",
+            "structuredContent": {
+                "_meta": deepcopy(metadata),
+                "resultType": "complete",
+            },
+        }
+        cases = {
+            label: {"result": deepcopy(result)}
+            for label in (
+                "standard",
+                "missing-meta",
+                "extra-meta",
+                "changed-meta",
+                "missing-type",
+                "unexpected-type",
+            )
+        }
+        del cases["missing-meta"]["result"]["_meta"]
+        cases["extra-meta"]["result"]["_meta"]["custom"] = True
+        cases["changed-meta"]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"][
+            "name"
+        ] = "other-server"
+        del cases["missing-type"]["result"]["resultType"]
+        cases["unexpected-type"]["result"]["resultType"] = "task"
+        initialization = [
+            {
+                "input": {"method": "server/discover"},
+                "result": {"_meta": metadata, "resultType": "complete"},
+            }
+        ]
+        other_metadata = cases["changed-meta"]["result"]["_meta"]
+        other_initialization = [
+            {
+                "input": {"method": "server/discover"},
+                "result": {"_meta": other_metadata, "resultType": "complete"},
+            }
+        ]
+        transcript = [
+            *cases.values(),
+            *other_initialization,
+            cases["changed-meta"],
+            cases["standard"],
+        ]
+        data = {
+            "initialization": initialization,
+            "initialization_companions": {"other.yaml": other_initialization},
+            "transcript": transcript,
+            "record_companions": True,
+        }
+        self.write_compaction_inputs(data)
+        updated = self.run_runner("--full", "--update", "--jobs", "1")
+        self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
+        payload = {
+            key: value
+            for key, value in result.items()
+            if key not in {"_meta", "resultType"}
+        }
+        expected = [
+            payload,
+            *[entry for label, entry in cases.items() if label != "standard"],
+        ]
+        for suffix in ("", ".mcp"):
+            records = read_yaml(self.snapshots / f"selected{suffix}.yaml", multi=True)
+            *standalone, reference, matched, changed = records
+            self.assertEqual(standalone, expected)
+            self.assertIsInstance(reference, Yaml)
+            self.assertEqual(reference.tag, "!same-as")
+            self.assertEqual(matched, payload)
+            self.assertEqual(changed, cases["standard"])
+        self.assertEqual(
+            read_yaml(self.snapshots / "selected.wire.yaml", multi=True),
+            [{"payload": transcript}],
+        )
+        strict = self.run_runner("--full", "--jobs", "1")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
+        snapshot = self.snapshots / "selected.yaml"
+        for label in (
+            "missing-meta",
+            "extra-meta",
+            "changed-meta",
+            "missing-type",
+            "unexpected-type",
+        ):
+            with self.subTest(mutation=label):
+                data["transcript"] = [
+                    cases[label] if entry is cases["standard"] else entry
+                    for entry in transcript
+                ]
+                self.write_compaction_inputs(data)
+                differing = self.run_runner("client_server/server/test_tools::selected")
+                self.assertNotEqual(differing.returncode, 0)
+                self.assertIn(
+                    f"--- {snapshot.relative_to(self.root)}\n", differing.stderr
+                )
+                self.assertIn("differs from its snapshot", differing.stderr)
+
     def test_documentation_companion_links_check_repository_and_nested_guides(
         self,
     ) -> None:
