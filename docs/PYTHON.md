@@ -74,6 +74,7 @@ Your application still owns its model client, chat or agent, and any function-ca
 Registering Console tools does not choose a model.
 
 The adapters preserve successful text and image results in the framework's native format; their API pages describe error handling.
+Chatlas returns successful calls as a `ContentToolResult`, with text-only output in `.value` and the server's result metadata in `.extra`; requirements inspection returns a string.
 Use the plural adapters so the model receives every discovered tool and its actual schema.
 Inferring a schema from `console.send` annotations loses configured fields.
 Recreate adapters after reconnecting.

@@ -201,7 +201,7 @@ test_that("default tool loading reads files while explicit configs bypass them",
     send <- console_tools(path = binary, config = config)$send
     expect_identical(send@description, "Explicit report tool")
     expect_true(inspect_requirements(send)$prepared)
-    expect_identical(send(r = "cat(6 * 7)")@text, "42")
+    expect_identical(result_text(send(r = "cat(6 * 7)")), "42")
     rm(send)
     invisible(gc())
   })
