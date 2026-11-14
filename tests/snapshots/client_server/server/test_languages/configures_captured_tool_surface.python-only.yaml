@@ -41,6 +41,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run Python code
       description: >-
         Persistent custom-worker Python REPL. Reuse objects across calls to
         inspect results, test hypotheses, and compare approaches.

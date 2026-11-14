@@ -176,7 +176,10 @@ impl ConsoleServer {
 
 #[tool_router]
 impl ConsoleServer {
-    #[tool]
+    // The static BaseMetadata title keeps aggregated client displays (such as
+    // shinychat multi-call groups) stable; per-call result titles still vary.
+    // Presentation names the language when the interface exposes exactly one.
+    #[tool(title = "Run code")]
     async fn send(
         &self,
         Extension(poll_all): Extension<PollAll>,

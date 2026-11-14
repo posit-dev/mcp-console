@@ -16,6 +16,10 @@ Dependency guidance follows existing or managed Python selection and its resolut
 Hidden declaration fields must not leave instructions telling the agent to use them.
 Requirements may still be needed by a hidden SQL provider.
 
+The definition also carries a static BaseMetadata `title`: a single-language interface names its language ("Run R code"); an interface with several languages advertises "Run code", since one shared title cannot name a single language.
+Clients that aggregate several calls into one row or header (such as chat tool groups) need a stable shared label; a static title keeps that header from adopting one call's dynamic result title, and per-call titles stay distinct inside the group.
+The title is server-owned: launcher configuration has no title override.
+
 [Tool configuration](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters) applies launcher overrides after generation.
 It can replace prose verbatim or hide fields while preserving omission defaults.
 Exports retain explicit overrides and leave generated Python parameter descriptions unset for regeneration at launch.
@@ -25,7 +29,7 @@ Exports retain explicit overrides and leave generated Python parameter descripti
 Start server instructions and the `send` description with short, task-oriented summaries.
 A client may use one before exposing the full tool definition.
 
-MCP [initialization](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) returns server `instructions`; [tool discovery](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools) returns tool descriptions and schemas.
+MCP [initialization](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) returns server `instructions`; [tool discovery](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools) returns each tool's `title`, description, and schema.
 The client decides which text reaches the model and when.
 Fetching a definition does not prove that the model has seen it.
 The R `console_tools()` adapter uses advertised tool definitions to construct ellmer tools; it does not add initialization instructions to the chat prompt.
