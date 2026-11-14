@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest==9.2.0
+pytest-asyncio==1.4.1
+playwright==1.64.1
+ruff==0.17.3
