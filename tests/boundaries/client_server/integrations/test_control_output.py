@@ -33,6 +33,7 @@ def test_retains_typed_output_after_delivery(
         endpoint = root / "control.sock"
         with (
             closing(FifoCheckpoint.create(root / "release")) as release,
+            closing(FifoCheckpoint.create(root / "human-entered")) as human_entered,
             closing(FifoCheckpoint.create(root / "human-release")) as human_release,
             McpClient(
                 binary,
@@ -116,6 +117,8 @@ def test_retains_typed_output_after_delivery(
                     # fmt: python
                     human_source = code(f"""
                         print("human")
+                        with open({str(human_entered.path)!r}, "rb", buffering=0) as gate:
+                            gate.read(1)
                         os.write(1, b"raw stdout\\n")
                         os.write(2, b"raw stderr\\n")
                         with open({str(human_release.path)!r}, "rb", buffering=0) as gate:
@@ -130,6 +133,19 @@ def test_retains_typed_output_after_delivery(
                         wait_ms=30000,
                         include_output=True,
                     )
+                    # Native streams have no order relative to cell entry, and
+                    # output received before entry is idle output. Write only
+                    # after the server has confirmed the cell's entry.
+                    while True:
+                        observed = json.loads(observer.reader.readline(timeout=30))[
+                            "result"
+                        ]
+                        if any(
+                            item["request_id"] == "human-cell" and item["started"]
+                            for item in observed["evaluations"]
+                        ):
+                            break
+                    human_entered.release()
                     while True:
                         observed = json.loads(observer.reader.readline(timeout=30))[
                             "result"
@@ -167,6 +183,7 @@ def test_retains_typed_output_after_delivery(
                     return normalize_recording(client.finish(), root)
                 finally:
                     release.release()
+                    human_entered.release()
                     human_release.release()
 
 
