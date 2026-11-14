@@ -8,7 +8,9 @@ To configure an existing MCP client, start with [Get started](getting-started.qm
 Console serves MCP over stdio using the official Rust SDK.
 It supports [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) and legacy clients that begin with `initialize`.
 Modern clients can begin with `server/discover` or call `tools/list` or `tools/call` directly, supplying the protocol version and client capabilities in each request's `_meta`.
-Console includes its name and version in `_meta["io.modelcontextprotocol/serverInfo"]` on modern discovery, tool-list, and tool-call results, including tool errors.
+Console includes its `Implementation` (`name`, `title`, `version`, `description`, and `websiteUrl`) in `_meta["io.modelcontextprotocol/serverInfo"]` on modern discovery, tool-list, and tool-call results, including tool errors.
+Legacy clients receive the same object as `serverInfo` in the `initialize` result; legacy tool results carry no identity.
+The identity is self-reported; clients may use it to attribute results or ignore it.
 Tool schemas use JSON Schema 2020-12.
 
 The Python client uses the official Python SDK to discover the protocol and supply request metadata, including client identity.

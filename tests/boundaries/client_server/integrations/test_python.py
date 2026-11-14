@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "python"))
 
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
+from support.client import server_identity
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.r import r_test_environment, reference_plots
 from support.normalization import code
@@ -1000,13 +1001,9 @@ def test_native_openai_agents_server(binary: Path, execution: Execution) -> Tran
             assert [tool.name for tool in tools] == ["send"]
             result = await server.call_tool("send", {"r": "emit image"})
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
-            version = subprocess.check_output([binary, "--version"], text=True).split()[
-                1
-            ]
-            assert recorded["_meta"]["io.modelcontextprotocol/serverInfo"] == {
-                "name": "mcp-console",
-                "version": version,
-            }, recorded
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
             return [{"result": recorded}]
 
     return asyncio.run(exercise())
@@ -1063,13 +1060,9 @@ def test_native_openai_agents_waits_for_console_output(
             result = await server.call_tool("send", {"r": "stall", "timeout_ms": 6_000})
             assert time.monotonic() - started >= 5.9
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
-            version = subprocess.check_output([binary, "--version"], text=True).split()[
-                1
-            ]
-            assert recorded["_meta"]["io.modelcontextprotocol/serverInfo"] == {
-                "name": "mcp-console",
-                "version": version,
-            }, recorded
+            assert recorded["_meta"][
+                "io.modelcontextprotocol/serverInfo"
+            ] == server_identity(binary), recorded
             text = recorded["content"][0]["text"]
             _, silent = elapsed_progress(text)
             assert silent

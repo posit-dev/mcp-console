@@ -28,7 +28,11 @@ result:
   _meta:
     io.modelcontextprotocol/serverInfo:
       name: mcp-console
+      title: MCP Console
       version: <Console version>
+      description: >-
+        An interactive workbench for agents working in R, Python, and SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 input:
   method: tools/list
@@ -44,7 +48,11 @@ result:
   _meta:
     io.modelcontextprotocol/serverInfo:
       name: mcp-console
+      title: MCP Console
       version: <Console version>
+      description: >-
+        An interactive workbench for agents working in R, Python, and SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
   ttlMs: 0
   cacheScope: public
   tools:
