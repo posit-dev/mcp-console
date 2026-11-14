@@ -48,7 +48,7 @@ def sync_main() -> None:
         chat = ChatOpenAI(model="unused", api_key="unused")
         chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
         chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
-        assert chat_tool.func(r="echo installed wheel") == expected
+        assert chat_tool.func(r="echo installed wheel").value == expected
 
 
 async def main() -> None:
@@ -72,7 +72,7 @@ async def main() -> None:
         chat = ChatOpenAI(model="unused", api_key="unused")
         chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
         chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
-        assert await chat_tool.func(r="echo installed wheel") == expected
+        assert (await chat_tool.func(r="echo installed wheel")).value == expected
         assert Agent(name="test", tools=tools).tools == tools
     server = mcp_console.openai.agents_server()
     assert Agent(name="test", mcp_servers=[server]).mcp_servers == [server]
