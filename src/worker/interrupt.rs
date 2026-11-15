@@ -66,17 +66,37 @@ pub(super) fn normalize_signal() -> io::Result<()> {
     if unsafe { libc::signal(libc::SIGINT, libc::SIG_DFL) } == libc::SIG_ERR {
         return Err(io::Error::last_os_error());
     }
+    set_blocked(false).map(|_| ())
+}
+
+/// Sets whether the calling thread blocks SIGINT and returns whether it did.
+///
+/// A process-directed SIGINT runs on whichever thread accepts it. Console's
+/// own handler tolerates that, but while R waits in `R_SelectEx` the installed
+/// handler is R's, which jumps to a frame on the interpreter thread; another
+/// thread running it would continue R on the interpreter's stack. Threads
+/// inherit their creator's mask for life, so the worker blocks SIGINT while it
+/// starts its own threads and the managed DuckDB's. Threads that R packages
+/// start on their own keep R's exposure.
+#[cfg(unix)]
+pub(crate) fn set_blocked(blocked: bool) -> io::Result<bool> {
     let mut signals = unsafe { std::mem::zeroed() };
+    let mut previous = unsafe { std::mem::zeroed() };
     if unsafe { libc::sigemptyset(&mut signals) } != 0
         || unsafe { libc::sigaddset(&mut signals, libc::SIGINT) } != 0
     {
         return Err(io::Error::last_os_error());
     }
-    let result =
-        unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &signals, std::ptr::null_mut()) };
-    (result == 0)
-        .then_some(())
-        .ok_or_else(|| io::Error::from_raw_os_error(result))
+    let how = if blocked {
+        libc::SIG_BLOCK
+    } else {
+        libc::SIG_UNBLOCK
+    };
+    let result = unsafe { libc::pthread_sigmask(how, &signals, &mut previous) };
+    if result != 0 {
+        return Err(io::Error::from_raw_os_error(result));
+    }
+    Ok(unsafe { libc::sigismember(&previous, libc::SIGINT) } == 1)
 }
 
 pub(super) fn attach_r(state: State) -> io::Result<()> {

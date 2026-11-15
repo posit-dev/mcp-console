@@ -47,7 +47,11 @@ fn send(request_id: u64, event: PriorityEvent) -> Result<(), String> {
 
 pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::sideband::Reader> {
     let (coordinator, commands) = crate::sideband::local()?;
-    std::thread::Builder::new()
+    // Only the interpreter thread may accept SIGINT; this thread also starts
+    // the Python priority threads.
+    #[cfg(unix)]
+    let blocked = super::interrupt::set_blocked(true)?;
+    let ingress = std::thread::Builder::new()
         .name("worker-command-ingress".into())
         .spawn(move || {
             loop {
@@ -110,7 +114,10 @@ pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::
                     }
                 }
             }
-        })?;
+        });
+    #[cfg(unix)]
+    super::interrupt::set_blocked(blocked)?;
+    ingress?;
     Ok(coordinator)
 }
 
