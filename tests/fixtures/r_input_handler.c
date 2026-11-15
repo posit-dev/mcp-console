@@ -72,8 +72,8 @@ static SEXP register_input_handler(SEXP path, SEXP callback) {
   return R_NilValue;
 }
 
-/* Stands in for the kernel selecting another thread for a process-directed
- * SIGINT: while R's thread blocks it, only other threads can accept it. */
+/* While R's thread blocks SIGINT, only other threads can accept one sent to
+ * the process; one sent to R's thread stays pending. */
 static SEXP set_interrupt_blocked(SEXP blocked) {
   sigset_t interrupt;
   sigemptyset(&interrupt);

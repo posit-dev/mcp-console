@@ -24,6 +24,7 @@ from support.requirements import (
     NULL_FAULT_ACCERR,
     NULL_FAULT_MAPERR,
     POSIX,
+    THREAD_DIRECTED_INTERRUPT,
     requires,
 )
 from support.records import Transcript
@@ -616,7 +617,7 @@ def test_interrupts_running_r_evaluation(
 
 
 @execution_snapshots
-@requires(POSIX)
+@requires(THREAD_DIRECTED_INTERRUPT)
 @executions(DIRECT, SANDBOXED)
 def test_delivers_interrupt_only_to_the_r_thread(
     binary: Path, execution: Execution
@@ -648,9 +649,11 @@ def test_delivers_interrupt_only_to_the_r_thread(
             client.send(r=r)
             assert last_tool_text(client) == "[done]"
             # While R sleeps, its temporary SIGINT handler jumps to a frame on
-            # R's thread, so no other worker thread may run it. Blocking the
-            # signal on R's thread stands in for the kernel selecting another
-            # thread: the interrupt must stay pending until R can accept it.
+            # R's thread, so no other thread may run it. Linux can hand a
+            # process-directed signal to another thread even while R's thread
+            # accepts it. Blocking the signal on R's thread makes that the only
+            # outcome for a process-directed interrupt: one aimed at R's
+            # thread instead stays pending until R can accept it.
             # fmt: r
             r = code(r"""
                 invisible(.Call("mcp_test_set_interrupt_blocked", TRUE))
