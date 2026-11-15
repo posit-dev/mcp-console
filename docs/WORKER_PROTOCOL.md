@@ -122,6 +122,7 @@ Closure and direct-child exit do not prove native cleanup.
 
 `--worker PATH` selects one executable without arguments or shell parsing.
 Fixtures implement framing, descriptor ownership, readiness, input, receipts, shutdown, and worker-defined interruption.
+A Unix interrupt is a SIGINT for the [initial thread](RELAY_PROTOCOL.md#interruption-and-shutdown); a fixture that blocks it waits for it there.
 They have no built-in runtime defaults, managed Python preparation, or inherited SQL implementation.
 Python selection, explicit R settings, and configured startup are unsupported with test workers or relays.
 These overrides also apply to warmup.
