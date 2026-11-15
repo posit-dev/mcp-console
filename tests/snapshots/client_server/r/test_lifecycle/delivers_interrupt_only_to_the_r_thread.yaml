@@ -1,0 +1,66 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    interrupt_state <- 41L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    invisible(.Call("mcp_test_set_interrupt_blocked", TRUE))
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      "r-interrupt-unblock",
+      function() invisible(.Call("mcp_test_set_interrupt_blocked", FALSE))
+    ))
+    checkpoint <- fifo("r-interrupt-blocked", open = "wb")
+    writeBin(charToRaw("1"), checkpoint)
+    close(checkpoint)
+    repeat {
+      Sys.sleep(60)
+    }
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+  session: default
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  r: interrupt_state + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

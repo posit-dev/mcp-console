@@ -36,6 +36,8 @@ pub(crate) use core::{
 pub(crate) use input::python_interrupt_wakeup;
 #[cfg(any(unix, windows))]
 pub(crate) use input::{PythonInput, read_python_input};
+#[cfg(unix)]
+pub(crate) use interrupt::set_blocked as set_interrupt_blocked;
 #[cfg(windows)]
 pub(crate) use interrupt::with_python_interrupt;
 #[cfg(any(unix, windows))]

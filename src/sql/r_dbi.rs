@@ -1,6 +1,27 @@
 use crate::r_bridge::EvaluationOutcome;
+use libr::SEXP;
 
 const SQL_BRIDGE_SOURCE: &str = include_str!("bridge.R");
+
+/// Sets whether R's thread blocks SIGINT and returns the previous setting, so
+/// the bridge can start DuckDB's threads where they never accept an interrupt.
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_sql_set_interrupt_blocked(
+    blocked: SEXP,
+) -> harp::Result<SEXP> {
+    let blocked = bool::try_from(harp::object::RObject::view(blocked))?;
+    #[cfg(unix)]
+    let previous = crate::worker::set_interrupt_blocked(blocked)
+        .map_err(|error| harp::anyhow!("failed to change the interrupt mask: {error}"))?;
+    // Windows interrupts arrive as relay events, never on a DuckDB thread.
+    #[cfg(not(unix))]
+    let previous = {
+        let _ = blocked;
+        false
+    };
+    Ok(harp::object::RObject::from(previous).sexp)
+}
 
 pub(super) struct Backend(crate::r_bridge::Bridge);
 

@@ -615,6 +615,80 @@ def test_interrupts_running_r_evaluation(
                 stop_client(client)
 
 
+@execution_snapshots
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_delivers_interrupt_only_to_the_r_thread(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        temporary_path = Path(temporary_directory)
+        environment, rscript = r_test_environment()
+        environment["TMPDIR"] = temporary_directory
+        build_r_input_handler(temporary_path, environment, rscript)
+        arguments = (
+            execution.serve("--writable-root", temporary_directory)
+            if execution == SANDBOXED
+            else execution.serve()
+        )
+        with (
+            closing(
+                FifoCheckpoint.create(temporary_path / "r-interrupt-blocked")
+            ) as blocked,
+            McpClient(
+                binary, arguments, environment, current_directory=temporary_path
+            ) as client,
+        ):
+            client.initialize_and_list_tools()
+            # fmt: r
+            r = code(r"""
+                dyn.load("./mcp_test_input_handler.so")
+                interrupt_state <- 41L
+                """)
+            client.send(r=r)
+            assert last_tool_text(client) == "[done]"
+            # While R sleeps, its temporary SIGINT handler jumps to a frame on
+            # R's thread, so no other worker thread may run it. Blocking the
+            # signal on R's thread stands in for the kernel selecting another
+            # thread: the interrupt must stay pending until R can accept it.
+            # fmt: r
+            r = code(r"""
+                invisible(.Call("mcp_test_set_interrupt_blocked", TRUE))
+                invisible(.Call(
+                  "mcp_test_register_input_handler",
+                  "r-interrupt-unblock",
+                  function() invisible(.Call("mcp_test_set_interrupt_blocked", FALSE))
+                ))
+                checkpoint <- fifo("r-interrupt-blocked", open = "wb")
+                writeBin(charToRaw("1"), checkpoint)
+                close(checkpoint)
+                repeat {
+                  Sys.sleep(60)
+                }
+                """)
+            client.send(r=r, timeout_ms=0)
+            assert (
+                without_elapsed(last_tool_text(client))
+                == "\n[running; poll with an empty send]"
+            )
+            blocked.wait("R blocked SIGINT before its interruptible wait")
+            client.send(control="interrupt", timeout_ms=0)
+            output = client.transcript[-1]["result"]["content"][0]["text"]
+            assert without_elapsed(output) == "\n[running; poll with an empty send]", (
+                output
+            )
+            with closing(
+                FifoCheckpoint.attach(temporary_path / "r-interrupt-unblock")
+            ) as unblock:
+                unblock.release()
+                wait_for_evaluation_output(
+                    client, "\n", "deferred R interruption", timeout_ms=3_000
+                )
+            client.send(r="interrupt_state + 1L")
+            assert last_tool_text(client) == "[1] 42\n"
+            return client.finish()
+
+
 @executions(DIRECT, SANDBOXED)
 def test_interrupts_managed_console_input(
     binary: Path, execution: Execution

@@ -26,6 +26,16 @@ base::local(
       envir = globalenv()
     )
 
+    # Threads inherit their creator's signal mask. DuckDB starts its task
+    # threads with the database, and they must never accept SIGINT: while R
+    # waits for input its handler is valid only on R's thread. An interrupt
+    # sent meanwhile stays pending until this returns.
+    start_without_interrupts <- function(expression) {
+      blocked <- .Call("mcp_console_sql_set_interrupt_blocked", TRUE)
+      on.exit(.Call("mcp_console_sql_set_interrupt_blocked", blocked))
+      expression
+    }
+
     open_connection <- function(config = list()) {
       config$extension_directory <- Sys.getenv(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
@@ -38,13 +48,12 @@ base::local(
       storage <- file.path(parent, "mcp-console-duckdb")
       config$secret_directory <- file.path(storage, "stored-secrets")
       config$temp_directory <- file.path(storage, "spill")
-      connection <- DBI::dbConnect(
-        duckdb::duckdb(
-          dbdir = ":memory:",
-          config = config,
-          environment_scan = TRUE
-        )
-      )
+      driver <- start_without_interrupts(duckdb::duckdb(
+        dbdir = ":memory:",
+        config = config,
+        environment_scan = TRUE
+      ))
+      connection <- DBI::dbConnect(driver)
       complete <- FALSE
       on.exit({
         if (!complete) {
