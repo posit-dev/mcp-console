@@ -5,6 +5,8 @@
 #include <Rinterface.h>
 
 #include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -70,6 +72,19 @@ static SEXP register_input_handler(SEXP path, SEXP callback) {
   return R_NilValue;
 }
 
+/* While R's thread blocks SIGINT, only other threads can accept one sent to
+ * the process; one sent to R's thread stays pending. */
+static SEXP set_interrupt_blocked(SEXP blocked) {
+  sigset_t interrupt;
+  sigemptyset(&interrupt);
+  sigaddset(&interrupt, SIGINT);
+  int how = Rf_asLogical(blocked) ? SIG_BLOCK : SIG_UNBLOCK;
+  if (pthread_sigmask(how, &interrupt, NULL) != 0) {
+    Rf_error("failed to change the test interrupt mask");
+  }
+  return R_NilValue;
+}
+
 static SEXP read_console_once(SEXP prompt) {
   unsigned char buffer[TEST_CONSOLE_BUFFER_SIZE];
   int status = R_ReadConsole(
@@ -101,6 +116,7 @@ static SEXP read_console_line(SEXP prompt) {
 
 static const R_CallMethodDef call_methods[] = {
     {"mcp_test_register_input_handler", (DL_FUNC)&register_input_handler, 2},
+    {"mcp_test_set_interrupt_blocked", (DL_FUNC)&set_interrupt_blocked, 1},
     {"mcp_test_read_console_once", (DL_FUNC)&read_console_once, 1},
     {"mcp_test_read_console_line", (DL_FUNC)&read_console_line, 1},
     {NULL, NULL, 0},

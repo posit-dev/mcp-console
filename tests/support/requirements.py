@@ -244,6 +244,13 @@ LINUX_NATIVE = Requirement(
     "requires Linux ELF loading and seccomp",
 )
 
+THREAD_DIRECTED_INTERRUPT = Requirement(
+    "thread-directed interrupt",
+    sys.platform == "linux",
+    "requires Linux, where the relay signals the interpreter thread; macOS gives "
+    "a process signal to the first thread that accepts it",
+)
+
 NON_UTF8_FILENAMES = Requirement(
     "non-UTF-8 filenames",
     sys.platform == "linux",

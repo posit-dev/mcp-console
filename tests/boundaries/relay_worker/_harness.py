@@ -11,14 +11,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from support.assertions import tool_text as _tool_text
 from support.capture import read_jsonl, read_jsonl_path
-from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
+from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
-from support.events import Events
+from support.control import ControlClient
 from support.execution import Execution
 from support.normalization import code
 from support.records import ToolResult, Transcript
 
 CAPTURE_NAME = "mcp-console-worker-wire.jsonl"
+
+CONTROL_NAME = "control.sock"
 
 CAPTURE_STDIN_CLOSE_ENV = "MCP_CONSOLE_MITM_CAPTURE_STDIN_CLOSE"
 
@@ -64,7 +66,9 @@ class RelayWorkerClient:
         )
         self._client = McpClient(
             binary,
-            execution.serve("--worker", str(mitm)),
+            execution.serve(
+                "--worker", str(mitm), "--control-socket", str(root / CONTROL_NAME)
+            ),
             environment,
         )
         try:
@@ -89,8 +93,10 @@ class RelayWorkerClient:
         return self._client.send(**arguments)
 
     def send_gated_python(self, python: str) -> ToolResult:
-        # Raw pipes and the sideband are independent streams. Observe the
-        # current cell_started receipt before releasing its raw-output producer.
+        # Raw pipes and the sideband are independent streams, and raw output
+        # the server receives before cell entry is idle output. A frame the
+        # proxy captured has not necessarily reached the server, so release
+        # the raw-output producer only after the server confirms entry.
         # fmt: python
         source = code("""
             import os
@@ -100,42 +106,24 @@ class RelayWorkerClient:
             """)
         source += python
         root = Path(self._temporary.name)
-
-        def entered() -> Path | None:
-            for capture in root.rglob(CAPTURE_NAME):
-                events.watch_file(capture)
-                submitted = False
-                # The proxy can still be appending the final UTF-8/JSON frame.
-                for line in capture.read_bytes().split(b"\n")[:-1]:
-                    event = json.loads(line)
-                    if event == {
-                        "relay": {
-                            "kind": "evaluate",
-                            "language": "python",
-                            "source": source,
-                        }
-                    }:
-                        submitted = True
-                    elif submitted and event == {"worker": {"kind": "cell_started"}}:
-                        return capture
-            return None
-
         with (
-            Events() as events,
+            ControlClient(root / CONTROL_NAME) as observer,
             closing(FifoCheckpoint.create(root / "output-gate")) as release,
         ):
+            subscribed = observer.request(op="subscribe", format="events")
+            assert subscribed.get("result") == {"subscribed": True}, subscribed
             deadline = self._client.response_deadline()
             pending = self._client.start_send(python=source)
             try:
-                wait_for_checkpoint(
-                    entered,
-                    "proxy captured the raw-output cell entry",
-                    root=root,
-                    recursive=True,
-                    client=self._client,
-                    timeout=max(0, deadline - time.monotonic()),
-                    events=events,
-                )
+                while True:
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, "server did not confirm cell entry"
+                    snapshot = json.loads(observer.reader.readline(timeout=remaining))
+                    if any(
+                        evaluation["source"] == source and evaluation["started"]
+                        for evaluation in snapshot["result"]["evaluations"]
+                    ):
+                        break
             finally:
                 release.release()
             self._client.receive(pending)

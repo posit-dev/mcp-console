@@ -241,10 +241,26 @@ fn finish_exited_worker(
     }
 }
 
+/// Sends SIGINT to the worker's interpreter thread.
+///
+/// While R waits for input its SIGINT handler jumps to a frame on the
+/// interpreter thread, so no other thread may run it. The worker runs its
+/// interpreters on its initial thread. Linux can hand a process-directed
+/// signal to any thread that accepts it, even after choosing the initial one:
+/// a thread that changes its signal mask first takes it. Naming the thread
+/// leaves the signal pending for that thread alone. macOS offers no such call
+/// and gives a process signal to the first thread that accepts it, the initial
+/// one.
 fn interrupt_worker(child: &mut Child) -> Result<(), String> {
+    let worker = child.id() as libc::pid_t;
     // SAFETY: the direct child remains unreaped here, so its PID cannot be
-    // reused before `kill` returns.
-    if unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) } == 0 {
+    // reused before the signal is sent. A Linux process ID is also the thread
+    // ID of its initial thread.
+    #[cfg(target_os = "linux")]
+    let result = unsafe { libc::syscall(libc::SYS_tgkill, worker, worker, libc::SIGINT) };
+    #[cfg(not(target_os = "linux"))]
+    let result = unsafe { libc::kill(worker, libc::SIGINT) };
+    if result == 0 {
         Ok(())
     } else {
         Err(format!(

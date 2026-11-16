@@ -60,6 +60,10 @@ The server has one generation-owned command writer.
 Forced retirement closes admission and aborts pending writes or queue waits.
 Aborting a partial frame ends the transport; shutdown or interrupt bytes cannot be inserted into that frame.
 
+A Unix interrupt is a SIGINT for the worker's initial thread, which runs its interpreters.
+R's handler while it waits for input is valid only on that thread.
+Linux can hand a process-directed signal to any accepting thread, so the relay names the thread; macOS gives a process signal to the first accepting thread, the initial one.
+
 The first shutdown/EOF fixes the worker deadline.
 The relay closes stdin and requests shutdown concurrently, then terminates and reaps the direct child if needed.
 Fatal transport failures retire immediately.
