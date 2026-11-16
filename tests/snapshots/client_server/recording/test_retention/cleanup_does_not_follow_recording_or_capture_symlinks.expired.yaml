@@ -1,0 +1,10 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python.direct.yaml
+---
+send:
+  note: Retained analysis.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

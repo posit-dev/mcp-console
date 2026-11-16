@@ -102,6 +102,14 @@ preview: |
   # cache:
   #   directory: /absolute/path/to/console-cache
 
+  ## Check storage when Console starts using it; no background scheduler.
+  ## Reset managed caches after this many days, once no other Console uses them.
+  ## Prune inactive recordings after this many days; a .keep file preserves one.
+  ## null disables the corresponding cleanup policy.
+  # retention:
+  #   cache_days: 14
+  #   recordings_days: 14
+
   Dry run; no files changed.
 ---
 created: |
@@ -206,3 +214,11 @@ created: |
   ## Configuration and recordings stay in their existing locations.
   # cache:
   #   directory: /absolute/path/to/console-cache
+
+  ## Check storage when Console starts using it; no background scheduler.
+  ## Reset managed caches after this many days, once no other Console uses them.
+  ## Prune inactive recordings after this many days; a .keep file preserves one.
+  ## null disables the corresponding cleanup policy.
+  # retention:
+  #   cache_days: 14
+  #   recordings_days: 14

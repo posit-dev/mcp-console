@@ -150,6 +150,9 @@ Use the CLI's `--no-sandbox` or R's `ConsoleConfig(sandbox = FALSE)` for host ex
 | `resolver.sandbox`             | Independent permission mapping, or `null` for preparation defaults; see [Permissions](#sandbox-settings).                                                                                    |
 | `cache`                        | `managed` (alias `console`), `host`, `{directory: PATH}`, or `null`. Omission / `null` selects managed caches with sandboxing and host caches without it. Managed caches require sandboxing. |
 | `cache.directory`              | Nonempty path; stores managed dependency caches under `<directory>/dependencies`. Relative paths use the launch directory.                                                                   |
+| `retention`                    | Mapping of `cache_days` and `recordings_days`.                                                                                                                                               |
+| `retention.cache_days`         | Positive integer, default `14`, or `null` to disable periodic managed-cache resets.                                                                                                          |
+| `retention.recordings_days`    | Positive integer, default `14`, or `null` to disable pruning inactive recordings.                                                                                                            |
 
 For example, use a separate package source during preparation:
 
@@ -168,6 +171,19 @@ cache:
 Console applies its own runtime/cache/proxy assignments after these values.
 With client-derived permissions, automatic cache selection waits for the client's permissions.
 See [recognized environment variables](ENVIRONMENT.md), [package sources](PACKAGE_CONFIGURATION.md#configuration), and [cache locations](PACKAGE_CONFIGURATION.md#cache-locations).
+
+Retention checks run when Console starts using the relevant storage, without a background scheduler.
+For example, reset managed caches every four weeks and keep unsaved recordings for two weeks:
+
+```yaml
+retention:
+  cache_days: 28
+  recordings_days: 14
+```
+
+Settings apply to the shared storage selected by that launch, including recordings from other projects using the same fallback directory.
+Use the global configuration for a consistent policy across projects.
+See [cache resets](PACKAGE_CONFIGURATION.md#cache-retention) and [saving recordings](RECORDING.md#save-a-recording) for cleanup timing and preservation.
 
 ### Tools, startup, and sessions {#tools-and-sessions}
 
