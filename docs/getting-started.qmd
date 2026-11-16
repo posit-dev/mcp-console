@@ -15,7 +15,7 @@ If you also want to use R, [install it separately](CLIENTS.md#r-python-and-sql).
 
 <span id="build-from-source"></span>
 
-For a development checkout, see [Build from source](BUILD_FROM_SOURCE.md).
+To install and connect the development version, follow [Development version](CLIENTS.md#development-version).
 
 ## Connect a client {#connect-your-client}
 

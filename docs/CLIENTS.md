@@ -22,10 +22,6 @@ The first session may download Python and packages.
 
 To verify the selected runtimes and prepare caches before opening a client, follow [Check your installation](CLI.md#check-your-installation).
 
-<span id="build-from-source"></span>
-
-To install the development version, follow [Build from source](BUILD_FROM_SOURCE.md).
-
 <span id="mcp-clients"></span>
 
 ## Codex and Claude Code
@@ -65,6 +61,24 @@ Clients using an `mcpServers` mapping can use:
 
 Console runs on the same host as the client, usually in the agent's workspace.
 For remote work, run both on the remote host; Console does not manage remote connections or containers.
+
+<span id="build-from-source"></span>
+
+## Development version
+
+The development version builds from source and requires the [build tools](BUILD_FROM_SOURCE.md#install-build-tools).
+Install Console from GitHub, then run the command for your client to register the installed executable:
+
+```sh
+uv tool install git+https://github.com/posit-dev/mcp-console
+mcp-console configure-client codex --no-uvx
+mcp-console configure-client claude --no-uvx
+```
+
+Restart your client after setup.
+The `--no-uvx` option registers the installed executable by its absolute path; the default `uvx` launch may run a published version instead.
+To update, rerun the `uv tool install` command and restart your client.
+[Build from source](BUILD_FROM_SOURCE.md) covers shell setup, other clients, and installing a specific branch, tag, or commit.
 
 ## R and Python clients {#connect-from-application-code}
 

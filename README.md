@@ -24,12 +24,24 @@ uvx mcp-console configure-client codex
 Restart your client after setup.
 Run the client and Console on the same host, with the client's shell and filesystem tools using the same workspace.
 [Get started](docs/getting-started.qmd) covers a first analysis; [Install and connect](docs/CLIENTS.md) covers platform prerequisites, optional R installation, and other clients.
-[Build from source](docs/BUILD_FROM_SOURCE.md) covers the development version.
 
 Ask your agent:
 
 > Use Console to generate a small dataset, fit a model, and plot the result.
 > Keep the data and model for follow-up.
+
+### Development version
+
+Install the [build tools](docs/BUILD_FROM_SOURCE.md#install-build-tools), then install the development version and register it with your client:
+
+```sh
+uv tool install git+https://github.com/posit-dev/mcp-console
+mcp-console configure-client codex --no-uvx
+# Or: mcp-console configure-client claude --no-uvx
+```
+
+Restart your client after setup.
+See [Build from source](docs/BUILD_FROM_SOURCE.md) for updates and other installation options.
 
 ## Where Console fits
 
