@@ -104,7 +104,9 @@ Run `python tests/windows_distribution.py WHEEL` to audit normal and delayed PE 
 Redistributable VC runtime dependencies are rejected; ordinary Windows system and UCRT libraries are allowed.
 Install that wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
 Installation acceptance repeats the import audit for installed wheels and source builds, including the environment-bound public launcher.
-Acceptance probes MXC and runs native execution cases when supported, without provisioning accounts or selecting another backend.
+The Windows 11 ARM64 release job requires MXC for both archive and wheel acceptance.
+The hosted x86-64 Windows Server runner probes for MXC and skips native execution cases when it is unavailable.
+Run those cases on an MXC-capable x86-64 Windows 11 host before release.
 This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
 An ABI report alone is not runtime or sandbox acceptance.

@@ -274,6 +274,7 @@ jobs:
     timeout-minutes: 60
     env:
       MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
+      MCP_CONSOLE_TEST_REQUIRE_MXC: ${{ matrix.os == 'windows-11-arm' && '1' || '0' }}
       UV_NO_CONFIG: "1"
       LANGUAGE: en
     steps:
@@ -706,6 +707,7 @@ jobs:
             r-option: --preinstalled-r
     timeout-minutes: 30
     env:
+      MCP_CONSOLE_TEST_REQUIRE_MXC: ${{ matrix.os == 'windows-11-arm' && '1' || '0' }}
       UV_NO_CONFIG: "1"
       LANGUAGE: en
     steps:
