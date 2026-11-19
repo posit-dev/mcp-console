@@ -5,10 +5,10 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 binary = Path("install/bin/mcp-console.exe").resolve()
-cmd = Path(os.environ["SystemRoot"]) / "System32/cmd.exe"
 short_path = ctypes.windll.kernel32.GetShortPathNameW
 short_path.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
 short_path.restype = ctypes.c_uint32
@@ -63,10 +63,11 @@ with tempfile.TemporaryDirectory(dir=long_temp) as root:
                 "--runner-config-env",
                 "POLICY",
                 "--",
-                cmd,
-                "/d",
-                "/c",
-                f'echo allowed>"{dest}"',
+                sys.executable,
+                "-I",
+                "-c",
+                "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text('allowed')",
+                dest,
             ],
             cwd=long,
             env=os.environ | {"POLICY": json.dumps(config)},
@@ -99,10 +100,10 @@ with tempfile.TemporaryDirectory(dir=long_temp) as root:
                 "sandbox",
                 "--no-config",
                 "--",
-                cmd,
-                "/d",
-                "/c",
-                'echo allowed>"%TEMP%/write.txt" && type "%TEMP%/write.txt"',
+                sys.executable,
+                "-I",
+                "-c",
+                "import os,pathlib; p=pathlib.Path(os.environ['TEMP']) / 'write.txt'; p.write_text('allowed'); print(p.read_text())",
             ],
             cwd=long,
             env=os.environ | {"TEMP": str(parent), "TMP": str(parent)},
