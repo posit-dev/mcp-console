@@ -1,46 +1,34 @@
-name: Inspect Windows policy translation
+name: Check native Windows metadata reads
 on: workflow_dispatch
 permissions:
   contents: read
 jobs:
-  policy:
+  read:
     runs-on: windows-11-arm
+    strategy:
+      matrix:
+        revision: [c067c1396aab0b26ae60b31cc9c37084fbce2e16, 90d38f5dd48c8090a903c84dc488be506af67eeb]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: t-kalinowski/cobox
-          ref: c067c1396aab0b26ae60b31cc9c37084fbce2e16
+          ref: ${{ matrix.revision }}
           persist-credentials: false
       - shell: pwsh
         working-directory: codex-rs
         run: |
           $ErrorActionPreference = 'Stop'
-          $source = 'mxc-sandbox/src/windows.rs'
-          $rust = Get-Content -Raw -LiteralPath $source
-          $launch = 'crate::native::launch(&request)'
-          if (-not $rust.Contains($launch)) { throw 'missing diagnostic seam' }
-          $inspection = @'
-          let workspace = expand_short_names(std::env::current_dir()?)?;
-          let matches = |paths: &[String], path: &std::path::Path| {
-              paths.iter().any(|name| name.eq_ignore_ascii_case(&path.to_string_lossy()))
-          };
-          println!("workspace write rule: {}", matches(&request.policy.readwrite_paths, &workspace));
-          for basename in [".git", ".agents", ".codex", ".aws", ".claude"] {
-              let path = workspace.join(basename);
-              println!("{basename}: exists={}, read={}, write={}, deny={}", path.exists(),
-                  matches(&request.policy.readonly_paths, &path),
-                  matches(&request.policy.readwrite_paths, &path),
-                  matches(&request.policy.denied_paths, &path));
-          }
-          Ok(0)
-          '@
-          $rust.Replace($launch, $inspection) | Set-Content -Encoding utf8 -LiteralPath $source
           cargo build --locked -p mcp-console-sandbox --bin mcp-console-sandbox
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $runner = (Resolve-Path 'target/debug/mcp-console-sandbox.exe').Path
-          $work = Join-Path $env:TEMP 'empty-policy-workspace'
-          New-Item -ItemType Directory -Path $work | Out-Null
-          $env:CONSOLE_POLICY = @{extends=':workspace';workspace=$work;workspace_options=@{exclude_tmpdir_env_var=$true;exclude_slash_tmp=$true}} | ConvertTo-Json -Depth 3 -Compress
-          Set-Location $work
-          & $runner --config-env CONSOLE_POLICY -- cmd.exe /d /c exit 0
+          $workspace = Join-Path $env:TEMP 'workspace-read-check'
+          New-Item -ItemType Directory -Path $workspace | Out-Null
+          $env:CONSOLE_POLICY = @{extends=':workspace';workspace=$workspace;workspace_options=@{exclude_tmpdir_env_var=$true;exclude_slash_tmp=$true}} | ConvertTo-Json -Depth 3 -Compress
+          Set-Location $workspace
+          & $runner --config-env CONSOLE_POLICY -- cmd.exe /d /c echo "first launch"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Path .git | Out-Null
+          [IO.File]::WriteAllText((Join-Path $workspace '.git/HEAD'), 'ref: refs/heads/main')
+          $read = & $runner --config-env CONSOLE_POLICY -- cmd.exe /d /c type '.git\HEAD'
+          if ($LASTEXITCODE -or $read -cne 'ref: refs/heads/main') { throw "Native metadata read failed: $LASTEXITCODE" }
+          'Existing metadata read from native sandbox on second launch.'
