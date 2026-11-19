@@ -26,15 +26,7 @@ env:
   UV_VERSION: "0.13.1"
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Refuse to rebuild a version already on PyPI
-        run: python3 scripts/release.py check-unpublished
-
   wheels:
-    needs: check-version
     name: pypi-${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     # Cold ARM R preparation can take 30 minutes after native compilation.
@@ -66,6 +58,10 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
+
+      # Keep the guard inside each build job so a targeted rerun also checks PyPI.
+      - name: Refuse to rebuild a version already on PyPI
+        run: python scripts/release.py check-unpublished
 
       - name: Read private sandbox source pin
         id: sandbox-pin
@@ -110,12 +106,6 @@ jobs:
           version: ${{ env.UV_VERSION }}
           cache-local-path: ${{ runner.temp }}/mcp-console-cache
           cache-suffix: release-v1-${{ steps.cache-epoch.outputs.value }}
-
-      - name: Install Linux build and sandbox dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkgconf libcurl4-openssl-dev libcap-dev libssl-dev binutils
 
       - name: Build Linux wheel and companions on glibc 2.28
         if: runner.os == 'Linux'
@@ -167,7 +157,9 @@ jobs:
           MAKEFLAGS: -j1
           R_MAKEVARS_USER: ${{ runner.temp }}/preparation.Makevars
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            build-essential pkgconf libcurl4-openssl-dev libssl-dev binutils \
             r-base-dev libxml2-dev libcairo2-dev libfontconfig1-dev \
             libharfbuzz-dev libfribidi-dev libjpeg-dev libpng-dev libtiff-dev \
             libuv1-dev libwebp-dev
@@ -180,7 +172,7 @@ jobs:
           uv tool run --isolated --python 3.14 --from r-lib-ir ir run \
             --rscript "$R_HOME/bin/Rscript" \
             --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
-            --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+            --with duckdb --with nanoarrow --with yyjsonr --with ggplot2 \
             --with jsonlite --with pillar --with tibble --with utf8 \
             --isolated --vanilla -e 'sessionInfo()'
           uv cache clean cmake
@@ -260,7 +252,6 @@ jobs:
 
   windows-wheel:
     name: pypi-${{ matrix.target }}
-    needs: check-version
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -293,6 +284,10 @@ jobs:
         with:
           architecture: ${{ matrix.python-arch }}
           python-version: "3.14"
+
+      # Keep the guard inside each build job so a targeted rerun also checks PyPI.
+      - name: Refuse to rebuild a version already on PyPI
+        run: python scripts/release.py check-unpublished
 
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -585,7 +580,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libcap2 libgcc-s1 libstdc++6 binutils
+          sudo apt-get install -y --no-install-recommends libgcc-s1 libstdc++6
 
       - name: Download published artifacts for hash comparison
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

@@ -250,5 +250,7 @@ After **any** wheel is published, preserve the tag and all uploaded files.
 The pre-build version check rejects versions already visible on PyPI.
 If the GitHub upload stopped midway, rerun the failed job with the original `github-release` artifact.
 It checks existing assets by digest and uploads the missing files to the draft.
+If GitHub retained an empty asset in the `starter` state after an interrupted upload, remove that placeholder from the draft before retrying.
+A digest mismatch on an uploaded asset requires investigation.
 Do not rebuild that version or replace an uploaded filename.
 Defective published code requires a new version.

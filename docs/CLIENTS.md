@@ -88,7 +88,9 @@ Extract the whole archive, preserving permissions.
 Set the client command to the absolute path of `bin/mcp-console` (Unix) or `bin/mcp-console.exe` (Windows) and use `serve` as the argument.
 Keep the sibling `libexec` and `share` directories with the executable.
 Launching the server and using the standalone `sandbox` command requires no Python installation, pip, or uv.
-The [environment settings](REQUIREMENTS.md) govern the tools Console uses when a session requests R or Python.
+If the application supplies R and its packages, set `r.resolution` to `disabled` and omit `r.packages`.
+Console then uses those libraries without invoking the R package resolver (`ir`).
+Python can also use an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
 
 ## R and Python clients {#connect-from-application-code}
 
