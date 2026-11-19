@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import itertools
 import json
@@ -12,6 +13,7 @@ import select
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import zipfile
@@ -25,14 +27,16 @@ from urllib.request import Request, urlopen
 
 STABLE_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 PACKAGE_VERSION = re.compile(r'^version\s*=\s*"([^"]+)"\s*$')
-TARGET_ARCHITECTURES = {
-    "aarch64-apple-darwin": "arm64",
-    "x86_64-apple-darwin": "x86_64",
-    "aarch64-unknown-linux-gnu": "aarch64",
-    "x86_64-unknown-linux-gnu": "x86_64",
+# Platform tags of the wheels used for both distributions.
+RELEASE_PLATFORMS = {
+    "aarch64-apple-darwin": "macosx_*_arm64",
+    "x86_64-apple-darwin": "macosx_*_x86_64",
+    "aarch64-unknown-linux-gnu": "manylinux_2_28_aarch64",
+    "x86_64-unknown-linux-gnu": "manylinux_2_28_x86_64",
+    "aarch64-pc-windows-msvc": "win_arm64",
+    "x86_64-pc-windows-msvc": "win_amd64",
 }
-LINUX_RELEASE_GLIBC = (2, 35)
-LINUX_RELEASE_CPP = {"GLIBCXX": (3, 4, 30), "CXXABI": (1, 3, 13)}
+LINUX_RELEASE_GLIBC = (2, 28)
 # Numeric GLIBCXX_3.4.N / CXXABI_1.3.N policy ceilings, not host library versions.
 # https://github.com/pypa/auditwheel/blob/7cec8ec5b1436336bc03e560b785cc63d9c4190f/src/auditwheel/policy/manylinux-policy.json
 MANYLINUX_CPP = {
@@ -102,7 +106,6 @@ LINUX_SYSTEM_LIBRARIES = {
     "librt.so.1",
     "libgcc_s.so.1",
     "libstdc++.so.6",
-    "libcap.so.2",
     "ld-linux-x86-64.so.2",
     "ld-linux-aarch64.so.1",
 }
@@ -457,14 +460,13 @@ def inspect_linux_abi(
     architecture = architectures.pop()
     if target:
         require(
-            target.endswith("-linux-gnu")
-            and TARGET_ARCHITECTURES[target] == architecture,
+            target.endswith("-linux-gnu") and target.partition("-")[0] == architecture,
             f"wheel does not match {target}: {wheel.name}",
         )
     if release:
         require(
             len(floors) == len(tags) and max(floors) <= LINUX_RELEASE_GLIBC,
-            "wheel tag exceeds the glibc 2.35 release floor",
+            "wheel must advertise a manylinux tag within the glibc 2.28 release floor",
         )
     ceilings: dict[str, list[tuple[int, ...]]] = {
         "GLIBC": floors,
@@ -490,9 +492,6 @@ def inspect_linux_abi(
             for number in numbers
         }
         gcc_allowed = gcc_policy if gcc_allowed is None else gcc_allowed & gcc_policy
-    if release:
-        for family, ceiling in LINUX_RELEASE_CPP.items():
-            ceilings[family].append(ceiling)
     limits = {family: min(values, default=None) for family, values in ceilings.items()}
     named_allowed = {
         family: {
@@ -502,6 +501,10 @@ def inspect_linux_abi(
         }
         for family, versions in MANYLINUX_NAMED.items()
     }
+    # Source builds may use host libcap. Release bundles link it statically.
+    system_libraries = (
+        LINUX_SYSTEM_LIBRARIES if release else LINUX_SYSTEM_LIBRARIES | {"libcap.so.2"}
+    )
     machine, loader = LINUX_MACHINES[architecture]
     evidence = {}
     # Model a Unix installation prefix; Python's version does not change its depth.
@@ -659,7 +662,7 @@ def inspect_linux_abi(
                         f"{member}: unsupported DT_NEEDED filename {needed}; "
                         "dependencies must be library names without /",
                     )
-                    if needed in LINUX_SYSTEM_LIBRARIES or needed in loaded_names:
+                    if needed in system_libraries or needed in loaded_names:
                         continue
                     dependency = next(
                         (
@@ -699,6 +702,14 @@ def inspect_linux_abi(
     return evidence
 
 
+def sandbox_notices(linux: bool) -> tuple[str, ...]:
+    return ("LICENSE", "NOTICE") + (
+        ("bubblewrap-COPYING", "bubblewrap-NOTICE", "bubblewrap-SOURCE.json")
+        if linux
+        else ()
+    )
+
+
 def inspect_wheel_commands(
     wheel: Path,
     *,
@@ -723,15 +734,7 @@ def inspect_wheel_commands(
                 archive.getinfo(runner).external_attr >> 16 & 0o111 != 0,
                 f"private sandbox runner {name} is not executable",
             )
-        for name in (
-            "LICENSE",
-            "NOTICE",
-            *(
-                ["bubblewrap-COPYING", "bubblewrap-NOTICE", "bubblewrap-SOURCE.json"]
-                if linux
-                else []
-            ),
-        ):
+        for name in sandbox_notices(linux):
             require(
                 f"{data}/share/licenses/mcp-console/{name}" in members,
                 f"private sandbox runner is missing {name}",
@@ -853,7 +856,11 @@ def smoke_wheel(args: argparse.Namespace) -> None:
     )
 
     if args.target is not None:
-        architecture = TARGET_ARCHITECTURES[args.target]
+        architecture = (
+            "arm64"
+            if args.target == "aarch64-apple-darwin"
+            else args.target.partition("-")[0]
+        )
         require(
             wheel.name.endswith(f"_{architecture}.whl")
             and linux == ("linux" in args.target),
@@ -985,6 +992,80 @@ def smoke_wheel(args: argparse.Namespace) -> None:
         )
 
 
+def publish_archives(args: argparse.Namespace) -> None:
+    validate_publish(args)
+    directory = Path(args.directory)
+    files = [*archive_paths(directory), directory / "SHA256SUMS"]
+    expected = {
+        path.name: "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in files
+    }
+    tag = os.environ["GITHUB_REF_NAME"]
+    tags = command_output(
+        [
+            "gh",
+            "api",
+            "--paginate",
+            "repos/{owner}/{repo}/releases?per_page=100",
+            "--jq",
+            ".[].tag_name",
+        ]
+    ).splitlines()
+    if tag not in tags:
+        run_command(
+            [
+                "gh",
+                "release",
+                "create",
+                tag,
+                "--verify-tag",
+                "--draft",
+                "--generate-notes",
+            ]
+        )
+
+    def inspect() -> tuple[bool, set[str]]:
+        remote = json.loads(
+            command_output(["gh", "release", "view", tag, "--json", "isDraft,assets"])
+        )
+        uploaded = {asset["name"]: asset["digest"] for asset in remote["assets"]}
+        for name, digest in uploaded.items():
+            require(name in expected, f"unexpected GitHub asset: {name}")
+            require(digest == expected[name], f"GitHub asset digest differs: {name}")
+        return remote["isDraft"], expected.keys() - uploaded.keys()
+
+    draft, missing = inspect()
+    if missing:
+        require(draft, "published GitHub release is missing assets")
+        run_command(
+            [
+                "gh",
+                "release",
+                "upload",
+                tag,
+                *[str(directory / name) for name in sorted(missing)],
+            ]
+        )
+        draft, missing = inspect()
+        require(not missing, f"GitHub release is missing assets: {sorted(missing)}")
+    if draft:
+        run_command(["gh", "release", "edit", tag, "--draft=false"])
+
+
+def check_unpublished(args: argparse.Namespace) -> None:
+    version = package_version()
+    url = f"{args.pypi_url.rstrip('/')}/pypi/mcp-console/{version}/json"
+    try:
+        with urlopen(url, timeout=30):
+            raise ReleaseError(
+                f"{version} is already on PyPI; reuse the original build artifacts"
+            )
+    except HTTPError as error:
+        error.close()
+        if error.code != 404:
+            raise
+
+
 def validate_publish(_: argparse.Namespace) -> None:
     event_name = os.environ["GITHUB_EVENT_NAME"]
     ref_type = os.environ["GITHUB_REF_TYPE"]
@@ -1047,34 +1128,143 @@ def validate_publish(_: argparse.Namespace) -> None:
     )
 
 
-def verify_wheel_set(args: argparse.Namespace) -> None:
-    directory = Path(args.directory)
+def release_wheels(directory: Path) -> list[Path]:
     wheels = sorted(directory.glob("*.whl"))
-    arm64 = list(directory.glob("mcp_console-*-macosx_*_arm64.whl"))
-    x86_64 = list(directory.glob("mcp_console-*-macosx_*_x86_64.whl"))
-    linux_arm64 = list(directory.glob("mcp_console-*-manylinux_*_aarch64.whl"))
-    linux_x86_64 = list(directory.glob("mcp_console-*-manylinux_*_x86_64.whl"))
-    windows_x86_64 = list(directory.glob("mcp_console-*-win_amd64.whl"))
-    universal = list(directory.glob("*-none-any.whl"))
-    sdists = list(directory.glob("*.tar.gz"))
+    require(
+        len(wheels) == len(RELEASE_PLATFORMS),
+        f"expected exactly six wheels, found {len(wheels)}",
+    )
+    version = package_version()
+    for target, platform in RELEASE_PLATFORMS.items():
+        pattern = f"mcp_console-{version}-py3-none-{platform}.whl"
+        require(
+            sum(wheel.match(pattern) for wheel in wheels) == 1,
+            f"expected exactly one {target} wheel",
+        )
+    require(
+        set(directory.iterdir()) == set(wheels), "only release wheels may be published"
+    )
+    return wheels
 
-    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
-    require(len(arm64) == 1, "expected exactly one Apple Silicon wheel")
-    require(len(x86_64) == 1, "expected exactly one Intel macOS wheel")
-    require(len(linux_arm64) == 1, "expected exactly one ARM64 Linux wheel")
-    require(len(linux_x86_64) == 1, "expected exactly one x86-64 Linux wheel")
-    require(len(windows_x86_64) == 1, "expected exactly one x86-64 Windows wheel")
-    require(not universal, "a platform-independent wheel must not be published")
-    require(not sdists, "a source distribution must not be published")
 
-    print("Publishing:")
-    for wheel in wheels:
-        print(f"  {wheel}")
+def verify_wheel_set(args: argparse.Namespace) -> None:
+    for wheel in release_wheels(Path(args.directory)):
+        print(wheel)
+
+
+def archive_name(target: str) -> str:
+    suffix = "zip" if "windows" in target else "tar.gz"
+    return f"mcp-console-{target}.{suffix}"
+
+
+def build_archive(args: argparse.Namespace) -> None:
+    wheel = Path(args.wheel)
+    version, tags = wheel_identity(wheel)
+    require(
+        all(
+            fnmatch.fnmatchcase(tag, f"py3-none-{RELEASE_PLATFORMS[args.target]}")
+            for tag in tags
+        ),
+        f"wheel does not match {args.target}: {wheel.name}",
+    )
+    windows = "windows" in args.target
+    linux = "linux" in args.target
+    data = f"mcp_console-{version}.data"
+    licenses = "share/licenses/mcp-console"
+    suffix = ".exe" if windows else ""
+    public = f"bin/mcp-console{suffix}"
+    # The Windows wheel entry point is a Python launcher. The backend keeps
+    # the native Console alongside the runner so both stay in the environment.
+    native = (
+        f"{data}/data/libexec/mcp-console.exe"
+        if windows
+        else f"{data}/scripts/mcp-console"
+    )
+
+    output = Path(args.out_dir) / archive_name(args.target)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with (
+        zipfile.ZipFile(wheel) as source,
+        tempfile.TemporaryDirectory(dir=output.parent) as temp,
+    ):
+        members = {
+            public: native,
+            f"{licenses}/mcp-console-LICENSE": f"mcp_console-{version}.dist-info/licenses/LICENSE",
+        }
+        # Preserve the installed paths of all private files, including any
+        # native libraries and their redistribution notices.
+        prefix = f"{data}/data/"
+        for info in source.infolist():
+            if (
+                info.filename.startswith(
+                    (prefix + "lib/", prefix + "libexec/", prefix + "share/")
+                )
+                and info.filename != native
+                and not info.is_dir()
+            ):
+                relative = info.filename.removeprefix(prefix)
+                require(
+                    all(part not in ("", ".", "..") for part in relative.split("/"))
+                    and "\\" not in relative
+                    and relative not in members,
+                    f"invalid native bundle member: {info.filename}",
+                )
+                members[relative] = info.filename
+        required = {
+            f"libexec/mcp-console-sandbox{suffix}",
+            *(f"{licenses}/{name}" for name in sandbox_notices(linux)),
+        }
+        if linux:
+            required.add("libexec/bwrap")
+        require(
+            required <= members.keys(),
+            f"missing native bundle files: {sorted(required - members.keys())}",
+        )
+
+        # Build in a temporary path; a failed wheel read leaves no partial archive.
+        pending = Path(temp) / output.name
+        if windows:
+            with zipfile.ZipFile(pending, "w", zipfile.ZIP_DEFLATED) as archive:
+                for dest, src in sorted(members.items()):
+                    archive.writestr(dest, source.read(src))
+        else:
+            with tarfile.open(pending, "w:gz") as tar:
+                for dest, src in sorted(members.items()):
+                    entry = source.getinfo(src)
+                    item = tarfile.TarInfo(dest)
+                    item.mode = entry.external_attr >> 16 & 0o777
+                    item.size = entry.file_size
+                    with source.open(entry) as content:
+                        tar.addfile(item, content)
+        pending.replace(output)
+    print(output)
+
+
+def archive_paths(directory: Path) -> list[Path]:
+    expected = {directory / archive_name(target) for target in RELEASE_PLATFORMS}
+    found = set(directory.iterdir()) - {directory / "SHA256SUMS"}
+    require(
+        found == expected,
+        f"archive set differs: {sorted(path.name for path in expected ^ found)}",
+    )
+    return sorted(expected)
+
+
+def archive_checksums(args: argparse.Namespace) -> None:
+    directory = Path(args.directory)
+    lines = []
+    for path in archive_paths(directory):
+        with path.open("rb") as stream:
+            lines.append(
+                f"{hashlib.file_digest(stream, 'sha256').hexdigest()}  {path.name}\n"
+            )
+    (directory / "SHA256SUMS").write_text(
+        "".join(lines), encoding="ascii", newline="\n"
+    )
 
 
 def wait_pypi(args: argparse.Namespace) -> None:
-    wheels = sorted(Path(args.directory).glob("*.whl"))
-    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
+    wheels = release_wheels(Path(args.directory))
     for value in (args.timeout_seconds, args.poll_interval_seconds):
         require(
             math.isfinite(value) and value > 0,
@@ -1155,13 +1345,23 @@ def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser()
     commands = argument_parser.add_subparsers(required=True)
 
+    unpublished = commands.add_parser("check-unpublished")
+    unpublished.add_argument("--pypi-url", default="https://pypi.org")
+    unpublished.set_defaults(function=check_unpublished)
+
+    publish = commands.add_parser("publish-archives")
+    publish.add_argument("directory")
+    publish.set_defaults(function=publish_archives)
+
     smoke = commands.add_parser("smoke-wheel")
     smoke.add_argument("wheel")
     smoke.add_argument("cargo_bin", nargs="?")
     smoke.add_argument("--installed-only", action="store_true")
     smoke.add_argument("--sandbox-pin", default="sandbox-runner.json")
     smoke.add_argument("--release", action="store_true")
-    smoke.add_argument("--target", choices=sorted(TARGET_ARCHITECTURES))
+    smoke.add_argument(
+        "--target", choices=sorted(t for t in RELEASE_PLATFORMS if "windows" not in t)
+    )
     smoke.add_argument("--without-r", action="store_true")
     smoke.add_argument("--startup-timeout-seconds", type=float, default=1200.0)
     smoke.add_argument("--response-timeout-seconds", type=float, default=30.0)
@@ -1169,7 +1369,9 @@ def parser() -> argparse.ArgumentParser:
 
     inspect = commands.add_parser("inspect-wheel")
     inspect.add_argument("wheel")
-    inspect.add_argument("--target", choices=sorted(TARGET_ARCHITECTURES))
+    inspect.add_argument(
+        "--target", choices=sorted(t for t in RELEASE_PLATFORMS if "linux" in t)
+    )
     inspect.add_argument("--release", action="store_true")
     inspect.add_argument("--sandbox-pin", default="sandbox-runner.json")
     inspect.add_argument("--report")
@@ -1177,6 +1379,16 @@ def parser() -> argparse.ArgumentParser:
 
     validate = commands.add_parser("validate-publish")
     validate.set_defaults(function=validate_publish)
+
+    archive = commands.add_parser("build-archive")
+    archive.add_argument("wheel")
+    archive.add_argument("--target", choices=sorted(RELEASE_PLATFORMS), required=True)
+    archive.add_argument("--out-dir", required=True)
+    archive.set_defaults(function=build_archive)
+
+    sums = commands.add_parser("archive-checksums")
+    sums.add_argument("directory")
+    sums.set_defaults(function=archive_checksums)
 
     verify = commands.add_parser("verify-wheel-set")
     verify.add_argument("directory")

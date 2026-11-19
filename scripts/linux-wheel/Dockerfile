@@ -1,45 +1,34 @@
-# Native wheel validation on the supported userspace; no checkout enters here.
+# Final native artifacts on an EL8 userspace; no checkout enters this context.
 FROM ghcr.io/astral-sh/uv:0.13.1 AS uv
-FROM ubuntu:22.04 AS base
-ENV DEBIAN_FRONTEND=noninteractive UV_NO_CONFIG=1 \
+FROM almalinux:8-minimal AS standalone
+RUN microdnf -y --setopt=install_weak_deps=0 install tar gzip && microdnf clean all
+WORKDIR /empty-workspace
+
+FROM standalone AS no-r
+ENV UV_NO_CONFIG=1 \
     UV_PYTHON_INSTALL_DIR=/opt/console-cache/mcp-console/dependencies/uv/python
 COPY --from=uv /uv /usr/local/bin/uv
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libcap2 libgcc-s1 libstdc++6 binutils \
-    && rm -rf /var/lib/apt/lists/*
+RUN microdnf -y --setopt=install_weak_deps=0 install binutils && microdnf clean all
 RUN uv python install 3.14 \
     && ln -s "$(uv python find --managed-python 3.14)" /usr/local/bin/python3
 ENV UV_PYTHON_DOWNLOADS=never UV_TOOL_DIR=/tmp/tools UV_TOOL_BIN_DIR=/tmp/bin UV_CACHE_DIR=/tmp/uv-cache
 ENV XDG_CACHE_HOME=/opt/console-cache
-WORKDIR /empty-workspace
 
-FROM base AS no-r
-
-# R and its package preparation are independent of Console's native libraries.
-# Jammy's stock R 4.1 cannot install the current default Arrow/DuckDB packages.
-FROM base AS r-repository
-RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
-    && curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc -o /etc/apt/trusted.gpg.d/cran.asc \
-    && test "$(gpg --show-keys --with-colons /etc/apt/trusted.gpg.d/cran.asc | awk -F: '$1 == "fpr" {print $10; exit}')" = E298A3A825C0D65DFD57CBB651716619E084DAB9 \
-    && printf '%s\n' 'deb [signed-by=/etc/apt/trusted.gpg.d/cran.asc] https://cloud.r-project.org/bin/linux/ubuntu jammy-cran40/' > /etc/apt/sources.list.d/cran.list
-
-FROM base AS r-runtime
-COPY --from=r-repository /etc/apt/trusted.gpg.d/cran.asc /etc/apt/trusted.gpg.d/cran.asc
-COPY --from=r-repository /etc/apt/sources.list.d/cran.list /etc/apt/sources.list.d/cran.list
-# IR expects R's recommended packages, including reticulate's Matrix dependency.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    r-base-core r-recommended libcurl4 libssl3 libxml2 libcairo2 libfontconfig1 \
-    libharfbuzz0b libfribidi0 libjpeg-turbo8 libpng16-16 libtiff5 libuv1 libwebp7 libwebpmux3 \
-    && rm -rf /var/lib/apt/lists/*
+# EPEL's R-core includes R's recommended packages on both architectures.
+FROM no-r AS r-runtime
+RUN microdnf -y --setopt=install_weak_deps=0 install epel-release \
+    && microdnf -y --enablerepo=powertools --setopt=install_weak_deps=0 install \
+    R-core libcurl openssl-libs libxml2 cairo fontconfig harfbuzz fribidi \
+    libjpeg-turbo libpng libtiff libuv libwebp && microdnf clean all
 COPY configure-ci-r.R /tmp/configure-ci-r.R
 RUN Rscript --vanilla /tmp/configure-ci-r.R && rm /tmp/configure-ci-r.R
 
 FROM r-runtime AS r-preparation
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    r-base-dev build-essential pkgconf curl libcurl4-openssl-dev libssl-dev \
-    libxml2-dev libcairo2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
-    libjpeg-dev libpng-dev libtiff-dev libuv1-dev libwebp-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN microdnf -y --enablerepo=powertools --setopt=install_weak_deps=0 install \
+    R-core-devel gcc gcc-c++ gcc-gfortran make pkgconf-pkg-config curl \
+    libcurl-devel openssl-devel libxml2-devel cairo-devel fontconfig-devel \
+    harfbuzz-devel fribidi-devel libjpeg-turbo-devel libpng-devel libtiff-devel \
+    libuv-devel libwebp-devel && microdnf clean all
 # Match the documented Console cache layout, without opting into host caches.
 ENV IR_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/ir \
     IR_LIBRARY_ROOT=/opt/console-cache/mcp-console/dependencies/ir/libraries \
@@ -49,7 +38,7 @@ ENV IR_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/ir \
     R_PKG_CACHE_DIR=/opt/console-cache/mcp-console/dependencies \
     UV_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/uv/cache
 ENV LIBARROW_BINARY=true MAKEFLAGS=-j1
-ENV R_HOME=/usr/lib/R
+ENV R_HOME=/usr/lib64/R
 # Bound DuckDB's source-build memory in the language preparation fixture.
 # These flags affect test dependencies, never the distributed wheel binaries.
 RUN printf '%s\n' 'CXX17FLAGS=-O0 -g0' > /opt/preparation.Makevars

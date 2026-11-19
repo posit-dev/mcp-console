@@ -24,7 +24,7 @@ def main() -> None:
 
     glibc = subprocess.check_output(["getconf", "GNU_LIBC_VERSION"], text=True).strip()
     print(glibc, Path("/etc/os-release").read_text(), flush=True)
-    assert glibc == "glibc 2.35"
+    assert glibc == "glibc 2.28"
     assert platform.machine() == args.target.split("-", 1)[0]
     assert all(
         shutil.which(tool) is None
@@ -34,11 +34,11 @@ def main() -> None:
     assert not Path("Cargo.toml").exists()
     assert not Path("target").exists()
     subprocess.run(["uname", "-a"], check=True)
-    packages = subprocess.check_output(["dpkg-query", "-W"], text=True)
-    print(packages, flush=True)
-    assert not any(
-        line.split()[0].split(":")[0].endswith("-dev") for line in packages.splitlines()
+    packages = subprocess.check_output(
+        ["rpm", "-qa", "--queryformat", "%{NAME}\n"], text=True
     )
+    print(packages, flush=True)
+    assert not any(name.endswith("-devel") for name in packages.splitlines())
     subprocess.run(["uv", "--version"], check=True)
     subprocess.run([sys.executable, "--version"], check=True)
     if args.with_r:

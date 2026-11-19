@@ -34,6 +34,16 @@ SCRIPT = ROOT / "scripts" / "release.py"
 STAGE_SCRIPT = ROOT / "scripts" / "stage-sandbox-runner"
 
 
+RELEASE_FIXTURES = {
+    "aarch64-apple-darwin": "macosx_11_0_arm64",
+    "x86_64-apple-darwin": "macosx_10_12_x86_64",
+    "aarch64-unknown-linux-gnu": "manylinux_2_28_aarch64",
+    "x86_64-unknown-linux-gnu": "manylinux_2_28_x86_64",
+    "aarch64-pc-windows-msvc": "win_arm64",
+    "x86_64-pc-windows-msvc": "win_amd64",
+}
+
+
 def write_executable(path: Path, source: str) -> None:
     path.write_text(code(source), encoding="utf-8")
     path.chmod(0o755)
@@ -57,7 +67,9 @@ def bubblewrap_notice(
     )
 
 
-def helper_metadata(pin: dict[str, object], helper: bytes) -> dict[str, object]:
+def helper_metadata(
+    pin: dict[str, object], helper: bytes, *, dynamic: bool = True
+) -> dict[str, object]:
     return {
         "source_repository": pin["repository"],
         "source_revision": pin["commit"],
@@ -65,8 +77,8 @@ def helper_metadata(pin: dict[str, object], helper: bytes) -> dict[str, object]:
         "build_script": "codex-rs/bwrap/build.rs",
         "wrapper_directory": "codex-rs/bwrap",
         "sha256": hashlib.sha256(helper).hexdigest(),
-        "elf_needed": ["libc.so.6", "libcap.so.2"],
-        "libcap_linkage": "dynamic",
+        "elf_needed": ["libc.so.6", *(["libcap.so.2"] if dynamic else [])],
+        "libcap_linkage": "dynamic" if dynamic else "static",
     }
 
 
@@ -75,7 +87,7 @@ def elf_fixture(**changes: object) -> bytes:
         "machine": "Advanced Micro Devices X86-64",
         "interpreter": "/lib64/ld-linux-x86-64.so.2",
         "needed": ["libc.so.6"],
-        "versions": ["GLIBC_2.34"],
+        "versions": ["GLIBC_2.28"],
         "rpath": None,
         "runpath": None,
     }
@@ -267,6 +279,98 @@ class ReleaseScriptTests(ReleaseFixture):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("lacks successful CI from a push to main", result.stderr)
 
+    def test_archive_publication_resumes_from_a_matching_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            env = self.validation_environment(root)
+            env["FAKE_GH_RESPONSE"] = json.dumps(
+                {
+                    "workflow_runs": [
+                        {
+                            "head_sha": "release-commit",
+                            "event": "push",
+                            "head_branch": "main",
+                            "conclusion": "success",
+                        }
+                    ]
+                }
+            )
+            assets = root / "archives"
+            assets.mkdir()
+            targets = ("x86_64", "aarch64")
+            names = [
+                "SHA256SUMS",
+                *(
+                    f"mcp-console-{arch}-{suffix}"
+                    for arch in targets
+                    for suffix in (
+                        "pc-windows-msvc.zip",
+                        "apple-darwin.tar.gz",
+                        "unknown-linux-gnu.tar.gz",
+                    )
+                ),
+            ]
+            one = names[1]
+            for name in names:
+                (assets / name).write_bytes(name.encode())
+            initial = {
+                "isDraft": True,
+                "assets": [
+                    {
+                        "name": one,
+                        "digest": "sha256:" + hashlib.sha256(one.encode()).hexdigest(),
+                    }
+                ],
+            }
+            state = root / "release.json"
+            state.write_text(json.dumps(initial))
+            write_python_executable(
+                root / "commands/gh",
+                """
+                import hashlib, json, os, sys
+                from pathlib import Path
+                state = Path("release.json")
+                data = json.loads(state.read_text())
+                command = sys.argv[1:]
+                if command[:1] == ["api"] and "--paginate" in command:
+                    print("v0.0.2")
+                elif command[:1] == ["api"]:
+                    print(os.environ["FAKE_GH_RESPONSE"])
+                elif command[:2] == ["release", "view"]:
+                    print(json.dumps(data))
+                elif command[:2] == ["release", "upload"]:
+                    assert data["isDraft"]
+                    for arg in command[3:]:
+                        path = Path(arg)
+                        assert path.name not in {a["name"] for a in data["assets"]}
+                        data["assets"].append({"name": path.name, "digest":
+                            "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()})
+                elif command == ["release", "edit", "v0.0.2", "--draft=false"]:
+                    data["isDraft"] = False
+                else:
+                    raise ValueError(command)
+                state.write_text(json.dumps(data))
+            """,
+            )
+            (assets / one).write_text("different")
+            mismatch = self.run_script(
+                "publish-archives", "archives", cwd=root, env=env
+            )
+            self.assertIn("GitHub asset digest differs", mismatch.stderr)
+            self.assertEqual(json.loads(state.read_text()), initial)
+            (assets / one).write_bytes(one.encode())
+            for _ in range(2):
+                result = self.run_script(
+                    "publish-archives", "archives", cwd=root, env=env
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+            final = json.loads(state.read_text())
+            self.assertFalse(final["isDraft"])
+            self.assertEqual(
+                {item["name"] for item in final["assets"]},
+                {path.name for path in assets.iterdir()},
+            )
+
     def test_validate_publish_rejects_manual_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
@@ -318,22 +422,22 @@ class ReleaseScriptTests(ReleaseFixture):
                 original_mkdir = Path.mkdir
                 def read_text(path: Path, *args, **kwargs) -> str:
                     if path == Path("/etc/os-release"):
-                        return "ID=ubuntu\\nVERSION_ID=22.04\\n"
+                        return "ID=almalinux\\nVERSION_ID=8\\n"
                     return original_read_text(path, *args, **kwargs)
                 def mkdir(path: Path, *args, **kwargs) -> None:
                     if path != Path("/evidence"):
                         original_mkdir(path, *args, **kwargs)
                 def check_output(command: list[str], **kwargs) -> str:
                     if command == ["getconf", "GNU_LIBC_VERSION"]:
-                        return "glibc 2.35\\n"
+                        return "glibc 2.28\\n"
                     if command[0] == "readelf":
                         assert command[1:-1] == ["-l", "-W"]
                         fields = json.loads(Path(command[-1]).read_bytes()[4:])
                         if fields["interpreter"]:
                             return "[Requesting program interpreter: " + fields["interpreter"] + "]"
                         return ""
-                    assert command == ["dpkg-query", "-W"]
-                    return "libc6 2.35\\n"
+                    assert command == ["rpm", "-qa", "--queryformat", "%{NAME}\\n"]
+                    return "glibc\\n"
                 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
                     output = ""
                     if command[0] == "ldd":
@@ -441,6 +545,8 @@ class ReleaseScriptTests(ReleaseFixture):
                 elif arguments[:2] == ["image", "inspect"]:
                     print("[]")
                 elif arguments[0] == "run":
+                    if arguments[-2] == "/test/standalone.sh":
+                        assert arguments[-1] == "/test/archive.tar.gz"
                     if "--with-r" in arguments:
                         state = json.loads(state_path.read_text())
                         if now - state["prepared"] >= 86400:
@@ -455,6 +561,8 @@ class ReleaseScriptTests(ReleaseFixture):
             )
             wheel = directory / "wheel.whl"
             wheel.touch()
+            archive = directory / "archive.tar.gz"
+            archive.touch()
             for architecture in ("x86_64", "aarch64"):
                 environment = os.environ | {
                     "PATH": f"{commands}{os.pathsep}{os.environ['PATH']}",
@@ -470,6 +578,8 @@ class ReleaseScriptTests(ReleaseFixture):
                                 sys.executable,
                                 str(ROOT / "scripts/check-linux-wheel"),
                                 str(wheel),
+                                "--archive",
+                                str(archive),
                                 "--target",
                                 f"{architecture}-unknown-linux-gnu",
                                 "--evidence",
@@ -709,12 +819,17 @@ class ReleaseScriptTests(ReleaseFixture):
         *,
         omit: str | None = None,
         executable: bool = True,
-        glibc: str = "2.34",
+        glibc: str = "2.28",
+        dynamic_libcap: bool = False,
     ) -> None:
         version = wheel.name.split("-")[1]
         with zipfile.ZipFile(wheel, "w") as archive:
             linux = "linux" in wheel.name
             elf_fields = {"versions": [f"GLIBC_{glibc}"]}
+            helper_libraries = [
+                "libc.so.6",
+                *(["libcap.so.2"] if dynamic_libcap else []),
+            ]
             if linux and "aarch64" in wheel.name:
                 elf_fields.update(
                     machine="AArch64", interpreter="/lib/ld-linux-aarch64.so.1"
@@ -739,6 +854,7 @@ class ReleaseScriptTests(ReleaseFixture):
                     "bubblewrap-COPYING",
                     "bubblewrap-NOTICE",
                     "bubblewrap-SOURCE.json",
+                    *([] if dynamic_libcap else ["libcap-NOTICE"]),
                 )
             for name in names:
                 if name == omit:
@@ -757,9 +873,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 if linux and name in ("mcp-console-sandbox", "bwrap"):
                     contents = elf_fixture(
                         **elf_fields,
-                        needed=["libc.so.6", "libcap.so.2"]
-                        if name == "bwrap"
-                        else ["libc.so.6"],
+                        needed=helper_libraries if name == "bwrap" else ["libc.so.6"],
                     )
                 if name == "bubblewrap-NOTICE":
                     contents = bubblewrap_notice(
@@ -770,9 +884,8 @@ class ReleaseScriptTests(ReleaseFixture):
                     contents = json.dumps(
                         helper_metadata(
                             pin,
-                            elf_fixture(
-                                **elf_fields, needed=["libc.so.6", "libcap.so.2"]
-                            ),
+                            elf_fixture(**elf_fields, needed=helper_libraries),
+                            dynamic=dynamic_libcap,
                         )
                     )
                 archive.writestr(info, contents)
@@ -781,7 +894,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             self.write_wheel(wheel)
             with zipfile.ZipFile(wheel, "a") as archive:
                 archive.writestr("mcp_console/extra.so", elf_fixture(interpreter=None))
@@ -799,10 +912,10 @@ class ReleaseScriptTests(ReleaseFixture):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             evidence = json.loads(report.read_text())
-            self.assertEqual(evidence["tags"], ["py3-none-manylinux_2_35_x86_64"])
+            self.assertEqual(evidence["tags"], ["py3-none-manylinux_2_28_x86_64"])
             self.assertEqual(len(evidence["elf"]), 4)
-            self.assertEqual(evidence["elf"]["mcp_console/extra.so"]["glibc"], ["2.34"])
-            self.assertIn(
+            self.assertEqual(evidence["elf"]["mcp_console/extra.so"]["glibc"], ["2.28"])
+            self.assertNotIn(
                 "libcap.so.2",
                 evidence["elf"]["mcp_console-0.0.2.data/data/libexec/bwrap"]["needed"],
             )
@@ -811,7 +924,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             for member, runpath, library_directory in (
                 (
                     "mcp_console-0.0.2.data/scripts/mcp-console",
@@ -875,7 +988,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             executable = "mcp_console-0.0.2.data/scripts/mcp-console"
             for kind in ("rpath", "runpath"):
                 for needed in (
@@ -921,7 +1034,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             executable = "mcp_console-0.0.2.data/scripts/mcp-console"
             libexec = "mcp_console-0.0.2.data/data/libexec"
             for name, root_paths, child_paths, accepted in (
@@ -1036,7 +1149,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             executable = "mcp_console-0.0.2.data/scripts/mcp-console"
             libexec = "mcp_console-0.0.2.data/data/libexec"
             for name, needed, libraries, separate_executable, accepted in (
@@ -1128,7 +1241,7 @@ class ReleaseScriptTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             for member, runpath in (
                 ("mcp_console-0.0.2.data/scripts/mcp-console", "$ORIGIN/../../outside"),
                 (
@@ -1152,18 +1265,19 @@ class ReleaseScriptTests(ReleaseFixture):
 
     def test_inspect_wheel_rejects_incompatible_private_and_extra_elf(self) -> None:
         defects = (
-            ({"versions": ["GLIBC_2.36"]}, "GLIBC_2.36"),
-            ({"versions": ["GLIBCXX_3.4.31"]}, "GLIBCXX_3.4.31"),
-            ({"versions": ["CXXABI_1.3.14"]}, "CXXABI_1.3.14"),
+            ({"versions": ["GLIBC_2.29"]}, "GLIBC_2.29"),
+            ({"versions": ["GLIBCXX_3.4.25"]}, "GLIBCXX_3.4.25"),
+            ({"versions": ["CXXABI_1.3.12"]}, "CXXABI_1.3.12"),
             ({"machine": "AArch64"}, "machine"),
             ({"interpreter": "/opt/builder/ld-linux.so"}, "interpreter"),
             ({"runpath": "/opt/builder/lib"}, "RUNPATH"),
             ({"needed": ["libssl.so.3"]}, "undeclared dependency"),
+            ({"needed": ["libcap.so.2"]}, "undeclared dependency"),
         )
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             environment, _, _ = self.smoke_environment(directory)
-            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_35_x86_64.whl"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
             for member in (
                 "mcp_console-0.0.2.data/data/libexec/mcp-console-sandbox",
                 "mcp_console/extra.so",
@@ -1187,6 +1301,27 @@ class ReleaseScriptTests(ReleaseFixture):
                         self.assertIn(diagnostic, result.stderr)
                         self.assertIn(member, result.stderr)
 
+    def test_release_rejects_ubuntu_22_04_wheels(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            environment, _, _ = self.smoke_environment(directory)
+            for arch in ("x86_64", "aarch64"):
+                with self.subTest(arch=arch):
+                    wheel = (
+                        directory
+                        / f"mcp_console-0.0.2-py3-none-manylinux_2_35_{arch}.whl"
+                    )
+                    self.write_wheel(wheel)
+                    result = self.run_script(
+                        "inspect-wheel",
+                        str(wheel),
+                        "--release",
+                        cwd=directory,
+                        env=environment,
+                    )
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn("glibc 2.28 release floor", result.stderr)
+
     def test_inspect_wheel_rejects_false_or_inconsistent_tags(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -1194,17 +1329,17 @@ class ReleaseScriptTests(ReleaseFixture):
             for platform, metadata_tag, diagnostic in (
                 ("manylinux_2_28_x86_64", None, "GLIBC_2.34"),
                 ("manylinux_2_39_x86_64", None, "release floor"),
-                ("manylinux_2_33_x86_64", None, "unsupported manylinux C++ policy"),
+                ("manylinux_2_25_x86_64", None, "unsupported manylinux C++ policy"),
                 (
                     "manylinux_2_35_x86_64",
                     "py3-none-manylinux_2_35_aarch64",
                     "WHEEL tags",
                 ),
-                ("manylinux_2_35_x86_64.manylinux_2_28_x86_64", None, "GLIBC_2.34"),
+                ("manylinux_2_28_x86_64.manylinux_2_24_x86_64", None, "GLIBC_2.34"),
             ):
                 with self.subTest(platform=platform, metadata=metadata_tag):
                     wheel = directory / f"mcp_console-0.0.2-py3-none-{platform}.whl"
-                    self.write_wheel(wheel)
+                    self.write_wheel(wheel, glibc="2.34")
                     if metadata_tag:
                         rewrite_wheel(
                             wheel,
@@ -1233,6 +1368,7 @@ class ReleaseScriptTests(ReleaseFixture):
                     22 if architecture == "x86_64" else 24,
                     10 if architecture == "x86_64" else 11,
                 ),
+                ("manylinux_2_28", 24, 11),
                 ("manylinux_2_31", 28, 12),
                 ("manylinux_2_34", 29, 13),
                 ("manylinux_2_35", 30, 13),
@@ -1281,7 +1417,14 @@ class ReleaseScriptTests(ReleaseFixture):
                                     cwd=directory,
                                     env=environment,
                                 )
-                                if release and policy == "manylinux_2_39":
+                                if release and policy.startswith(
+                                    (
+                                        "manylinux_2_31",
+                                        "manylinux_2_34",
+                                        "manylinux_2_35",
+                                        "manylinux_2_39",
+                                    )
+                                ):
                                     self.assertNotEqual(
                                         result.returncode, 0, result.stdout
                                     )
@@ -1303,6 +1446,7 @@ class ReleaseScriptTests(ReleaseFixture):
         for architecture in ("x86_64", "aarch64"):
             arm = architecture == "aarch64"
             cases = [
+                ("manylinux_2_28", "ABI_DT_RELR", False),
                 ("manylinux_2_35", "ABI_DT_RELR", False),
                 ("manylinux_2_36", "ABI_DT_RELR", True),
                 ("manylinux_2_39", "ABI_DT_RELR", True),
@@ -1354,7 +1498,7 @@ class ReleaseScriptTests(ReleaseFixture):
                                 cwd=directory,
                                 env=environment,
                             )
-                            if release and policy != "manylinux_2_35":
+                            if release and policy != "manylinux_2_28":
                                 self.assertNotEqual(result.returncode, 0, result.stdout)
                                 self.assertIn("release floor", result.stderr)
                             elif not permitted:
@@ -1391,12 +1535,12 @@ class ReleaseScriptTests(ReleaseFixture):
                 ("manylinux2014", {"TM_1"}),
                 ("manylinux_2_24", named),
                 ("manylinux_2_34", named),
-                ("manylinux_2_35", named),
-                ("manylinux_2_35.manylinux2014", {"TM_1"}),
+                ("manylinux_2_28", named),
+                ("manylinux_2_28.manylinux2014", {"TM_1"}),
             ]
             if not arm:
                 policies[:0] = [("manylinux2010", set())]
-                policies.append(("manylinux_2_35.manylinux2010", set()))
+                policies.append(("manylinux_2_28.manylinux2010", set()))
             with tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 environment, _, _ = self.smoke_environment(directory)
@@ -1406,7 +1550,7 @@ class ReleaseScriptTests(ReleaseFixture):
                     )
                     wheel = directory / f"mcp_console-0.0.2-py3-none-{platform}.whl"
                     names = ["TM_1", "FLOAT128"]
-                    if policy == "manylinux_2_35":
+                    if policy == "manylinux_2_28":
                         names.append("UNKNOWN")
                     for number in names:
                         self.write_wheel(wheel, glibc="2.17" if arm else "2.5")
@@ -1442,7 +1586,10 @@ class ReleaseScriptTests(ReleaseFixture):
                                     cwd=directory,
                                     env=environment,
                                 )
-                                if number not in permitted:
+                                if release and policy == "manylinux_2_34":
+                                    self.assertNotEqual(result.returncode, 0)
+                                    self.assertIn("release floor", result.stderr)
+                                elif number not in permitted:
                                     self.assertNotEqual(
                                         result.returncode, 0, result.stdout
                                     )
@@ -1515,7 +1662,14 @@ class ReleaseScriptTests(ReleaseFixture):
                             },
                         )
                         for release in (False, True):
-                            if release and policy == "manylinux_2_39":
+                            if release and policy.startswith(
+                                (
+                                    "manylinux_2_31",
+                                    "manylinux_2_34",
+                                    "manylinux_2_35",
+                                    "manylinux_2_39",
+                                )
+                            ):
                                 continue
                             with self.subTest(
                                 platform=platform, number=number, release=release
@@ -2019,7 +2173,7 @@ class ReleaseScriptTests(ReleaseFixture):
             linux_wheel = wheel.with_name(
                 "mcp_console-0.0.2-py3-none-manylinux_2_34_x86_64.whl"
             )
-            self.write_wheel(linux_wheel)
+            self.write_wheel(linux_wheel, dynamic_libcap=True)
             wheel.unlink()
             record = directory / "arguments.jsonl"
             environment["FAKE_MCP_ARGUMENTS"] = str(record)
@@ -2048,7 +2202,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 "bubblewrap-SOURCE.json",
             ):
                 with self.subTest(missing=missing):
-                    self.write_wheel(linux_wheel, omit=missing)
+                    self.write_wheel(linux_wheel, omit=missing, dynamic_libcap=True)
                     result = self.run_script(*command, cwd=directory, env=environment)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("private sandbox runner", result.stderr)
@@ -2064,7 +2218,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 ("libcap_linkage", "static"),
             ):
                 with self.subTest(field=field):
-                    self.write_wheel(linux_wheel)
+                    self.write_wheel(linux_wheel, dynamic_libcap=True)
                     with zipfile.ZipFile(linux_wheel) as archive:
                         entries = [
                             (info, archive.read(info)) for info in archive.infolist()
@@ -2085,7 +2239,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 ("bubblewrap-NOTICE", b""),
                 ("bubblewrap-COPYING", b""),
             ):
-                self.write_wheel(linux_wheel)
+                self.write_wheel(linux_wheel, dynamic_libcap=True)
                 with zipfile.ZipFile(linux_wheel) as archive:
                     entries = [
                         (info, archive.read(info)) for info in archive.infolist()
@@ -2100,7 +2254,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 self.assertIn(notice_name, result.stderr)
 
             for missing_notice in (True, False):
-                self.write_wheel(linux_wheel)
+                self.write_wheel(linux_wheel, dynamic_libcap=True)
                 with zipfile.ZipFile(linux_wheel) as archive:
                     entries = [
                         (info, archive.read(info)) for info in archive.infolist()
@@ -2716,13 +2870,7 @@ class PortableReleaseTests(ReleaseFixture):
         directory = root / "dist"
         directory.mkdir()
         files = []
-        for tag in (
-            "macosx_11_0_arm64",
-            "macosx_10_12_x86_64",
-            "manylinux_2_35_aarch64",
-            "manylinux_2_35_x86_64",
-            "win_amd64",
-        ):
+        for tag in RELEASE_FIXTURES.values():
             filename = f"mcp_console-0.0.2-py3-none-{tag}.whl"
             payload = filename.encode()
             (directory / filename).write_bytes(payload)
@@ -2736,6 +2884,30 @@ class PortableReleaseTests(ReleaseFixture):
                 }
             )
         return files
+
+    def test_build_requires_unpublished_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = self.publication_files(root)
+            for status in (404, 200, 503):
+                with (
+                    self.subTest(status=status),
+                    self.publication_server(
+                        {
+                            "/pypi/mcp-console/0.0.2/json": [
+                                (status, {"urls": files[:1]})
+                            ]
+                        }
+                    ) as (url, _),
+                ):
+                    result = self.run_script(
+                        "check-unpublished", "--pypi-url", url, cwd=root
+                    )
+                    self.assertEqual(
+                        result.returncode == 0, status == 404, result.stderr
+                    )
+                    if status == 200:
+                        self.assertIn("already on PyPI", result.stderr)
 
     def test_wait_pypi_waits_for_version_json_and_simple_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2808,7 +2980,7 @@ class PortableReleaseTests(ReleaseFixture):
                 )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
-            self.assertEqual(len(json.loads(result.stdout)["wheels"]), 5)
+            self.assertEqual(len(json.loads(result.stdout)["wheels"]), 6)
 
     def test_wait_pypi_rejects_forbidden_endpoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3113,41 +3285,144 @@ class PortableReleaseTests(ReleaseFixture):
                         + hashlib.sha256(archive.read_bytes()).hexdigest(),
                     )
 
-    def test_verify_wheel_set_requires_macos_linux_and_windows_architectures(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            directory = Path(temporary_directory)
-            arm64 = directory / "mcp_console-0.0.2-py3-none-macosx_11_0_arm64.whl"
-            x86_64 = directory / "mcp_console-0.0.2-py3-none-macosx_11_0_x86_64.whl"
-            arm64.touch()
-            x86_64.touch()
-            for architecture in ("aarch64", "x86_64"):
-                (
-                    directory
-                    / f"mcp_console-0.0.2-py3-none-manylinux_2_39_{architecture}.whl"
-                ).touch()
-
-            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("expected exactly five wheels", result.stderr)
-
-            windows = directory / "mcp_console-0.0.2-py3-none-win_amd64.whl"
-            windows.touch()
-            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
+    def test_verify_wheel_set_requires_all_six_platforms(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.publication_files(root)
+            directory = root / "dist"
+            result = self.run_script("verify-wheel-set", "dist", cwd=root)
             self.assertEqual(result.returncode, 0, result.stderr)
+            arm = directory / "mcp_console-0.0.2-py3-none-win_arm64.whl"
+            arm.unlink()
+            result = self.run_script("verify-wheel-set", "dist", cwd=root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("six wheels", result.stderr)
+            arm.with_name("mcp_console-0.0.2-py3-none-any.whl").touch()
+            result = self.run_script("verify-wheel-set", "dist", cwd=root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("aarch64-pc-windows-msvc", result.stderr)
 
-            windows.rename(
-                windows.with_name("mcp_console-0.0.2-py3-none-win_arm64.whl")
+    def test_release_archives_copy_native_wheel_files_and_licenses(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sums = {}
+            for target, tag in RELEASE_FIXTURES.items():
+                with self.subTest(target=target):
+                    windows = "windows" in target
+                    suffix = ".exe" if windows else ""
+                    binary = f"bin/mcp-console{suffix}"
+                    native = (
+                        "data/libexec/mcp-console.exe"
+                        if windows
+                        else "scripts/mcp-console"
+                    )
+                    licenses = "share/licenses/mcp-console"
+                    inputs = {
+                        binary: f"mcp_console-0.0.2.data/{native}",
+                        f"{licenses}/mcp-console-LICENSE": "mcp_console-0.0.2.dist-info/licenses/LICENSE",
+                    }
+                    private = [
+                        f"libexec/mcp-console-sandbox{suffix}",
+                        f"{licenses}/LICENSE",
+                        f"{licenses}/NOTICE",
+                    ]
+                    if "linux" in target:
+                        private += [
+                            "libexec/bwrap",
+                            *[
+                                f"{licenses}/{name}"
+                                for name in (
+                                    "bubblewrap-COPYING",
+                                    "bubblewrap-NOTICE",
+                                    "bubblewrap-SOURCE.json",
+                                    "libcap-NOTICE",
+                                )
+                            ],
+                        ]
+                    inputs.update(
+                        {
+                            name: f"mcp_console-0.0.2.data/data/{name}"
+                            for name in private
+                        }
+                    )
+                    wheel = root / f"mcp_console-0.0.2-py3-none-{tag}.whl"
+                    with zipfile.ZipFile(wheel, "w") as whl:
+                        for path, src in inputs.items():
+                            info = zipfile.ZipInfo(src)
+                            info.external_attr = (
+                                stat.S_IFREG
+                                | (
+                                    0o755
+                                    if path.startswith(("bin/", "libexec/"))
+                                    else 0o644
+                                )
+                            ) << 16
+                            whl.writestr(info, src.encode())
+                        whl.writestr(
+                            "mcp_console-0.0.2.data/data/.gitignore", b"staging"
+                        )
+                        whl.writestr("mcp_console/_launcher.py", b"launcher")
+                        whl.writestr(
+                            "mcp_console-0.0.2.dist-info/WHEEL",
+                            f"Root-Is-Purelib: false\nTag: py3-none-{tag}\n",
+                        )
+                        whl.writestr(
+                            "mcp_console-0.0.2.dist-info/METADATA",
+                            "Name: mcp-console\nVersion: 0.0.2\n",
+                        )
+
+                    result = self.run_script(
+                        "build-archive",
+                        str(wheel),
+                        "--target",
+                        target,
+                        "--out-dir",
+                        "archives",
+                        cwd=root,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    archive = (
+                        root
+                        / "archives"
+                        / f"mcp-console-{target}.{'zip' if windows else 'tar.gz'}"
+                    )
+                    if windows:
+                        with zipfile.ZipFile(archive) as zipped:
+                            actual = {
+                                item.filename: zipped.read(item)
+                                for item in zipped.infolist()
+                                if not item.is_dir()
+                            }
+                    else:
+                        with tarfile.open(archive) as tar:
+                            actual = {
+                                item.name: tar.extractfile(item).read()
+                                for item in tar
+                                if item.isfile()
+                            }
+                            for path in inputs:
+                                self.assertEqual(
+                                    bool(tar.getmember(path).mode & 0o111),
+                                    path.startswith(("bin/", "libexec/")),
+                                )
+                    self.assertEqual(
+                        actual, {path: src.encode() for path, src in inputs.items()}
+                    )
+                    sums[archive.name] = hashlib.sha256(
+                        archive.read_bytes()
+                    ).hexdigest()
+
+            result = self.run_script("archive-checksums", "archives", cwd=root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            manifest = root / "archives" / "SHA256SUMS"
+            self.assertEqual(
+                manifest.read_text().splitlines(),
+                [f"{sums[name]}  {name}" for name in sorted(sums)],
             )
-            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
+            archive.unlink()
+            result = self.run_script("archive-checksums", "archives", cwd=root)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("expected exactly one x86-64 Windows wheel", result.stderr)
-
-            x86_64.unlink()
-            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("expected exactly five wheels", result.stderr)
+            self.assertIn(archive.name, result.stderr)
 
 
 @unittest.skipUnless(os.name == "posix", "Unix Rscript executable fixture")
