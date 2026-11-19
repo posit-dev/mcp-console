@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 from threading import Thread
@@ -584,7 +585,8 @@ class WindowsPackaging(unittest.TestCase):
                         timeout=60,
                     )
                     self.assertEqual(build.returncode, 0, build.stderr)
-                    wheel = root / f"{kind}.whl"
+                    platform = sysconfig.get_platform().replace("-", "_")
+                    wheel = root / f"{kind}-1-py3-none-{platform}.whl"
                     with zipfile.ZipFile(wheel, "w") as archive:
                         archive.write(
                             binary, f"fixture.data/data/libexec/{binary.name}"
@@ -598,6 +600,22 @@ class WindowsPackaging(unittest.TestCase):
                     if kind == "static":
                         self.assertEqual(audit.returncode, 0, audit.stderr)
                         self.assertIn("kernel32.dll", audit.stdout.lower())
+                        other = "win_arm64" if platform == "win_amd64" else "win_amd64"
+                        mislabeled = wheel.rename(
+                            root / f"static-1-py3-none-{other}.whl"
+                        )
+                        audit = subprocess.run(
+                            [
+                                sys.executable,
+                                ROOT / "tests/windows_distribution.py",
+                                mislabeled,
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                        )
+                        self.assertNotEqual(audit.returncode, 0)
+                        self.assertIn(f"expected {other}", audit.stderr)
                     else:
                         self.assertNotEqual(audit.returncode, 0)
                         self.assertIn(f"{kind} import VCRUNTIME140.dll", audit.stderr)
@@ -1158,7 +1176,11 @@ class WindowsConsole(unittest.TestCase):
             PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
         )
         environment.pop("RETICULATE_PYTHON", None)
-        session = Session(environment, bare_r=True)
+        session = Session(
+            environment,
+            bare_r=True,
+            overrides=["r=" + json.dumps(str(Path(r_home) / "bin/R.exe"))],
+        )
         self.addCleanup(session.close)
         session.initialize()
         self.assertIn("42", json.dumps(session.send(r="answer <- 42L; answer")))
@@ -1320,6 +1342,7 @@ class WindowsConsole(unittest.TestCase):
             RETICULATE_PYTHON=sys.executable,
         )
         environment.pop("R_HOME", None)
+        environment.pop("PROCESSOR_ARCHITECTURE", None)
         session = Session(environment)
         self.addCleanup(session.close)
         session.initialize()
@@ -1327,9 +1350,13 @@ class WindowsConsole(unittest.TestCase):
         result = session.send(
             python=dedent("""
                 import ctypes
+                import os
                 from pathlib import Path
                 import sys
+                import sysconfig
 
+                architecture = {"win-amd64": "AMD64", "win-arm64": "ARM64"}
+                assert os.environ["PROCESSOR_ARCHITECTURE"] == architecture[sysconfig.get_platform()]
                 assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
                 # Console must find Python's supplied runtime without relying
                 # on a separately installed system redistributable. A Python
@@ -1857,7 +1884,10 @@ class WindowsConsole(unittest.TestCase):
                         python=code("""
                             import os
 
-                            assert os.environ["PROCESSOR_ARCHITECTURE"] == "AMD64"
+                            import sysconfig
+
+                            expected = {"win-amd64": "AMD64", "win-arm64": "ARM64"}
+                            assert os.environ["PROCESSOR_ARCHITECTURE"] == expected[sysconfig.get_platform()]
                             print("PYTHON_SMOKE", 2 + 2)
                             """),
                     )

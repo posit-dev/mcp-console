@@ -166,10 +166,11 @@ impl RInstallation {
             } else {
                 home.join("bin/x64/Rscript.exe")
             };
+            #[cfg(windows)]
+            let library = harp::sys::library::find_r_shared_library_folder(&home).join("R.dll");
+            #[cfg(unix)]
             let library = home.join(if cfg!(target_os = "macos") {
                 "lib/libR.dylib"
-            } else if cfg!(windows) {
-                "bin/x64/R.dll"
             } else {
                 "lib/libR.so"
             });
