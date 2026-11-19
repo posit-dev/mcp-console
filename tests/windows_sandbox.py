@@ -659,10 +659,19 @@ class WindowsSandbox(unittest.TestCase):
         if short_name.value.casefold() == str(profile).casefold():
             self.skipTest("user profile has no 8.3 alias")
         temporary = Path(short_name.value) / "AppData/Local/Temp"
+        # This send exercises the worker's private directory with the installed
+        # Python. Keep R package preparation out of the short-path regression.
+        environment = dict(
+            os.environ,
+            PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
+            RETICULATE_PYTHON=sys.executable,
+        )
+        environment.pop("R_HOME", None)
         session = worker_session(
+            environment,
             sandbox=True,
             temporary_root=temporary,
-            overrides=["r=null", 'sandbox.network="enabled"'],
+            overrides=['sandbox.network="enabled"'],
         )
         try:
             session.initialize()
