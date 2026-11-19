@@ -373,11 +373,11 @@ See [Cache selection](PACKAGE_CONFIGURATION.md#cache-locations) for clearing inh
 
 ## Platform support {#native-capabilities}
 
-| Platform | Important limits                                                                                                                                                             |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| macOS    | Seatbelt enforcement and managed proxy supported. Console rejects `tcp_udp`.                                                                                                 |
-| Linux    | Bubblewrap enforcement; managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.     |
-| Windows  | Windows x64 requires MXC for workers and preparation. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP and Unix sockets are rejected. |
+| Platform | Important limits                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS    | Seatbelt enforcement and managed proxy supported. Console rejects `tcp_udp`.                                                                                             |
+| Linux    | Bubblewrap enforcement; managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific. |
+| Windows  | Windows requires MXC for workers and preparation. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP and Unix sockets are rejected. |
 
 A common schema does not imply equal native capabilities.
 Console rejects unsupported explicit requests rather than silently ignoring them.

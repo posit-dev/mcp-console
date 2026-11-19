@@ -10,7 +10,7 @@ Console prepares environments and packages automatically; no Console configurati
 It works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
 
 **Development preview:** interfaces may change.
-macOS, Linux, and Windows x64 are supported.
+macOS, Linux, and Windows on x86-64 and ARM64 are supported.
 
 ## Quickstart
 

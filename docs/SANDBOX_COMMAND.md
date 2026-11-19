@@ -13,7 +13,7 @@ Install Console with [uv](https://docs.astral.sh/uv/getting-started/installation
 uv tool install mcp-console
 ```
 
-The sandbox supports macOS, Linux, and Windows x64.
+The sandbox supports macOS, Linux, and Windows on x86-64 and ARM64.
 See [platform requirements](SANDBOX_CONFIGURATION.md#native-capabilities) for host setup, including MXC on Windows.
 
 ## Run a program

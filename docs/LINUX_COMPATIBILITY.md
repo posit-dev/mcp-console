@@ -9,22 +9,16 @@ For installation and client setup, see [Get started](getting-started.qmd).
 
 ## Runtime libraries
 
-Console supports Linux hosts with glibc 2.35 or newer.
-The following runtime libraries may already be installed on your system; the installation commands below are only needed when they are missing.
-They are system dependencies, separate from the Python packages installed by `uv`.
+Console supports Linux hosts on x86-64 and ARM64 with glibc 2.28 or newer, including RHEL 8.
+The release archives and wheels include bubblewrap with libcap linked statically.
+Console and its companion use the system GNU runtime libraries.
+Native language packages can have additional dependencies.
 
-| Ubuntu/Debian package | Shared library   | Needed for                                                       |
-| --------------------- | ---------------- | ---------------------------------------------------------------- |
-| `libcap2`             | `libcap.so.2`    | Linux process capabilities in the bundled Bubblewrap sandbox.    |
-| `libgcc-s1`           | `libgcc_s.so.1`  | GNU runtime support for Console and its sandbox executables.     |
-| `libstdc++6`          | `libstdc++.so.6` | C++ runtime support for native analysis packages such as DuckDB. |
-
-On Ubuntu or Debian, install missing runtime libraries with:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
-```
+| RHEL package | Ubuntu/Debian package | Shared library   | Use                                                      |
+| ------------ | --------------------- | ---------------- | -------------------------------------------------------- |
+| `libgcc`     | `libgcc-s1`           | `libgcc_s.so.1`  | GNU compiler runtime                                     |
+| `libstdc++`  | `libstdc++6`          | `libstdc++.so.6` | C++ runtime for native code                              |
+| `libcap`     | `libcap2`             | `libcap.so.2`    | Source builds of bubblewrap that link libcap dynamically |
 
 A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
 Use the missing `.so` filename in the error to identify the package in the table above.
