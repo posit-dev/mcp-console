@@ -16,6 +16,8 @@ ENV XDG_CACHE_HOME=/opt/console-cache
 
 # EPEL's R-core includes R's recommended packages on both architectures.
 FROM no-r AS r-runtime
+# Both the preparation layer and the final smoke test use this R installation.
+ENV R_HOME=/usr/lib64/R
 RUN microdnf -y --setopt=install_weak_deps=0 install epel-release \
     && microdnf -y --enablerepo=powertools --setopt=install_weak_deps=0 install \
     R-core libcurl openssl-libs libxml2 cairo fontconfig harfbuzz fribidi \
@@ -38,7 +40,6 @@ ENV IR_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/ir \
     R_PKG_CACHE_DIR=/opt/console-cache/mcp-console/dependencies \
     UV_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/uv/cache
 ENV LIBARROW_BINARY=true MAKEFLAGS=-j1
-ENV R_HOME=/usr/lib64/R
 # Bound DuckDB's source-build memory in the language preparation fixture.
 # These flags affect test dependencies, never the distributed wheel binaries.
 RUN printf '%s\n' 'CXX17FLAGS=-O0 -g0' > /opt/preparation.Makevars

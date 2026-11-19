@@ -169,6 +169,7 @@ jobs:
           export PATH="$RUNNER_TEMP/cmake/bin:$PATH"
           R_HOME="$(R RHOME)"
           export R_HOME
+          printf 'R_HOME=%s\n' "$R_HOME" >> "$GITHUB_ENV"
           uv tool run --isolated --python 3.14 --from r-lib-ir ir run \
             --rscript "$R_HOME/bin/Rscript" \
             --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
