@@ -1,20 +1,46 @@
-name: Windows path diagnosis
+name: Inspect Windows policy translation
 on: workflow_dispatch
 permissions:
-  actions: read
   contents: read
 jobs:
-  native-filesystem:
+  policy:
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          name: archive-x86_64-pc-windows-msvc
-          run-id: 44559038549
-          github-token: ${{ github.token }}
-          path: archive
+          repository: t-kalinowski/cobox
+          ref: c067c1396aab0b26ae60b31cc9c37084fbce2e16
+          persist-credentials: false
       - shell: pwsh
+        working-directory: codex-rs
         run: |
-          Expand-Archive (Get-Item archive/*.zip) -DestinationPath install
-          python tests/windows_path_grants.py
+          $ErrorActionPreference = 'Stop'
+          $source = 'mxc-sandbox/src/windows.rs'
+          $rust = Get-Content -Raw -LiteralPath $source
+          $launch = 'crate::native::launch(&request)'
+          if (-not $rust.Contains($launch)) { throw 'missing diagnostic seam' }
+          $inspection = @'
+          let workspace = expand_short_names(std::env::current_dir()?)?;
+          let matches = |paths: &[String], path: &std::path::Path| {
+              paths.iter().any(|name| name.eq_ignore_ascii_case(&path.to_string_lossy()))
+          };
+          println!("workspace write rule: {}", matches(&request.policy.readwrite_paths, &workspace));
+          for basename in [".git", ".agents", ".codex", ".aws", ".claude"] {
+              let path = workspace.join(basename);
+              println!("{basename}: exists={}, read={}, write={}, deny={}", path.exists(),
+                  matches(&request.policy.readonly_paths, &path),
+                  matches(&request.policy.readwrite_paths, &path),
+                  matches(&request.policy.denied_paths, &path));
+          }
+          Ok(0)
+          '@
+          $rust.Replace($launch, $inspection) | Set-Content -Encoding utf8 -LiteralPath $source
+          cargo build --locked -p mcp-console-sandbox --bin mcp-console-sandbox
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $runner = (Resolve-Path 'target/debug/mcp-console-sandbox.exe').Path
+          $work = Join-Path $env:TEMP 'empty-policy-workspace'
+          New-Item -ItemType Directory -Path $work | Out-Null
+          $env:CONSOLE_POLICY = @{extends=':workspace';workspace=$work;workspace_options=@{exclude_tmpdir_env_var=$true;exclude_slash_tmp=$true}} | ConvertTo-Json -Depth 3 -Compress
+          Set-Location $work
+          & $runner --config-env CONSOLE_POLICY -- cmd.exe /d /c exit 0
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
