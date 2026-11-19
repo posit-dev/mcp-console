@@ -112,6 +112,9 @@ Platform behavior matters.
 macOS and Linux can grant individual files.
 macOS can grant creation at absent paths; Linux skips absent write roots until a later launch.
 Linux cannot reliably reopen a narrower read beneath a broader denied mount.
+On Windows, a read-only exception inside a writable directory remains inaccessible for the duration of the launch if the path was absent at setup.
+This requires MXC support for denying access to a path.
+The next launch checks whether the path now exists and can be granted read-only access.
 Create intended writable directories first.
 Console does not grant extra paths or switch backends to make an unsupported policy work.
 
