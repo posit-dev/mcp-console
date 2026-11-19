@@ -85,9 +85,14 @@ To update, rerun the `uv tool install` command and restart your client.
 
 To embed Console in an application, download the archive for the host's OS and architecture and verify it against `SHA256SUMS` from the same [GitHub release](https://github.com/posit-dev/mcp-console/releases).
 Extract the whole archive, preserving permissions.
-Set the client command to the absolute path of `bin/mcp-console` (Unix) or `bin/mcp-console.exe` (Windows) and use `serve` as the argument.
-Keep the sibling `libexec` and `share` directories with the executable.
-Launching the server and using the standalone `sandbox` command requires no Python installation, pip, or uv.
+Keep `bin`, `libexec`, and `share` together when moving the installation.
+
+Applications that only need to [run a command in a sandbox](SANDBOX_COMMAND.md) can invoke `bin/mcp-console sandbox -- PROGRAM ARG...` directly.
+On Windows, use `bin\mcp-console.exe` with the same arguments.
+The launcher requires no MCP server, `ir`, Python, pip, or uv.
+The target program uses its own runtime and dependencies.
+
+For an MCP client, set the client command to the absolute path of the same executable and pass `serve`.
 If the application supplies R and its packages, set `r.resolution` to `disabled` and omit `r.packages`.
 Console then uses those libraries without invoking the R package resolver (`ir`).
 Python can also use an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).

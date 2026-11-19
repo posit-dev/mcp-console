@@ -29,12 +29,14 @@ grep -F "  $archive" SHA256SUMS | sha256sum --check --strict
 mkdir console
 tar -xzf "$archive" -C console
 console/bin/mcp-console --version
+console/bin/mcp-console sandbox -- /usr/bin/true
 ```
 
-Set the MCP client's command to the absolute path of `bin/mcp-console` or `bin/mcp-console.exe` and pass `serve`.
-Keep `libexec/` and `share/` together with `bin/` when moving the installation.
-The native command starts directly, including `--help`, `--version`, and `sandbox`, without installing Python, pip, or uv.
-Evaluating code has its own [runtime and preparation requirements](docs/REQUIREMENTS.md).
+An application can invoke `bin/mcp-console sandbox -- PROGRAM ARG...` directly.
+On Windows, use `bin\mcp-console.exe` with the same arguments.
+Keep `libexec/` and `share/` alongside `bin/` so Console can find and verify its companion.
+The [sandbox launcher](docs/SANDBOX_COMMAND.md) requires no MCP server, `ir`, Python, pip, or uv.
+The application supplies the target program and its dependencies.
 
 ## Private sandbox executable
 
