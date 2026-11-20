@@ -1478,7 +1478,13 @@ def test_attaches_to_reticulate_initialized_by_r_startup(
                     reticulate::py_run_string(
                       "assert id(early_object) == early_identity; assert sys.executable == early_executable; assert (sys.prefix, sys.exec_prefix, sys.base_prefix, sys.base_exec_prefix) == early_prefixes"
                     )
-                    stopifnot(identical(reticulate::py_eval("{'answer': 42}"), list(answer = 42L)))
+                    stopifnot(
+                      identical(reticulate::py_eval("{'answer': 42}"), list(answer = 42L)),
+                      identical(
+                        reticulate::py_config()$platform,
+                        reticulate::import("sysconfig")$get_platform()
+                      )
+                    )
                     cat("attached to startup Python\\n")
                     """),
             )
