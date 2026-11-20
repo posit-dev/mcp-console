@@ -1453,6 +1453,7 @@ class WindowsConsole(unittest.TestCase):
         source = code("""
             stopifnot(!reticulate::py_available(initialize = FALSE))
             .console$sql_connection(DBI::dbConnect(RSQLite::SQLite(), ":memory:"))
+            stopifnot(identical(reticulate::py$`__name__`, "__main__"))
             seed <- reticulate::py_eval("40 + 1")
             platform <- reticulate::import("sysconfig")$get_platform()
             stopifnot(identical(reticulate::py_config()$platform, platform))
