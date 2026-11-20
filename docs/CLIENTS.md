@@ -97,8 +97,12 @@ To embed Console in an application, download the archive for the host's OS and a
 Extract the whole archive, preserving permissions.
 Keep `bin`, `libexec`, and `share` together when moving the installation.
 
-Applications that only need to [run a command in a sandbox](SANDBOX_COMMAND.md) can invoke `bin/mcp-console sandbox -- PROGRAM ARG...` directly.
+To run a program with Console's built-in `read_only` policy, invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...`.
 On Windows, use `bin\mcp-console.exe` with the same arguments.
+For an application-owned policy, replace `--no-config` with `--config-file` followed by the absolute path to the application's YAML file.
+Omit both options when the application intends to honor global and project settings, which can widen filesystem and network permissions.
+See [Run commands in a sandbox](SANDBOX_COMMAND.md) and [Configuration is part of the trust decision](SANDBOX.md#configuration-is-part-of-the-trust-decision).
+
 The launcher requires no MCP server, `ir`, Python, pip, or uv.
 The target program uses its own runtime and dependencies.
 

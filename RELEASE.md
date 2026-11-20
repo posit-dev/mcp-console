@@ -29,14 +29,19 @@ awk -v archive="$archive" '$2 == archive' SHA256SUMS | sha256sum --check --stric
   mkdir console &&
   tar -xzf "$archive" -C console &&
   console/bin/mcp-console --version &&
-  console/bin/mcp-console sandbox -- /usr/bin/true
+  console/bin/mcp-console sandbox --no-config -- /usr/bin/true
 ```
 
-An application can invoke `bin/mcp-console sandbox -- PROGRAM ARG...` directly.
+An application can invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...` to use the built-in sandbox policy, or pass `--config-file` with the absolute path to its own policy in place of `--no-config`.
 On Windows, use `bin\mcp-console.exe` with the same arguments.
 Keep `libexec/` and `share/` alongside `bin/` so Console can find and verify its companion.
 The [sandbox launcher](docs/SANDBOX_COMMAND.md) requires no MCP server, `ir`, Python, pip, or uv.
 The application supplies the target program and its dependencies.
+
+When signing a macOS app that embeds the prebuilt archive, preserve `libexec/mcp-console-sandbox` byte for byte.
+Console verifies the helper's SHA-256 digest before launch, and re-signing the helper changes that digest.
+If your distribution requires its own helper signature, build Console from source and add signing to `scripts/stage-sandbox-runner` after it strips the helper and before it records the digest in `target/sandbox-runner-build.json`.
+Then build `mcp-console` to embed the signed helper's digest, sign `mcp-console`, and sign the enclosing app.
 
 ## Private sandbox executable
 
