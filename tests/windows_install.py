@@ -62,6 +62,7 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
         "WindowsMxc.test_complete_policy_cannot_disable_mxc",
         "WindowsSandbox.test_modified_companion_is_rejected_before_execution",
         "WindowsSandbox.test_first_python_send_from_short_profile_directory",
+        "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
         "WindowsSandbox.test_cwd_alias_does_not_require_parent_enumeration",
         "WindowsSandbox.test_stdio_write_policy_and_exit_status",
         "WindowsConsole.test_python_without_r",
@@ -69,7 +70,6 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
     ]
     if not preinstalled_r:
         cases += [
-            "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsConsole.test_r_initializes_before_python",
             "WindowsConsole.test_python_initializes_before_r",
             "WindowsConsole.test_python_sleep_interrupt",

@@ -170,6 +170,22 @@ def worker_session(environment=None, *, overrides=(), **options):
     )
 
 
+def python_sandbox_session(temporary_root: Path):
+    # Exercise the installed Python worker even on hosts with discoverable R.
+    environment = dict(
+        os.environ,
+        PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
+        RETICULATE_PYTHON=sys.executable,
+    )
+    environment.pop("R_HOME", None)
+    return worker_session(
+        environment,
+        sandbox=True,
+        temporary_root=temporary_root,
+        overrides=['sandbox.network="enabled"'],
+    )
+
+
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
     @requires_mxc(BINARY)
@@ -659,20 +675,7 @@ class WindowsSandbox(unittest.TestCase):
         if short_name.value.casefold() == str(profile).casefold():
             self.skipTest("user profile has no 8.3 alias")
         temporary = Path(short_name.value) / "AppData/Local/Temp"
-        # This send exercises the worker's private directory with the installed
-        # Python. Keep R package preparation out of the short-path regression.
-        environment = dict(
-            os.environ,
-            PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
-            RETICULATE_PYTHON=sys.executable,
-        )
-        environment.pop("R_HOME", None)
-        session = worker_session(
-            environment,
-            sandbox=True,
-            temporary_root=temporary,
-            overrides=['sandbox.network="enabled"'],
-        )
+        session = python_sandbox_session(temporary)
         try:
             session.initialize()
             result = session.send(python="print(6 * 7)")
@@ -696,13 +699,8 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_python_state_and_restart_with_private_temporary_storage(self):
-        with workspace():
-            session = worker_session(
-                sandbox=True,
-                overrides=[
-                    'sandbox.network="enabled"',
-                ],
-            )
+        with workspace() as root:
+            session = python_sandbox_session(root)
             try:
                 session.initialize()
                 result = session.send(

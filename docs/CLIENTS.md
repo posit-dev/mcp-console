@@ -21,6 +21,16 @@ To let your agent use R, install it separately, for example with [rig](https://g
 Python and SQL work without R.
 The first session may download Python and packages.
 
+If `uvx` uses native Windows ARM64 Python and Console discovers R, the default R package setup needs a separate `ir` executable on `PATH`.
+PyPI has no Windows ARM64 wheel for `r-lib-ir`.
+To use R without `ir`, preinstall the R packages you need, including `reticulate` for sessions that use both R and Python.
+Before connecting your client, omit `r.packages` and set `r.resolution` in your project's `.agents/console/config.yaml`.
+
+```yaml
+r:
+  resolution: disabled
+```
+
 To verify the selected runtimes and prepare caches before opening a client, follow [Check your installation](CLI.md#check-your-installation).
 
 <span id="mcp-clients"></span>
