@@ -154,7 +154,8 @@ MXC capability probing and full Windows acceptance still run on a clean host aft
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
 CI uses CRAN binaries for macOS and Windows x64 and PPM's portable Linux binaries for both Linux architectures.
-Windows ARM64 tests the R/Python bridge with native R, preinstalled `reticulate`, and `r.resolution` set to `disabled`.
+Windows ARM64 tests both startup orders with native R and Python, preinstalled `reticulate`, and `r.resolution` set to `disabled`.
+The R-first test uses `RSQLite` to open the connection required by its configured startup block.
 The managed R resolver, `r-lib-ir`, currently lacks a Windows ARM64 wheel.
 Configure both R's repository data file and site profile so profile-free preparation and ordinary R sessions select the same repository.
 Packages without compatible binaries still build from source.

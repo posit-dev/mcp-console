@@ -20,7 +20,7 @@ Console and its `cc`-built native dependencies use the static MSVC runtime selec
 
 Use Python 3.14 to match CI.
 Full coverage needs R/Python, PATH uv/ir, repository access, prepared packages, and an MXC-capable host.
-The tests with R package resolution disabled need `reticulate` and `RSQLite` in the selected R installation's library paths.
+The R-first bridge test runs with package resolution disabled and needs `reticulate` and `RSQLite` in the selected R installation's library paths.
 Acceptance probes MXC through a real public sandbox launch.
 Only the native unavailable-runtime diagnostic permits skipping execution cases; installation, policy, and workload failures remain failures.
 Hosts without MXC still test configuration, bundle integrity, explicit host execution, and fail-closed startup.
