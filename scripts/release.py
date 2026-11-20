@@ -20,7 +20,7 @@ import zipfile
 from collections import deque
 from email.parser import BytesParser
 from http.client import IncompleteRead
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -436,6 +436,15 @@ def wheel_identity(wheel: Path) -> tuple[str, set[str]]:
     return version, tags
 
 
+def wheel_prefix_path(member: str, data_prefix: str) -> str | None:
+    """Installed Unix path relative to the prefix for a wheel data or script file."""
+    if member.startswith(data_prefix + "data/"):
+        return member.removeprefix(data_prefix + "data/")
+    if member.startswith(data_prefix + "scripts/"):
+        return "bin/" + member.removeprefix(data_prefix + "scripts/")
+    return None
+
+
 def inspect_linux_abi(
     wheel: Path, version: str, tags: set[str], *, target: str | None, release: bool
 ) -> dict[str, Any]:
@@ -509,12 +518,6 @@ def inspect_linux_abi(
     evidence = {}
     # Model a Unix installation prefix; Python's version does not change its depth.
     site_packages = "lib/pythonX.Y/site-packages"
-    schemes = {
-        "scripts": "bin",
-        "data": ".",
-        "purelib": site_packages,
-        "platlib": site_packages,
-    }
     data_prefix = f"mcp_console-{version}.data/"
     installed_elves: dict[str, str] = {}
     rpaths: dict[str, tuple[str, ...]] = {}
@@ -524,14 +527,17 @@ def inspect_linux_abi(
             with archive.open(member) as stream:
                 if stream.read(4) != b"\x7fELF":
                     continue
-            if member.startswith(data_prefix):
-                scheme, relative = member.removeprefix(data_prefix).split("/", 1)
-                require(scheme in schemes, f"{member}: unsupported ELF install scheme")
-                installed = posixpath.normpath(
-                    posixpath.join(schemes[scheme], relative)
-                )
-            else:
-                installed = posixpath.join(site_packages, member)
+            installed = wheel_prefix_path(member, data_prefix)
+            if installed is None:
+                relative = member
+                if member.startswith(data_prefix):
+                    scheme, relative = member.removeprefix(data_prefix).split("/", 1)
+                    require(
+                        scheme in {"purelib", "platlib"},
+                        f"{member}: unsupported ELF install scheme",
+                    )
+                installed = posixpath.join(site_packages, relative)
+            installed = posixpath.normpath(installed)
             installed_elves[installed] = member
             elf = Path(directory) / "artifact"
             elf.write_bytes(archive.read(member))
@@ -641,6 +647,7 @@ def inspect_linux_abi(
         checked: set[str] = set()
 
         def check_dependencies(entry: str) -> None:
+            standalone = release and wheel_prefix_path(entry, data_prefix) is not None
             loaded_names: set[str] = set()
             loaded_members = {entry}
             pending: deque[tuple[str, tuple[str, ...]]] = deque([(entry, ())])
@@ -681,6 +688,11 @@ def inspect_linux_abi(
                         dependency is not None,
                         f"{member}: undeclared dependency {needed}",
                     )
+                    if standalone:
+                        require(
+                            wheel_prefix_path(dependency, data_prefix) is not None,
+                            f"{member}: standalone dependency {needed} uses a Python install scheme",
+                        )
                     loaded_names.add(needed)
                     if dependency not in loaded_members:
                         loaded_members.add(dependency)
@@ -1196,25 +1208,30 @@ def build_archive(args: argparse.Namespace) -> None:
             public: native,
             f"{licenses}/mcp-console-LICENSE": f"mcp_console-{version}.dist-info/licenses/LICENSE",
         }
-        # Preserve the installed paths of all private files, including any
-        # native libraries and their redistribution notices.
-        prefix = f"{data}/data/"
+        # Wheel data installs directly under the prefix. Preserve all of it,
+        # including resources and licenses beside libraries. The .gitignore
+        # is the staging marker excluded from wheels by pyproject.toml.
+        data_prefix = f"{data}/"
         for info in source.infolist():
-            if (
-                info.filename.startswith(
-                    (prefix + "lib/", prefix + "libexec/", prefix + "share/")
-                )
-                and info.filename != native
-                and not info.is_dir()
-            ):
-                relative = info.filename.removeprefix(prefix)
-                require(
-                    all(part not in ("", ".", "..") for part in relative.split("/"))
-                    and "\\" not in relative
-                    and relative not in members,
-                    f"invalid native bundle member: {info.filename}",
-                )
-                members[relative] = info.filename
+            if info.is_dir() or info.filename == native:
+                continue
+            relative = wheel_prefix_path(info.filename, data_prefix)
+            if relative is None or relative == ".gitignore":
+                continue
+            if info.filename.startswith(data_prefix + "scripts/"):
+                if not linux:
+                    continue
+                with source.open(info) as stream:
+                    if stream.read(4) != b"\x7fELF":
+                        continue
+            require(
+                all(part not in ("", ".", "..") for part in relative.split("/"))
+                and "\\" not in relative
+                and not (windows and PureWindowsPath(relative).drive)
+                and relative not in members,
+                f"invalid native bundle member: {info.filename}",
+            )
+            members[relative] = info.filename
         required = {
             f"libexec/mcp-console-sandbox{suffix}",
             *(f"{licenses}/{name}" for name in sandbox_notices(linux)),

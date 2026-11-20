@@ -70,6 +70,7 @@ Changes to SDKs, compilers, linkers, or system libraries may require cleaning bo
 
 Unix installations contain the public executable, the private runner under `libexec`, and licenses under `share/licenses/mcp-console`.
 Linux additionally bundles bubblewrap and its notices/source metadata.
+The Linux archive keeps bundled libraries at the same paths relative to the installation prefix as the wheel, so the native executables can load them after extraction.
 Windows wheels keep the native Console and companion under `libexec` and expose an environment-bound Python launcher.
 The standalone archive copies the same native Console executable to `bin/mcp-console.exe`.
 Every archive carries Console’s MIT license alongside the companion licenses.

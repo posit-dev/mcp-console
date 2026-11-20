@@ -1047,6 +1047,59 @@ class ReleaseScriptTests(ReleaseFixture):
                     evidence = json.loads(report.read_text())["elf"]
                     self.assertEqual(evidence[member]["search"], [library_directory])
 
+    def test_archive_preserves_resolved_native_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            environment, _, _ = self.smoke_environment(directory)
+            target = "x86_64-unknown-linux-gnu"
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
+            self.write_wheel(wheel)
+            data = "mcp_console-0.0.2.data"
+            runner = elf_fixture(needed=["libfixture.so"], runpath="$ORIGIN/..")
+            library = elf_fixture(
+                interpreter=None, needed=["libchild.so"], runpath="$ORIGIN/bin"
+            )
+            child = elf_fixture(interpreter=None)
+            rewrite_wheel(wheel, {f"{data}/data/libexec/mcp-console-sandbox": runner})
+            with zipfile.ZipFile(wheel, "a") as archive:
+                archive.writestr(f"{data}/data/libfixture.so", library)
+                archive.writestr(f"{data}/data/libfixture-NOTICE", b"fixture license")
+                archive.writestr(f"{data}/scripts/libchild.so", child)
+                archive.writestr("mcp_console-0.0.2.dist-info/licenses/LICENSE", "MIT")
+            for args in (
+                ("inspect-wheel", str(wheel), "--release"),
+                ("build-archive", str(wheel), "--target", target, "--out-dir", "."),
+            ):
+                result = self.run_script(*args, cwd=directory, env=environment)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            with tarfile.open(directory / f"mcp-console-{target}.tar.gz") as bundle:
+                self.assertEqual(bundle.extractfile("libfixture.so").read(), library)
+                self.assertEqual(
+                    bundle.extractfile("libfixture-NOTICE").read(), b"fixture license"
+                )
+                self.assertEqual(bundle.extractfile("bin/libchild.so").read(), child)
+
+    def test_release_native_commands_cannot_depend_on_site_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            environment, _, _ = self.smoke_environment(directory)
+            wheel = directory / "mcp_console-0.0.2-py3-none-manylinux_2_28_x86_64.whl"
+            self.write_wheel(wheel)
+            runner = "mcp_console-0.0.2.data/data/libexec/mcp-console-sandbox"
+            executable = elf_fixture(
+                needed=["libfixture.so"],
+                runpath="$ORIGIN/../lib/pythonX.Y/site-packages",
+            )
+            rewrite_wheel(wheel, {runner: executable})
+            with zipfile.ZipFile(wheel, "a") as archive:
+                archive.writestr("libfixture.so", elf_fixture(interpreter=None))
+            result = self.run_script(
+                "inspect-wheel", str(wheel), "--release", cwd=directory, env=environment
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("libfixture.so", result.stderr)
+            self.assertIn("Python install scheme", result.stderr)
+
     def test_inspect_wheel_rejects_relative_dependency_filenames(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
