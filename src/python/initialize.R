@@ -305,6 +305,17 @@ base::local(
     install_python_initializer <- function(...) {
       namespace <<- asNamespace("reticulate")
       globals <<- get(".globals", envir = namespace)
+      if (
+        .Platform$OS.type == "windows" &&
+          reticulate:::current_python_arch() == "Unknown"
+      ) {
+        # Reticulate 1.47 infers pointer width from R's subarchitecture suffix,
+        # which is empty on native Windows ARM64. Discovery and final selection
+        # both compare this value with Python's reported pointer width.
+        replace_binding("current_python_arch", function() {
+          paste0(.Machine$sizeof.pointer * 8L, "bit")
+        })
+      }
       replace_binding("initialize_python", initialize_python)
       original_ensure_initialized <- get(
         "ensure_python_initialized",

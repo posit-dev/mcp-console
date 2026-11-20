@@ -69,7 +69,10 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
         "WindowsConsole.test_r_without_python",
     ]
     if preinstalled_r:
-        cases.append("WindowsConsole.test_preinstalled_r_python_bridge")
+        cases += [
+            "WindowsConsole.test_preinstalled_r_python_bridge",
+            "WindowsConsole.test_preinstalled_r_startup_python_bridge",
+        ]
     else:
         cases += [
             "WindowsConsole.test_r_initializes_before_python",

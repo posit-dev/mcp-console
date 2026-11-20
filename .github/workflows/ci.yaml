@@ -162,6 +162,7 @@ jobs:
           upgrade: "FALSE"
           packages: |
             deps::.
+            any::RSQLite
       - name: Inventory Windows development prerequisites
         run: |
           scripts/preflight.cmd --json

@@ -1433,6 +1433,27 @@ class WindowsConsole(unittest.TestCase):
             r="stopifnot(py$answer == 42L); cat('round trip complete')",
         )
 
+    def test_preinstalled_r_startup_python_bridge(self):
+        # fmt: r
+        source = code("""
+            stopifnot(!reticulate::py_available(initialize = FALSE))
+            .console$sql_connection(DBI::dbConnect(RSQLite::SQLite(), ":memory:"))
+            seed <- reticulate::py_eval("40 + 1")
+            """)
+        startup = json.dumps({"language": "r", "code": source})
+        session = Session(
+            preinstalled_r_environment(),
+            python=sys.executable,
+            overrides=["r.resolution=disabled", f"startup={startup}"],
+        )
+        self.addCleanup(session.close)
+        session.initialize()
+        session.expect("42", python="answer = r.seed + 1; print(answer)")
+        session.expect(
+            "round trip complete",
+            r="stopifnot(py$answer == 42L); cat('round trip complete')",
+        )
+
     def test_r_initializes_before_python(self):
         session = self.session(defer_bootstrap=True)
         # fmt: r
