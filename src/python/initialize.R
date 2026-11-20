@@ -246,16 +246,21 @@ base::local(
       # Console owns CPython's environment. Reticulate attaches conversion
       # and callbacks without activating or changing the running interpreter.
       on.exit(finish_python_initialization(), add = TRUE)
-      reticulate:::py_initialize(
-        config$python,
-        config$libpython,
-        config$pythonhome,
-        "",
-        config$version$major,
-        config$version$minor,
-        interactive(),
-        numpy_load_error
+      arguments <- list(
+        python = config$python,
+        libpython = config$libpython,
+        pythonhome = config$pythonhome,
+        virtualenv_activate = "",
+        python_minor_version = config$version$minor,
+        interactive = interactive(),
+        numpy_load_error = numpy_load_error
       )
+      py_initialize <- reticulate:::py_initialize
+      # Reticulate dropped this argument when it removed Python 2 support.
+      if ("python_major_version" %in% names(formals(py_initialize))) {
+        arguments$python_major_version <- config$version$major
+      }
+      do.call(py_initialize, arguments)
 
       # Reticulate owns conversion, cross-language calls, and event integration.
       reg.finalizer(
