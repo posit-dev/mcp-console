@@ -44,6 +44,7 @@ WORKER_COMMANDS = [
                     "version": "3.13.11 (fixture)",
                     "version_number": "3.13.11",
                     "architecture": "fixture-architecture",
+                    "platform": "fixture-platform",
                     "conda": True,
                     "numpy": {"path": "/native/numpy", "version": "2.3.0"},
                 },

@@ -46,6 +46,7 @@ pub(crate) struct ConversionMetadata {
     version: String,
     version_number: String,
     architecture: String,
+    platform: String,
     conda: bool,
     numpy: Option<NumpyMetadata>,
 }

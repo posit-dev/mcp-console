@@ -1433,7 +1433,11 @@ class WindowsConsole(unittest.TestCase):
             "41",
             # fmt: r
             r=code("""
-                stopifnot(Sys.getenv("MCP_CONSOLE_SANDBOX") == "1")
+                platform <- reticulate::import("sysconfig")$get_platform()
+                stopifnot(
+                  Sys.getenv("MCP_CONSOLE_SANDBOX") == "1",
+                  identical(reticulate::py_config()$platform, platform)
+                )
                 seed <- 41L
                 print(seed)
                 """),
@@ -1450,6 +1454,8 @@ class WindowsConsole(unittest.TestCase):
             stopifnot(!reticulate::py_available(initialize = FALSE))
             .console$sql_connection(DBI::dbConnect(RSQLite::SQLite(), ":memory:"))
             seed <- reticulate::py_eval("40 + 1")
+            platform <- reticulate::import("sysconfig")$get_platform()
+            stopifnot(identical(reticulate::py_config()$platform, platform))
             """)
         startup = json.dumps({"language": "r", "code": source})
         session = Session(

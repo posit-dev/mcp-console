@@ -31,6 +31,9 @@ r:
   resolution: disabled
 ```
 
+On Windows ARM64 with reticulate 1.47.0, R-first discovery cannot distinguish native ARM64 Python from x64 Python running under emulation.
+If you have both, set `python` in the same configuration file to the absolute path of the native interpreter, for example `python: 'C:/Python314-arm64/python.exe'`.
+
 To verify the selected runtimes and prepare caches before opening a client, follow [Check your installation](CLI.md#check-your-installation).
 
 <span id="mcp-clients"></span>

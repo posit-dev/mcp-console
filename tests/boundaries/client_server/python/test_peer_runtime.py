@@ -1356,6 +1356,7 @@ def test_conversion_metadata_matches_configured_import_paths(
                         sys <- reticulate::import("sys")
                         numpy <- reticulate::import("numpy")
                         stopifnot(
+                          identical(config$platform, reticulate::import("sysconfig")$get_platform()),
                           identical(config$pythonpath, paste(sys$path, collapse = .Platform$path.sep)),
                           identical(
                             normalizePath(config$numpy$path),

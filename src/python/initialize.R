@@ -92,6 +92,7 @@ base::local(
               version = gsub("\n", " ", sys$version, fixed = TRUE),
               version_number = as.character(config$version),
               architecture = config$architecture,
+              platform = reticulate::import("sysconfig")$get_platform(),
               conda = isTRUE(as.logical(config$conda)),
               numpy = if (is.null(config$numpy)) {
                 NULL
@@ -152,11 +153,11 @@ base::local(
           "Installation of Python not found, Python bindings not loaded."
         )
       } else if (reticulate:::is_incompatible_arch(config)) {
-        fmt <- "Your current architecture is %s; however, this version of Python was compiled for %s."
         message <- sprintf(
-          fmt,
-          reticulate:::current_python_arch(),
-          config$architecture
+          "Python at '%s' (%s) is incompatible with this build of R (%s).",
+          config$python,
+          paste(c(config$platform, config$architecture), collapse = ", "),
+          R.version$arch
         )
         python_not_found(message)
       }
@@ -171,7 +172,9 @@ base::local(
           stop(error)
         }
       )
-      embedding <- jsonlite::fromJSON(inspected)$embedding
+      identity <- jsonlite::fromJSON(inspected)
+      embedding <- identity$embedding
+      config$platform <- identity$metadata$platform
       config$python <- embedding$python
       config$executable <- embedding$python
       config$libpython <- embedding$libpython
@@ -307,11 +310,13 @@ base::local(
       globals <<- get(".globals", envir = namespace)
       if (
         .Platform$OS.type == "windows" &&
-          reticulate:::current_python_arch() == "Unknown"
+          exists("current_python_arch", envir = namespace, inherits = FALSE) &&
+          namespace$current_python_arch() == "Unknown"
       ) {
         # Reticulate 1.47 infers pointer width from R's subarchitecture suffix,
-        # which is empty on native Windows ARM64. Discovery and final selection
-        # both compare this value with Python's reported pointer width.
+        # which is empty on native Windows ARM64. Mixed x64/ARM64 installations
+        # must select a native Python explicitly with this reticulate version.
+        # Newer reticulate checks the build platform and has no such helper.
         replace_binding("current_python_arch", function() {
           paste0(.Machine$sizeof.pointer * 8L, "bit")
         })

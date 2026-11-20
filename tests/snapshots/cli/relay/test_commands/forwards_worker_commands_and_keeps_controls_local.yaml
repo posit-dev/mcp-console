@@ -53,6 +53,7 @@ forwarded:
           version: 3.13.11 (fixture)
           version_number: 3.13.11
           architecture: fixture-architecture
+          platform: fixture-platform
           conda: true
           numpy:
             path: /native/numpy

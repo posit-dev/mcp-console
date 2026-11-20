@@ -141,6 +141,7 @@ def preparation_environment(root: Path, *, with_r: bool = False) -> dict[str, st
             "version": "3.12.7",
             "version_number": "3.12",
             "architecture": "64bit",
+            "platform": "fixture-platform",
             "conda": False,
             "numpy": None,
         },
