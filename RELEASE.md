@@ -105,9 +105,18 @@ On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` i
 Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
 Run `python tests/windows_distribution.py WHEEL` to audit normal and delayed PE imports in every bundled native executable or library.
 Redistributable VC runtime dependencies are rejected; ordinary Windows system and UCRT libraries are allowed.
-Install that wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
+On Windows x86-64, install the wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
 Installation acceptance repeats the import audit for installed wheels and source builds, including the environment-bound public launcher.
-The Windows 11 ARM64 release job requires MXC for both archive and wheel acceptance.
+On Windows 11 ARM64, install the wheel and the `reticulate` and `RSQLite` packages for native R.
+Run both acceptance checks in PowerShell.
+
+```powershell
+$env:MCP_CONSOLE_TEST_REQUIRE_MXC = '1'
+python tests/windows_install.py --preinstalled-r --installed-binary (Get-Command mcp-console.exe).Source
+python tests/windows_install.py --preinstalled-r --archive archives/mcp-console-aarch64-pc-windows-msvc.zip
+```
+
+This matches the release job's MXC requirement and exercises the preinstalled R packages without `ir`.
 The hosted x86-64 Windows Server runner probes for MXC and skips native execution cases when it is unavailable.
 Run those cases on an MXC-capable x86-64 Windows 11 host before release.
 This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.

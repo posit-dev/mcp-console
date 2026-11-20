@@ -70,7 +70,7 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
     ]
     if preinstalled_r:
         cases += [
-            "WindowsConsole.test_preinstalled_r_python_bridge",
+            "WindowsConsole.test_sandboxed_preinstalled_r_python_bridge",
             "WindowsConsole.test_preinstalled_r_startup_python_bridge",
         ]
     else:

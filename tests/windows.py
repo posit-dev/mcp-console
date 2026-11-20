@@ -30,6 +30,7 @@ from support.checkpoints import wait_for_path
 from support.installation import native_console
 from support.normalization import code
 from support.r import r_duckdb_snapshot_environment, r_test_environment
+from support.windows_mxc import requires_mxc
 from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
 from windows_cargo import WindowsCargo  # noqa: F401 -- include build acceptance
@@ -1418,15 +1419,25 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("fresh False", json.dumps(result))
 
-    def test_preinstalled_r_python_bridge(self):
+    @requires_mxc(BINARY)
+    def test_sandboxed_preinstalled_r_python_bridge(self):
         session = Session(
             preinstalled_r_environment(),
             python=sys.executable,
             overrides=["r.resolution=disabled"],
+            sandbox=True,
         )
         self.addCleanup(session.close)
         session.initialize()
-        session.expect("41", r="seed <- 41L; print(seed)")
+        session.expect(
+            "41",
+            # fmt: r
+            r=code("""
+                stopifnot(Sys.getenv("MCP_CONSOLE_SANDBOX") == "1")
+                seed <- 41L
+                print(seed)
+                """),
+        )
         session.expect("42", python="answer = r.seed + 1; print(answer)")
         session.expect(
             "round trip complete",
