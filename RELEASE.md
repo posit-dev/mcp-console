@@ -124,13 +124,14 @@ scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
 ```
 
 Use `aarch64-unknown-linux-gnu` for ARM64.
-Before starting Docker, the driver compares the archive with the wheel's standalone bundle by installed path and SHA-256 digest, including the executables, libraries, and licenses.
+Before starting Docker, the driver compares the installed paths, Unix permissions, and SHA-256 digests of the archive's executables, libraries, and licenses with the wheel.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
-The AlmaLinux 8 minimal image launches a relocated archive with the bundled sandbox helpers before installing Python or uv.
-Separate compiler-free images exercise the installed wheel with Python alone and with R.
+The Python-only AlmaLinux 8 runtime audits the wheel's ABI and companion pin before either artifact runs.
+A separate AlmaLinux 8 minimal image launches the relocated archive with its bundled sandbox helpers and no Python or uv.
+The wheel runs in compiler-free images with Python alone and with R.
 The R runtime includes R's recommended packages, which the isolated resolver expects the R installation to provide.
-They refresh R preparation before producing compiler-free runtime images, rather than treating old Docker layers as fresh package resolution.
+The R preparation stage refreshes package resolution for each floor run before producing the final R image.
 Language-package build flags do not change distributed wheel binaries.
 
 Native probes require an approved disposable namespace-capable container.

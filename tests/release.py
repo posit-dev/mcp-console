@@ -553,23 +553,43 @@ class ReleaseScriptTests(ReleaseFixture):
             wheel, archive = self.linux_floor_bundle(directory, "x86_64")
             with tarfile.open(archive) as bundle:
                 files = {
-                    member.name: bundle.extractfile(member).read()
+                    member.name: (member.mode, bundle.extractfile(member).read())
                     for member in bundle.getmembers()
                 }
             library = "libfixture.so"
             public = "bin/mcp-console"
+            public_mode, public_bytes = files[public]
+            library_mode, library_bytes = files[library]
             changed = elf_fixture(build="other")
             evidence = directory / "evidence"
             for error, entries in (
-                (f"archive {public} differs", (files | {public: changed}).items()),
-                (f"archive {library} differs", (files | {library: changed}).items()),
+                (
+                    f"archive {public} differs",
+                    (files | {public: (public_mode, changed)}).items(),
+                ),
+                (
+                    f"archive {library} differs",
+                    (files | {library: (library_mode, changed)}).items(),
+                ),
+                (
+                    f"archive {public} has mode 0700, expected 0755",
+                    (files | {public: (0o700, public_bytes)}).items(),
+                ),
+                (
+                    f"archive {library} has mode 0777, expected {library_mode:04o}",
+                    (files | {library: (0o777, library_bytes)}).items(),
+                ),
                 (
                     f"missing archive member: {library}",
                     [(name, data) for name, data in files.items() if name != library],
                 ),
                 (
                     "unexpected archive member: extra.so",
-                    (files | {"extra.so": changed}).items(),
+                    (files | {"extra.so": (0o644, changed)}).items(),
+                ),
+                (
+                    "unexpected archive member: bin",
+                    (files | {"bin/": (0o700, b"")}).items(),
                 ),
                 (
                     f"unexpected archive member: {library}",
@@ -577,14 +597,18 @@ class ReleaseScriptTests(ReleaseFixture):
                 ),
                 (
                     f"archive {library} must be a regular file",
-                    (files | {library: None}).items(),
+                    (files | {library: (library_mode, None)}).items(),
                 ),
             ):
                 with self.subTest(error=error):
                     with tarfile.open(archive, "w:gz") as bundle:
-                        for name, contents in entries:
+                        for name, (mode, contents) in entries:
                             member = tarfile.TarInfo(name)
-                            if contents is None:
+                            member.mode = mode
+                            if name.endswith("/"):
+                                member.type = tarfile.DIRTYPE
+                                bundle.addfile(member)
+                            elif contents is None:
                                 member.type = tarfile.SYMTYPE
                                 member.linkname = public
                                 bundle.addfile(member)
@@ -611,7 +635,9 @@ class ReleaseScriptTests(ReleaseFixture):
                     self.assertIn(error, result.stderr)
                     self.assertFalse(evidence.exists())
 
-    def test_linux_floor_refreshes_expired_r_preparation(self) -> None:
+    def test_linux_floor_audits_before_standalone_and_refreshes_r_preparation(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             commands = directory / "commands"
@@ -653,6 +679,8 @@ class ReleaseScriptTests(ReleaseFixture):
                 elif arguments[:2] == ["image", "inspect"]:
                     print("[]")
                 elif arguments[0] == "run":
+                    with Path(os.environ["FLOOR_RUNS"]).open("a") as log:
+                        log.write(json.dumps(arguments) + "\\n")
                     if arguments[-2] == "/test/standalone.sh":
                         target = os.environ["FLOOR_ARCHITECTURE"] + "-unknown-linux-gnu"
                         assert arguments[-1] == f"/test/mcp-console-{target}.tar.gz"
@@ -679,6 +707,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 # only the cached latest-package resolution has expired.
                 for now in (0, 86401):
                     with self.subTest(architecture=architecture, now=now):
+                        runs = directory / f"{architecture}-{now}-runs.jsonl"
                         result = subprocess.run(
                             [
                                 sys.executable,
@@ -691,12 +720,25 @@ class ReleaseScriptTests(ReleaseFixture):
                                 "--evidence",
                                 str(directory / architecture),
                             ],
-                            env=environment | {"FLOOR_NOW": str(now)},
+                            env=environment
+                            | {"FLOOR_NOW": str(now), "FLOOR_RUNS": str(runs)},
                             capture_output=True,
                             text=True,
                             check=False,
                         )
                         self.assertEqual(result.returncode, 0, result.stderr)
+                        launches = [
+                            json.loads(line) for line in runs.read_text().splitlines()
+                        ]
+                        # The wheel runtime audits the release ABI and source pin
+                        # before its first launch. Standalone goes straight to exec.
+                        self.assertIn("/test/linux_wheel_runtime.py", launches[0])
+                        self.assertTrue(
+                            any(
+                                "/test/standalone.sh" in launch
+                                for launch in launches[1:]
+                            )
+                        )
 
     def smoke_environment(self, directory: Path) -> tuple[dict[str, str], Path, Path]:
         (directory / "Cargo.toml").write_text(
@@ -944,8 +986,10 @@ class ReleaseScriptTests(ReleaseFixture):
             bwrap = elf_fixture(
                 **elf_fields, needed=helper_libraries, runpath=bwrap_runpath
             )
+            console = zipfile.ZipInfo(f"mcp_console-{version}.data/scripts/mcp-console")
+            console.external_attr = (stat.S_IFREG | 0o755) << 16
             archive.writestr(
-                f"mcp_console-{version}.data/scripts/mcp-console",
+                console,
                 elf_fixture(**elf_fields) if linux else b"fixture\n",
             )
             archive.writestr(

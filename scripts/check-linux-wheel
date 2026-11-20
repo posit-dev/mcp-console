@@ -13,7 +13,7 @@ import tarfile
 import tempfile
 import zipfile
 
-from release import standalone_members, wheel_identity
+from release import standalone_members, wheel_identity, wheel_permissions
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -23,14 +23,20 @@ def verify_archive(wheel: Path, archive: Path, target: str) -> None:
     with zipfile.ZipFile(wheel) as dist, tarfile.open(archive, "r:gz") as bundle:
         expected = standalone_members(dist, version, target)
         for member in bundle:
-            if member.isdir():
-                continue
+            # The builder leaves directories implicit. An explicit directory
+            # could restrict access to files whose own permissions match.
             source = expected.pop(member.name, None)
             if source is None:
                 raise SystemExit(f"unexpected archive member: {member.name}")
             if not member.isfile():
                 raise SystemExit(f"archive {member.name} must be a regular file")
-            with dist.open(source) as original, bundle.extractfile(member) as archived:
+            entry = dist.getinfo(source)
+            mode = wheel_permissions(entry)
+            if member.mode != mode:
+                raise SystemExit(
+                    f"archive {member.name} has mode {member.mode:04o}, expected {mode:04o}"
+                )
+            with dist.open(entry) as original, bundle.extractfile(member) as archived:
                 wheel_hash = hashlib.file_digest(original, "sha256").digest()
                 if hashlib.file_digest(archived, "sha256").digest() != wheel_hash:
                     raise SystemExit(f"archive {member.name} differs from the wheel")
@@ -93,7 +99,9 @@ def main() -> None:
         )
         for image in ("almalinux:8-minimal", "ghcr.io/astral-sh/uv:0.13.1"):
             subprocess.run([*docker, "pull", image], check=True)
-        for mode in ("standalone", "no-r", "with-r"):
+        # The no-R image runs inspect-wheel --release against the checkout's pin
+        # before launching anything from the wheel or its matching archive.
+        for mode in ("no-r", "standalone", "with-r"):
             output = evidence / mode
             output.mkdir(parents=True, exist_ok=True)
             image = f"mcp-console-linux-floor:{inputs.name}-{mode}"

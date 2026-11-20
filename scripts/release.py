@@ -436,6 +436,11 @@ def wheel_identity(wheel: Path) -> tuple[str, set[str]]:
     return version, tags
 
 
+def wheel_permissions(entry: zipfile.ZipInfo) -> int:
+    """Unix read, write, and execute bits carried into standalone archives."""
+    return entry.external_attr >> 16 & 0o777
+
+
 def wheel_prefix_path(member: str, data_prefix: str) -> str | None:
     """Installed Unix path relative to the prefix for a wheel data or script file."""
     if member.startswith(data_prefix + "data/"):
@@ -743,7 +748,7 @@ def inspect_wheel_commands(
                 f"wheel must contain exactly one private sandbox runner {name} under libexec",
             )
             require(
-                archive.getinfo(runner).external_attr >> 16 & 0o111 != 0,
+                wheel_permissions(archive.getinfo(runner)) & 0o111 != 0,
                 f"private sandbox runner {name} is not executable",
             )
         for name in sandbox_notices(linux):
@@ -1264,7 +1269,7 @@ def build_archive(args: argparse.Namespace) -> None:
                 for dest, src in sorted(members.items()):
                     entry = source.getinfo(src)
                     item = tarfile.TarInfo(dest)
-                    item.mode = entry.external_attr >> 16 & 0o777
+                    item.mode = wheel_permissions(entry)
                     item.size = entry.file_size
                     with source.open(entry) as content:
                         tar.addfile(item, content)
