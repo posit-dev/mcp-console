@@ -75,6 +75,28 @@ base::local(
         # do not rediscover an executable or rerun environment activation.
         config <- globals$py_config
         sys <- reticulate::import("sys", convert = TRUE)
+        platform <- config[["platform"]]
+        if (is.null(platform)) {
+          # Older reticulate did not record the platform. Ask the same Python
+          # executable with workspace imports and site startup disabled.
+          probe <- shQuote("import sysconfig; print(sysconfig.get_platform())")
+          platform <- system2(
+            sys$executable,
+            c("-I", "-S", "-c", probe),
+            stdout = TRUE
+          )
+          if (
+            !is.null(attr(platform, "status")) ||
+              length(platform) != 1L ||
+              !nzchar(platform)
+          ) {
+            stop(
+              "Could not determine the platform of Python at ",
+              sys$executable,
+              call. = FALSE
+            )
+          }
+        }
         inspected <<- jsonlite::toJSON(
           list(
             embedding = list(
@@ -82,6 +104,7 @@ base::local(
               libpython = config$libpython,
               python_home = config$pythonhome
             ),
+            platform = platform,
             prefix = sys$prefix,
             exec_prefix = sys$exec_prefix,
             base_prefix = sys$base_prefix,
@@ -92,7 +115,6 @@ base::local(
               version = gsub("\n", " ", sys$version, fixed = TRUE),
               version_number = as.character(config$version),
               architecture = config$architecture,
-              platform = reticulate::import("sysconfig")$get_platform(),
               conda = isTRUE(as.logical(config$conda)),
               numpy = if (is.null(config$numpy)) {
                 NULL
@@ -174,7 +196,7 @@ base::local(
       )
       identity <- jsonlite::fromJSON(inspected)
       embedding <- identity$embedding
-      config$platform <- identity$metadata$platform
+      config$platform <- identity$platform
       config$python <- embedding$python
       config$executable <- embedding$python
       config$libpython <- embedding$libpython

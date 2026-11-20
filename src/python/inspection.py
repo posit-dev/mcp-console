@@ -123,13 +123,13 @@ def describe() -> dict[str, object]:
         pass
 
     return {
+        "platform": sysconfig.get_platform(),
         "metadata": {
             "base_executable": sys._base_executable,
             "pythonpath": os.pathsep.join(sys.path),
             "version": sys.version.replace("\n", " "),
             "version_number": f"{sys.version_info.major}.{sys.version_info.minor}",
             "architecture": f"{struct.calcsize('P') * 8}bit",
-            "platform": sysconfig.get_platform(),
             "conda": (Path(sys.prefix) / "conda-meta").is_dir(),
             "numpy": numpy,
         },

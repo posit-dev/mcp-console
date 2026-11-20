@@ -78,7 +78,7 @@ base::local(
           version_string = metadata$version,
           version = as.package_version(metadata$version_number),
           architecture = metadata$architecture,
-          platform = metadata$platform,
+          platform = selection$platform,
           anaconda = grepl(
             "anaconda|continuum",
             metadata$version,

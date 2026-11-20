@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 from contextlib import ExitStack
 from functools import cache
@@ -265,6 +266,7 @@ def test_late_attachment_preserves_environment_metadata(
     records = []
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory).resolve()
+        (root / "sysconfig.py").write_text("project_value = 42\n")
         modules = root / "modules"
         modules.mkdir()
         (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
@@ -293,6 +295,7 @@ def test_late_attachment_preserves_environment_metadata(
                 RETICULATE_PYTHON=str(executable),
                 RETICULATE_PYTHONPATH=str(modules),
                 MCP_CONSOLE_TEST_PYTHON=str(executable),
+                MCP_CONSOLE_TEST_PYTHON_PLATFORM=sysconfig.get_platform(),
                 MCP_CONSOLE_TEST_ENVIRONMENT_KIND=kind,
                 MCP_CONSOLE_TEST_VIRTUALENV="" if kind == "base" else str(prefix),
             )
@@ -310,6 +313,7 @@ def test_late_attachment_preserves_environment_metadata(
                     sys <- reticulate::import("sys")
                     stopifnot(
                       identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+                      identical(config$platform, Sys.getenv("MCP_CONSOLE_TEST_PYTHON_PLATFORM")),
                       identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
                       identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
                       identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
@@ -333,7 +337,14 @@ def test_late_attachment_preserves_environment_metadata(
                 )
                 client.expect(
                     "same interpreter\n",
-                    python="assert id(peer_object) == peer_identity; print('same interpreter')",
+                    # fmt: python
+                    python=code("""
+                        from sysconfig import project_value
+
+                        assert project_value == 42
+                        assert id(peer_object) == peer_identity
+                        print("same interpreter")
+                        """),
                 )
                 records.extend([{"environment": kind}, *client.finish()[3:]])
     return records
@@ -1455,11 +1466,20 @@ def test_attaches_to_reticulate_initialized_by_r_startup(
         MCP_CONSOLE_LANGUAGES="r",
         R_LIBS=os.pathsep.join(filter(None, (str(library), environment.get("R_LIBS")))),
         R_DEFAULT_PACKAGES="datasets,utils,grDevices,graphics,stats,methods,mcpconsoleearlypython",
-        RETICULATE_PYTHON=sys.executable,
+        MCP_CONSOLE_TEST_PYTHON_PLATFORM=sysconfig.get_platform(),
+        RETICULATE_CHECK_REQUIRED_PACKAGES="false",
     )
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         environment["TMPDIR"] = str(root)
+        # NumPy can preload the standard library's sysconfig before adoption.
+        selected = root / "early Python"
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--without-pip", str(selected)],
+            check=True,
+        )
+        environment["RETICULATE_PYTHON"] = str(virtualenv_python(selected))
+        (root / "sysconfig.py").write_text("")
         worker = root / "worker"
         worker.write_text(
             "#!/bin/sh\nexec " + shlex.join([str(binary), "worker"]) + "\n"
@@ -1482,7 +1502,7 @@ def test_attaches_to_reticulate_initialized_by_r_startup(
                       identical(reticulate::py_eval("{'answer': 42}"), list(answer = 42L)),
                       identical(
                         reticulate::py_config()$platform,
-                        reticulate::import("sysconfig")$get_platform()
+                        Sys.getenv("MCP_CONSOLE_TEST_PYTHON_PLATFORM")
                       )
                     )
                     cat("attached to startup Python\\n")

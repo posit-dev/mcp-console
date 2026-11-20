@@ -972,7 +972,6 @@ def _mcp_console_conversion_metadata(
 ) -> str:
     def describe() -> str:
         import struct
-        import sysconfig
 
         numpy = None
         module = _sys.modules.get("numpy")
@@ -1020,7 +1019,6 @@ def _mcp_console_conversion_metadata(
                 "version": _sys.version.replace("\n", " "),
                 "version_number": f"{_sys.version_info.major}.{_sys.version_info.minor}",
                 "architecture": f"{struct.calcsize('P') * 8}bit",
-                "platform": sysconfig.get_platform(),
                 "conda": _os.path.isdir(_os.path.join(_sys.prefix, "conda-meta")),
                 "numpy": numpy,
             }
