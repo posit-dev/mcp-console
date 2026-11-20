@@ -124,7 +124,7 @@ scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
 ```
 
 Use `aarch64-unknown-linux-gnu` for ARM64.
-Before starting Docker, the driver verifies that the archive and wheel contain the same public executable by comparing their SHA-256 digests.
+Before starting Docker, the driver compares the archive with the wheel's standalone bundle by installed path and SHA-256 digest, including the executables, libraries, and licenses.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
 The AlmaLinux 8 minimal image launches a relocated archive with the bundled sandbox helpers before installing Python or uv.

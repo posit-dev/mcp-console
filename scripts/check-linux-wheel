@@ -13,23 +13,29 @@ import tarfile
 import tempfile
 import zipfile
 
-from release import wheel_identity
+from release import standalone_members, wheel_identity
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def verify_archived_console(wheel: Path, archive: Path) -> None:
+def verify_archive(wheel: Path, archive: Path, target: str) -> None:
     version, _ = wheel_identity(wheel)
-    with zipfile.ZipFile(wheel) as dist:
-        with dist.open(f"mcp_console-{version}.data/scripts/mcp-console") as stream:
-            wheel_digest = hashlib.file_digest(stream, "sha256").digest()
-    with tarfile.open(archive, "r:gz") as bundle:
-        member = bundle.getmember("bin/mcp-console")
-        if not member.isfile():
-            raise SystemExit("archive bin/mcp-console must be a regular file")
-        with bundle.extractfile(member) as stream:
-            if hashlib.file_digest(stream, "sha256").digest() != wheel_digest:
-                raise SystemExit("archive bin/mcp-console differs from the wheel")
+    with zipfile.ZipFile(wheel) as dist, tarfile.open(archive, "r:gz") as bundle:
+        expected = standalone_members(dist, version, target)
+        for member in bundle:
+            if member.isdir():
+                continue
+            source = expected.pop(member.name, None)
+            if source is None:
+                raise SystemExit(f"unexpected archive member: {member.name}")
+            if not member.isfile():
+                raise SystemExit(f"archive {member.name} must be a regular file")
+            with dist.open(source) as original, bundle.extractfile(member) as archived:
+                wheel_hash = hashlib.file_digest(original, "sha256").digest()
+                if hashlib.file_digest(archived, "sha256").digest() != wheel_hash:
+                    raise SystemExit(f"archive {member.name} differs from the wheel")
+        if expected:
+            raise SystemExit(f"missing archive member: {', '.join(sorted(expected))}")
 
 
 def main() -> None:
@@ -77,7 +83,7 @@ def main() -> None:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
 
-        verify_archived_console(inputs / wheel.name, inputs / archive.name)
+        verify_archive(inputs / wheel.name, inputs / archive.name, args.target)
         architecture = args.target.split("-", 1)[0]
         daemon_architecture = subprocess.check_output(
             [*docker, "info", "--format", "{{.Architecture}}"], text=True

@@ -531,6 +531,10 @@ class ReleaseScriptTests(ReleaseFixture):
         self.write_wheel(wheel)
         with zipfile.ZipFile(wheel, "a") as archive:
             archive.writestr("mcp_console-0.0.2.dist-info/licenses/LICENSE", "license")
+            archive.writestr(
+                "mcp_console-0.0.2.data/data/libfixture.so",
+                elf_fixture(interpreter=None),
+            )
         result = self.run_script(
             "build-archive",
             str(wheel),
@@ -543,34 +547,69 @@ class ReleaseScriptTests(ReleaseFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         return wheel, directory / f"mcp-console-{target}.tar.gz"
 
-    def test_linux_floor_rejects_archive_with_a_different_console(self) -> None:
+    def test_linux_floor_requires_matching_bundle_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             wheel, archive = self.linux_floor_bundle(directory, "x86_64")
-            public = "mcp_console-0.0.2.data/scripts/mcp-console"
-            rewrite_wheel(wheel, {public: elf_fixture(build="new")})
+            with tarfile.open(archive) as bundle:
+                files = {
+                    member.name: bundle.extractfile(member).read()
+                    for member in bundle.getmembers()
+                }
+            library = "libfixture.so"
+            public = "bin/mcp-console"
+            changed = elf_fixture(build="other")
             evidence = directory / "evidence"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "scripts/check-linux-wheel"),
-                    str(wheel),
-                    "--archive",
-                    str(archive),
-                    "--target",
-                    "x86_64-unknown-linux-gnu",
-                    "--evidence",
-                    str(evidence),
-                ],
-                env=os.environ | {"PATH": str(directory)},
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn(
-                "archive bin/mcp-console differs from the wheel", result.stderr
-            )
-            self.assertFalse(evidence.exists())
+            for error, entries in (
+                (f"archive {public} differs", (files | {public: changed}).items()),
+                (f"archive {library} differs", (files | {library: changed}).items()),
+                (
+                    f"missing archive member: {library}",
+                    [(name, data) for name, data in files.items() if name != library],
+                ),
+                (
+                    "unexpected archive member: extra.so",
+                    (files | {"extra.so": changed}).items(),
+                ),
+                (
+                    f"unexpected archive member: {library}",
+                    [*files.items(), (library, files[library])],
+                ),
+                (
+                    f"archive {library} must be a regular file",
+                    (files | {library: None}).items(),
+                ),
+            ):
+                with self.subTest(error=error):
+                    with tarfile.open(archive, "w:gz") as bundle:
+                        for name, contents in entries:
+                            member = tarfile.TarInfo(name)
+                            if contents is None:
+                                member.type = tarfile.SYMTYPE
+                                member.linkname = public
+                                bundle.addfile(member)
+                            else:
+                                member.size = len(contents)
+                                bundle.addfile(member, io.BytesIO(contents))
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            str(ROOT / "scripts/check-linux-wheel"),
+                            str(wheel),
+                            "--archive",
+                            str(archive),
+                            "--target",
+                            "x86_64-unknown-linux-gnu",
+                            "--evidence",
+                            str(evidence),
+                        ],
+                        env=os.environ | {"PATH": str(directory)},
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(error, result.stderr)
+                    self.assertFalse(evidence.exists())
 
     def test_linux_floor_refreshes_expired_r_preparation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

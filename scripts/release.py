@@ -1177,18 +1177,12 @@ def archive_name(target: str) -> str:
     return f"mcp-console-{target}.{suffix}"
 
 
-def build_archive(args: argparse.Namespace) -> None:
-    wheel = Path(args.wheel)
-    version, tags = wheel_identity(wheel)
-    require(
-        all(
-            fnmatch.fnmatchcase(tag, f"py3-none-{RELEASE_PLATFORMS[args.target]}")
-            for tag in tags
-        ),
-        f"wheel does not match {args.target}: {wheel.name}",
-    )
-    windows = "windows" in args.target
-    linux = "linux" in args.target
+def standalone_members(
+    source: zipfile.ZipFile, version: str, target: str
+) -> dict[str, str]:
+    """Map native installation paths to their source members in the wheel."""
+    windows = "windows" in target
+    linux = "linux" in target
     data = f"mcp_console-{version}.data"
     licenses = "share/licenses/mcp-console"
     suffix = ".exe" if windows else ""
@@ -1201,54 +1195,67 @@ def build_archive(args: argparse.Namespace) -> None:
         else f"{data}/scripts/mcp-console"
     )
 
+    members = {
+        public: native,
+        f"{licenses}/mcp-console-LICENSE": f"mcp_console-{version}.dist-info/licenses/LICENSE",
+    }
+    # Wheel data installs directly under the prefix. Preserve all of it,
+    # including resources and licenses beside libraries. The .gitignore
+    # is the staging marker excluded from wheels by pyproject.toml.
+    data_prefix = f"{data}/"
+    for info in source.infolist():
+        if info.is_dir() or info.filename == native:
+            continue
+        relative = wheel_prefix_path(info.filename, data_prefix)
+        if relative is None or relative == ".gitignore":
+            continue
+        if info.filename.startswith(data_prefix + "scripts/"):
+            if not linux:
+                continue
+            with source.open(info) as stream:
+                if stream.read(4) != b"\x7fELF":
+                    continue
+        require(
+            all(part not in ("", ".", "..") for part in relative.split("/"))
+            and "\\" not in relative
+            and not (windows and PureWindowsPath(relative).drive)
+            and relative not in members,
+            f"invalid native bundle member: {info.filename}",
+        )
+        members[relative] = info.filename
+    required = {
+        f"libexec/mcp-console-sandbox{suffix}",
+        *(f"{licenses}/{name}" for name in sandbox_notices(linux)),
+    }
+    if linux:
+        required.add("libexec/bwrap")
+    require(
+        required <= members.keys(),
+        f"missing native bundle files: {sorted(required - members.keys())}",
+    )
+    return members
+
+
+def build_archive(args: argparse.Namespace) -> None:
+    wheel = Path(args.wheel)
+    version, tags = wheel_identity(wheel)
+    require(
+        all(
+            fnmatch.fnmatchcase(tag, f"py3-none-{RELEASE_PLATFORMS[args.target]}")
+            for tag in tags
+        ),
+        f"wheel does not match {args.target}: {wheel.name}",
+    )
     output = Path(args.out_dir) / archive_name(args.target)
     output.parent.mkdir(parents=True, exist_ok=True)
     with (
         zipfile.ZipFile(wheel) as source,
         tempfile.TemporaryDirectory(dir=output.parent) as temp,
     ):
-        members = {
-            public: native,
-            f"{licenses}/mcp-console-LICENSE": f"mcp_console-{version}.dist-info/licenses/LICENSE",
-        }
-        # Wheel data installs directly under the prefix. Preserve all of it,
-        # including resources and licenses beside libraries. The .gitignore
-        # is the staging marker excluded from wheels by pyproject.toml.
-        data_prefix = f"{data}/"
-        for info in source.infolist():
-            if info.is_dir() or info.filename == native:
-                continue
-            relative = wheel_prefix_path(info.filename, data_prefix)
-            if relative is None or relative == ".gitignore":
-                continue
-            if info.filename.startswith(data_prefix + "scripts/"):
-                if not linux:
-                    continue
-                with source.open(info) as stream:
-                    if stream.read(4) != b"\x7fELF":
-                        continue
-            require(
-                all(part not in ("", ".", "..") for part in relative.split("/"))
-                and "\\" not in relative
-                and not (windows and PureWindowsPath(relative).drive)
-                and relative not in members,
-                f"invalid native bundle member: {info.filename}",
-            )
-            members[relative] = info.filename
-        required = {
-            f"libexec/mcp-console-sandbox{suffix}",
-            *(f"{licenses}/{name}" for name in sandbox_notices(linux)),
-        }
-        if linux:
-            required.add("libexec/bwrap")
-        require(
-            required <= members.keys(),
-            f"missing native bundle files: {sorted(required - members.keys())}",
-        )
-
+        members = standalone_members(source, version, args.target)
         # Build in a temporary path; a failed wheel read leaves no partial archive.
         pending = Path(temp) / output.name
-        if windows:
+        if "windows" in args.target:
             with zipfile.ZipFile(pending, "w", zipfile.ZIP_DEFLATED) as archive:
                 for dest, src in sorted(members.items()):
                     archive.writestr(dest, source.read(src))
