@@ -101,7 +101,13 @@ def main() -> None:
             path in result.stdout for path in ("/work/", "/build/", "/usr/local/cargo/")
         )
     subprocess.run(
-        [sys.executable, str(fixture / "sandbox_installation.py"), str(installed)],
+        [
+            sys.executable,
+            str(fixture / "sandbox_installation.py"),
+            "--wheel",
+            str(args.wheel),
+            str(installed),
+        ],
         check=True,
     )
     print(

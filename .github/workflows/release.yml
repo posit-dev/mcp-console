@@ -199,7 +199,7 @@ jobs:
             target/${{ matrix.target }}/release/mcp-console \
             --target "${{ matrix.target }}" \
             --without-r
-          python3 tests/sandbox_installation.py "$UV_TOOL_BIN_DIR/mcp-console"
+          python3 tests/sandbox_installation.py --wheel dist/*.whl "$UV_TOOL_BIN_DIR/mcp-console"
 
       - name: Build and test the standalone archive
         env:

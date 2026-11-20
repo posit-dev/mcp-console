@@ -10,28 +10,34 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from support.native import build_interposer
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from release import wheel_identity, wheel_prefix_path
 
 
 @unittest.skipUnless(sys.platform in ("darwin", "linux"), "requires macOS or Linux")
 class SandboxInstallationTests(unittest.TestCase):
     binary_source: Path
+    bundle_sources: dict[str, Path]
 
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory(prefix="mcp-console-installation-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         prefix = self.root / "installation"
-        (prefix / "bin").mkdir(parents=True)
+        for relative, source in self.bundle_sources.items():
+            destination = prefix / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_dir():
+                shutil.copytree(source, destination, symlinks=True)
+            else:
+                shutil.copy2(source, destination)
         self.binary = prefix / "bin" / "mcp-console"
-        shutil.copy2(self.binary_source, self.binary)
-        source_prefix = self.binary_source.parent.parent
-        for relative in ("libexec", "share/licenses/mcp-console"):
-            shutil.copytree(source_prefix / relative, prefix / relative)
-        self.home = self.root / "home"
-        self.home.mkdir()
+        self.console_home = self.root / "console-home"
         self.path = self.root / "path"
         self.path.mkdir()
         decoy = self.path / "mcp-console-sandbox"
@@ -39,7 +45,10 @@ class SandboxInstallationTests(unittest.TestCase):
             "#!/bin/sh\nprintf 'PATH runner was used\\n'\n", encoding="utf-8"
         )
         decoy.chmod(0o755)
-        self.environment = os.environ | {"PATH": str(self.path), "HOME": str(self.home)}
+        self.environment = os.environ | {
+            "PATH": str(self.path),
+            "MCP_CONSOLE_HOME": str(self.console_home),
+        }
 
     @property
     def runner(self) -> Path:
@@ -127,12 +136,11 @@ class SandboxInstallationTests(unittest.TestCase):
                 for stream in (process.stdin, process.stdout, process.stderr):
                     stream.close()
 
-    def test_relocates_the_bundle_without_a_writable_home_or_path_lookup(self) -> None:
+    def test_relocates_without_a_writable_console_home_or_path_lookup(self) -> None:
         relocated = self.root / "relocated"
         self.binary.parent.parent.rename(relocated)
         self.binary = relocated / "bin/mcp-console"
-        self.home.rmdir()
-        self.home.touch()
+        self.console_home.touch()
         result = self.run_sandbox()
         self.assertEqual(
             (result.returncode, result.stdout, result.stderr), (0, b"", b"")
@@ -208,11 +216,9 @@ class SandboxInstallationTests(unittest.TestCase):
     def test_unused_bundled_helper_does_not_block_a_suitable_host_helper(self) -> None:
         # Native discovery excludes helpers inside cwd. Supply a trusted helper
         # outside that tree independently of the relocated bundle we damage.
-        host = tempfile.TemporaryDirectory(prefix="mcp-console-host-helper-")
-        self.addCleanup(host.cleanup)
-        helper = Path(host.name) / "bwrap"
-        shutil.copy2(self.binary_source.parent.parent / "libexec/bwrap", helper)
-        (self.path / "bwrap").symlink_to(helper)
+        (self.path / "bwrap").symlink_to(
+            self.binary_source.parent.parent / "libexec/bwrap"
+        )
         bundled = self.binary.parent.parent / "libexec/bwrap"
         for defect in ("missing", "modified", "fifo"):
             with self.subTest(defect=defect):
@@ -241,8 +247,37 @@ class SandboxInstallationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--standalone", action="store_true", help="copy the entire extracted prefix"
+    )
+    source.add_argument(
+        "--wheel", type=Path, help="copy the wheel's installed native bundle"
+    )
     parser.add_argument("binary", type=Path)
     parser.add_argument("tests", nargs="*", metavar="TEST")
     args = parser.parse_args()
-    SandboxInstallationTests.binary_source = args.binary.resolve()
+    binary = args.binary.resolve()
+    prefix = binary.parent.parent
+    SandboxInstallationTests.binary_source = binary
+    if args.standalone:
+        sources = {".": prefix}
+    elif args.wheel:
+        version, _ = wheel_identity(args.wheel)
+        data = f"mcp_console-{version}.data/"
+        with zipfile.ZipFile(args.wheel) as wheel:
+            sources = {
+                relative: prefix / relative
+                for member in wheel.infolist()
+                if not member.is_dir()
+                and (relative := wheel_prefix_path(member.filename, data)) is not None
+            }
+    else:
+        # A Cargo target directory also contains build products outside the bundle.
+        sources = {
+            "bin/mcp-console": binary,
+            "libexec": prefix / "libexec",
+            "share/licenses/mcp-console": prefix / "share/licenses/mcp-console",
+        }
+    SandboxInstallationTests.bundle_sources = sources
     unittest.main(argv=[sys.argv[0], *args.tests])

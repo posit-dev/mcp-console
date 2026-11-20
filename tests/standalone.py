@@ -71,6 +71,7 @@ def main() -> None:
             [
                 sys.executable,
                 ROOT / "tests/sandbox_installation.py",
+                "--standalone",
                 binary,
                 "SandboxInstallationTests.test_rejects_invalid_bundle_files",
             ],
