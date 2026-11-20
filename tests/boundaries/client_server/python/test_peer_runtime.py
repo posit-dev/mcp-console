@@ -302,8 +302,19 @@ def test_late_attachment_preserves_environment_metadata(
             with McpClient(binary, execution.serve(), environment, root) as client:
                 client.initialize_and_list_tools()
                 defer_r_bootstrap(client)
+                # A startup hook can cache the standard library's sysconfig.
+                # Load the workspace module before asking R to attach.
                 client.expect(
-                    python="peer_object = object(); peer_identity = id(peer_object)",
+                    # fmt: python
+                    python=code("""
+                        import sys
+
+                        if "sysconfig" in sys.modules:
+                            del sys.modules["sysconfig"]
+                        import sysconfig as project_sysconfig
+
+                        assert project_sysconfig.project_value == 42
+                        """),
                 )
                 # fmt: r
                 client.expect(
@@ -339,10 +350,9 @@ def test_late_attachment_preserves_environment_metadata(
                     "same interpreter\n",
                     # fmt: python
                     python=code("""
-                        from sysconfig import project_value
+                        import sysconfig
 
-                        assert project_value == 42
-                        assert id(peer_object) == peer_identity
+                        assert sysconfig is project_sysconfig
                         print("same interpreter")
                         """),
                 )

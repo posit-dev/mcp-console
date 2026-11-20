@@ -2,7 +2,14 @@
 environment: base
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -44,10 +51,9 @@ result:
 ---
 send:
   python: |
-    from sysconfig import project_value
+    import sysconfig
 
-    assert project_value == 42
-    assert id(peer_object) == peer_identity
+    assert sysconfig is project_sysconfig
     print("same interpreter")
 result:
   content:
@@ -59,7 +65,14 @@ result:
 environment: virtualenv
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -101,10 +114,9 @@ result:
 ---
 send:
   python: |
-    from sysconfig import project_value
+    import sysconfig
 
-    assert project_value == 42
-    assert id(peer_object) == peer_identity
+    assert sysconfig is project_sysconfig
     print("same interpreter")
 result:
   content:
@@ -116,7 +128,14 @@ result:
 environment: conda-marker
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -158,10 +177,9 @@ result:
 ---
 send:
   python: |
-    from sysconfig import project_value
+    import sysconfig
 
-    assert project_value == 42
-    assert id(peer_object) == peer_identity
+    assert sysconfig is project_sysconfig
     print("same interpreter")
 result:
   content:
