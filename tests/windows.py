@@ -50,6 +50,24 @@ BINARY = Path(
 NATIVE_BINARY = native_console(BINARY)
 
 
+def preinstalled_r_environment() -> dict[str, str]:
+    # Keep the selected R installation when hiding interpreter and package launchers.
+    r_home = (
+        os.environ.get("R_HOME")
+        or subprocess.check_output(
+            [shutil.which("R") or "R", "RHOME"], text=True
+        ).strip()
+    )
+    environment = dict(
+        os.environ,
+        R_HOME=r_home,
+        PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
+    )
+    environment.pop("RETICULATE_PYTHON", None)
+    environment.pop("RETICULATE_UV", None)
+    return environment
+
+
 class Session:
     def __init__(
         self,
@@ -1163,23 +1181,13 @@ class WindowsConsole(unittest.TestCase):
                     session.close()
 
     def test_r_without_python(self):
-        # Capture R before removing the interpreter launchers from PATH.
-        r_home = (
-            os.environ.get("R_HOME")
-            or subprocess.check_output(
-                [shutil.which("R") or "R", "RHOME"], text=True
-            ).strip()
-        )
-        environment = dict(
-            os.environ,
-            R_HOME=r_home,
-            PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
-        )
-        environment.pop("RETICULATE_PYTHON", None)
+        environment = preinstalled_r_environment()
         session = Session(
             environment,
             bare_r=True,
-            overrides=["r=" + json.dumps(str(Path(r_home) / "bin/R.exe"))],
+            overrides=[
+                "r=" + json.dumps(str(Path(environment["R_HOME"]) / "bin/R.exe"))
+            ],
         )
         self.addCleanup(session.close)
         session.initialize()
@@ -1409,6 +1417,21 @@ class WindowsConsole(unittest.TestCase):
             control="restart", python="print('fresh', 'answer' in globals())"
         )
         self.assertIn("fresh False", json.dumps(result))
+
+    def test_preinstalled_r_python_bridge(self):
+        session = Session(
+            preinstalled_r_environment(),
+            python=sys.executable,
+            overrides=["r.resolution=disabled"],
+        )
+        self.addCleanup(session.close)
+        session.initialize()
+        session.expect("41", r="seed <- 41L; print(seed)")
+        session.expect("42", python="answer = r.seed + 1; print(answer)")
+        session.expect(
+            "round trip complete",
+            r="stopifnot(py$answer == 42L); cat('round trip complete')",
+        )
 
     def test_r_initializes_before_python(self):
         session = self.session(defer_bootstrap=True)

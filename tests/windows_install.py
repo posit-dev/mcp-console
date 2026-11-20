@@ -68,7 +68,9 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
         "WindowsConsole.test_python_without_r",
         "WindowsConsole.test_r_without_python",
     ]
-    if not preinstalled_r:
+    if preinstalled_r:
+        cases.append("WindowsConsole.test_preinstalled_r_python_bridge")
+    else:
         cases += [
             "WindowsConsole.test_r_initializes_before_python",
             "WindowsConsole.test_python_initializes_before_r",
@@ -103,9 +105,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preinstalled-r",
         action="store_true",
-        help="exercise preinstalled R and Python without a managed R package resolver",
+        help="use preinstalled R packages when accepting an archive or installed wheel",
     )
     options = parser.parse_args()
+    if (
+        options.preinstalled_r
+        and options.archive is None
+        and options.installed_binary is None
+    ):
+        parser.error("--preinstalled-r requires --archive or --installed-binary")
     if sys.platform != "win32":
         raise SystemExit("native Windows installation checks require Windows")
     os.chdir(ROOT)

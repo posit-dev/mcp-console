@@ -2961,6 +2961,24 @@ version = "0.0.0"
 
 
 class PortableReleaseTests(ReleaseFixture):
+    def test_windows_source_install_rejects_preinstalled_r_before_building(
+        self,
+    ) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tests/windows_install.py"),
+                "--preinstalled-r",
+            ],
+            env=os.environ | {"PATH": ""},
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn(
+            "--preinstalled-r requires --archive or --installed-binary", result.stderr
+        )
+
     @contextmanager
     def publication_server(
         self, responses: dict[str, list[tuple[int | str, dict[str, object]]]]

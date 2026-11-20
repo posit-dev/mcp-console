@@ -362,6 +362,10 @@ jobs:
         if: matrix.python-arch == 'x64'
         run: uv pip install --python (Get-Command python).Source numpy
 
+      - name: Install prebuilt R bridge for native Windows ARM64
+        if: matrix.python-arch == 'arm64'
+        run: Rscript --vanilla scripts/install-ci-windows-arm-r-bridge.R
+
       - name: Select native R
         run: |
           $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
@@ -749,6 +753,10 @@ jobs:
           packages: |
             any::reticulate
             any::jsonlite
+
+      - name: Install prebuilt R bridge for native Windows ARM64
+        if: matrix.python-arch == 'arm64'
+        run: Rscript --vanilla scripts/install-ci-windows-arm-r-bridge.R
 
       - name: Download published artifacts for hash comparison
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
