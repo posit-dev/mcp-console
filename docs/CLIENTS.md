@@ -33,6 +33,7 @@ r:
 
 On Windows ARM64 with reticulate 1.47.0, R-first discovery cannot distinguish native ARM64 Python from x64 Python running under emulation.
 If you have both, set `python` in the same configuration file to the absolute path of the native interpreter, for example `python: 'C:/Python314-arm64/python.exe'`.
+If an R profile or default package initializes Python, [defer that call until after native R startup](RUNTIME_CONFIGURATION.md#native-r-startup).
 
 To verify the selected runtimes and prepare caches before opening a client, follow [Check your installation](CLI.md#check-your-installation).
 
