@@ -166,21 +166,26 @@ class SandboxInstallationTests(unittest.TestCase):
 
     def test_rejects_invalid_bundle_files(self) -> None:
         prefix = self.binary.parent.parent
-        for relative in (
+        licenses = "share/licenses/mcp-console"
+        artifacts = [
             "libexec/mcp-console-sandbox",
-            "share/licenses/mcp-console/LICENSE",
-            "share/licenses/mcp-console/NOTICE",
-            *(
-                (
+            f"{licenses}/LICENSE",
+            f"{licenses}/NOTICE",
+        ]
+        if sys.platform == "linux":
+            provenance = f"{licenses}/bubblewrap-SOURCE.json"
+            artifacts.extend(
+                [
                     "libexec/bwrap",
-                    "share/licenses/mcp-console/bubblewrap-COPYING",
-                    "share/licenses/mcp-console/bubblewrap-NOTICE",
-                    "share/licenses/mcp-console/bubblewrap-SOURCE.json",
-                )
-                if sys.platform == "linux"
-                else ()
-            ),
-        ):
+                    f"{licenses}/bubblewrap-COPYING",
+                    f"{licenses}/bubblewrap-NOTICE",
+                    provenance,
+                ]
+            )
+            linkage = json.loads((prefix / provenance).read_text())["libcap_linkage"]
+            if linkage == "static":
+                artifacts.append(f"{licenses}/libcap-NOTICE")
+        for relative in artifacts:
             artifact = prefix / relative
             original = artifact.read_bytes()
             for defect in ("missing", "modified", "fifo"):
@@ -201,8 +206,13 @@ class SandboxInstallationTests(unittest.TestCase):
                         else b"private sandbox runner",
                         result.stderr,
                     )
-                    if relative == "libexec/bwrap" and defect == "modified":
-                        self.assertIn(b"digest mismatch", result.stderr)
+                    if defect == "modified":
+                        self.assertIn(
+                            b"digest mismatch"
+                            if relative == "libexec/bwrap"
+                            else b"private artifact does not match this installation",
+                            result.stderr,
+                        )
                     if defect == "fifo" and relative != "libexec/bwrap":
                         self.assertIn(
                             b"private artifact is not a readable file or executable",
