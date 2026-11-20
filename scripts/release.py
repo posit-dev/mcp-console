@@ -777,6 +777,11 @@ def inspect_wheel_commands(
                 if any(name.startswith("libcap.so.") for name in needed)
                 else "static"
             )
+            if release:
+                require(
+                    linkage == "static",
+                    "release Bubblewrap must link libcap statically",
+                )
             require(
                 provenance.get("elf_needed") == needed,
                 "Bubblewrap provenance has inconsistent ELF dependencies",

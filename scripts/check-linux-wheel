@@ -4,13 +4,32 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import shutil
 import subprocess
+import tarfile
 import tempfile
+import zipfile
+
+from release import wheel_identity
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def verify_archived_console(wheel: Path, archive: Path) -> None:
+    version, _ = wheel_identity(wheel)
+    with zipfile.ZipFile(wheel) as dist:
+        with dist.open(f"mcp_console-{version}.data/scripts/mcp-console") as stream:
+            wheel_digest = hashlib.file_digest(stream, "sha256").digest()
+    with tarfile.open(archive, "r:gz") as bundle:
+        member = bundle.getmember("bin/mcp-console")
+        if not member.isfile():
+            raise SystemExit("archive bin/mcp-console must be a regular file")
+        with bundle.extractfile(member) as stream:
+            if hashlib.file_digest(stream, "sha256").digest() != wheel_digest:
+                raise SystemExit("archive bin/mcp-console differs from the wheel")
 
 
 def main() -> None:
@@ -29,21 +48,11 @@ def main() -> None:
     archive = args.archive.resolve()
     assert wheel.is_file() and archive.is_file()
     evidence = args.evidence.resolve()
-    evidence.mkdir(parents=True, exist_ok=True)
+    evidence.parent.mkdir(parents=True, exist_ok=True)
     docker = [
         "docker",
         *(["--context", args.docker_context] if args.docker_context else []),
     ]
-    architecture = args.target.split("-", 1)[0]
-    daemon_architecture = subprocess.check_output(
-        [*docker, "info", "--format", "{{.Architecture}}"], text=True
-    ).strip()
-    assert daemon_architecture == architecture, (
-        "floor validation requires a matching native Docker host"
-    )
-    for image in ("almalinux:8-minimal", "ghcr.io/astral-sh/uv:0.13.1"):
-        subprocess.run([*docker, "pull", image], check=True)
-
     # Keep bind inputs beside evidence, on the filesystem shared with the daemon.
     with tempfile.TemporaryDirectory(
         prefix="mcp-console-linux-floor-", dir=evidence.parent
@@ -67,9 +76,20 @@ def main() -> None:
         ):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
+
+        verify_archived_console(inputs / wheel.name, inputs / archive.name)
+        architecture = args.target.split("-", 1)[0]
+        daemon_architecture = subprocess.check_output(
+            [*docker, "info", "--format", "{{.Architecture}}"], text=True
+        ).strip()
+        assert daemon_architecture == architecture, (
+            "floor validation requires a matching native Docker host"
+        )
+        for image in ("almalinux:8-minimal", "ghcr.io/astral-sh/uv:0.13.1"):
+            subprocess.run([*docker, "pull", image], check=True)
         for mode in ("standalone", "no-r", "with-r"):
             output = evidence / mode
-            output.mkdir(exist_ok=True)
+            output.mkdir(parents=True, exist_ok=True)
             image = f"mcp-console-linux-floor:{inputs.name}-{mode}"
             subprocess.run(
                 [

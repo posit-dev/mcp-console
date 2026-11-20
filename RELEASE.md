@@ -25,11 +25,11 @@ For example, after downloading the Linux x86-64 archive and checksum file:
 
 ```sh
 archive=mcp-console-x86_64-unknown-linux-gnu.tar.gz
-grep -F "  $archive" SHA256SUMS | sha256sum --check --strict
-mkdir console
-tar -xzf "$archive" -C console
-console/bin/mcp-console --version
-console/bin/mcp-console sandbox -- /usr/bin/true
+awk -v archive="$archive" '$2 == archive' SHA256SUMS | sha256sum --check --strict &&
+  mkdir console &&
+  tar -xzf "$archive" -C console &&
+  console/bin/mcp-console --version &&
+  console/bin/mcp-console sandbox -- /usr/bin/true
 ```
 
 An application can invoke `bin/mcp-console sandbox -- PROGRAM ARG...` directly.
@@ -97,7 +97,7 @@ python3 scripts/release.py inspect-wheel WHEEL --target TARGET --report abi.json
 
 Audit every ELF member, including private helpers and extra native libraries, against all advertised wheel tags.
 Preserve architecture, loader, dependency/path, symbol-version, and metadata checks; unknown policies fail rather than inheriting the build host's assumptions.
-`--release` additionally enforces the release floor.
+`--release` also checks the glibc 2.28 floor and requires bubblewrap to link libcap statically.
 Exact loader algorithms and symbol allowlists belong in the release tooling, not a second prose specification.
 
 On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
@@ -123,6 +123,7 @@ scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
 ```
 
 Use `aarch64-unknown-linux-gnu` for ARM64.
+Before starting Docker, the driver verifies that the archive and wheel contain the same public executable by comparing their SHA-256 digests.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
 The AlmaLinux 8 minimal image launches a relocated archive with the bundled sandbox helpers before installing Python or uv.
