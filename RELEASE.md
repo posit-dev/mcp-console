@@ -209,7 +209,8 @@ git push origin "refs/tags/v$release_version"
 
 Use `-F MESSAGE_FILE` for a noninteractive annotation.
 The tag workflow must verify version, main ancestry, exact-commit push CI, and the install-tested artifacts before Trusted Publishing.
-After the PyPI upload, a separate job checks the archive manifest, uploads the archives to a draft GitHub release, compares the remote asset digests, and publishes the release.
+After the PyPI upload, a separate job verifies that `SHA256SUMS` lists all six archives exactly once with their measured digests.
+It then uploads the archives and manifest to a draft GitHub release, compares the remote asset digests, and publishes the release.
 
 ## Verify the publication
 

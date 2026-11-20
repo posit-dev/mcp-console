@@ -297,20 +297,16 @@ class ReleaseScriptTests(ReleaseFixture):
             )
             assets = root / "archives"
             assets.mkdir()
-            targets = ("x86_64", "aarch64")
             names = [
-                "SHA256SUMS",
-                *(
-                    f"mcp-console-{arch}-{suffix}"
-                    for arch in targets
-                    for suffix in (
-                        "pc-windows-msvc.zip",
-                        "apple-darwin.tar.gz",
-                        "unknown-linux-gnu.tar.gz",
-                    )
-                ),
+                f"mcp-console-{arch}-{suffix}"
+                for arch in ("x86_64", "aarch64")
+                for suffix in (
+                    "pc-windows-msvc.zip",
+                    "apple-darwin.tar.gz",
+                    "unknown-linux-gnu.tar.gz",
+                )
             ]
-            one = names[1]
+            one = names[0]
             for name in names:
                 (assets / name).write_bytes(name.encode())
             initial = {
@@ -352,13 +348,37 @@ class ReleaseScriptTests(ReleaseFixture):
                 state.write_text(json.dumps(data))
             """,
             )
+            manifest = assets / "SHA256SUMS"
+            checksums = self.run_script("archive-checksums", "archives", cwd=root)
+            self.assertEqual(checksums.returncode, 0, checksums.stderr)
+            lines = manifest.read_bytes().splitlines(keepends=True)
+            for label, invalid in (
+                ("truncated", lines[:1]),
+                ("duplicate", lines + lines[:1]),
+                ("wrong digest", [b"0" * 64 + lines[0][64:], *lines[1:]]),
+                ("wrong filename", [lines[0][:66] + b"other.zip\n", *lines[1:]]),
+            ):
+                with self.subTest(label):
+                    manifest.write_bytes(b"".join(invalid))
+                    rejected = self.run_script(
+                        "publish-archives", "archives", cwd=root, env=env
+                    )
+                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertIn(
+                        "SHA256SUMS does not match the release archives",
+                        rejected.stderr,
+                    )
+                    self.assertEqual(json.loads(state.read_text()), initial)
             (assets / one).write_text("different")
+            checksums = self.run_script("archive-checksums", "archives", cwd=root)
+            self.assertEqual(checksums.returncode, 0, checksums.stderr)
             mismatch = self.run_script(
                 "publish-archives", "archives", cwd=root, env=env
             )
             self.assertIn("GitHub asset digest differs", mismatch.stderr)
             self.assertEqual(json.loads(state.read_text()), initial)
             (assets / one).write_bytes(one.encode())
+            manifest.write_bytes(b"".join(reversed(lines)))
             for _ in range(2):
                 result = self.run_script(
                     "publish-archives", "archives", cwd=root, env=env

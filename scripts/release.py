@@ -1012,11 +1012,14 @@ def smoke_wheel(args: argparse.Namespace) -> None:
 def publish_archives(args: argparse.Namespace) -> None:
     validate_publish(args)
     directory = Path(args.directory)
-    files = [*archive_paths(directory), directory / "SHA256SUMS"]
-    expected = {
-        path.name: "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in files
-    }
+    digests, expected_manifest = archive_manifest(directory)
+    manifest = (directory / "SHA256SUMS").read_bytes()
+    require(
+        sorted(manifest.split(b"\n")) == sorted(expected_manifest.split(b"\n")),
+        "SHA256SUMS does not match the release archives",
+    )
+    digests["SHA256SUMS"] = hashlib.sha256(manifest).hexdigest()
+    expected = {name: f"sha256:{digest}" for name, digest in digests.items()}
     tag = os.environ["GITHUB_REF_NAME"]
     tags = command_output(
         [
@@ -1262,27 +1265,25 @@ def build_archive(args: argparse.Namespace) -> None:
     print(output)
 
 
-def archive_paths(directory: Path) -> list[Path]:
+def archive_manifest(directory: Path) -> tuple[dict[str, str], bytes]:
     expected = {directory / archive_name(target) for target in RELEASE_PLATFORMS}
     found = set(directory.iterdir()) - {directory / "SHA256SUMS"}
     require(
         found == expected,
         f"archive set differs: {sorted(path.name for path in expected ^ found)}",
     )
-    return sorted(expected)
+    digests = {}
+    for path in sorted(expected):
+        with path.open("rb") as stream:
+            digests[path.name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    manifest = "".join(f"{digest}  {name}\n" for name, digest in digests.items())
+    return digests, manifest.encode("ascii")
 
 
 def archive_checksums(args: argparse.Namespace) -> None:
     directory = Path(args.directory)
-    lines = []
-    for path in archive_paths(directory):
-        with path.open("rb") as stream:
-            lines.append(
-                f"{hashlib.file_digest(stream, 'sha256').hexdigest()}  {path.name}\n"
-            )
-    (directory / "SHA256SUMS").write_text(
-        "".join(lines), encoding="ascii", newline="\n"
-    )
+    _, manifest = archive_manifest(directory)
+    (directory / "SHA256SUMS").write_bytes(manifest)
 
 
 def wait_pypi(args: argparse.Namespace) -> None:
