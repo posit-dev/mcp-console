@@ -397,7 +397,9 @@ jobs:
           printf 'Dir::Cache::archives "%s";\nAPT::Install-Recommends "false";\n' \
             "$RUNNER_TEMP/apt-archives" | sudo tee /etc/apt/apt.conf.d/99-ci-archives
           sudo apt-get update
-          sudo apt-get install -y --no-upgrade build-essential pkg-config libcurl4-openssl-dev libcap-dev
+          sudo apt-get install -y --no-upgrade \
+            build-essential pkg-config libcurl4-openssl-dev libcap-dev \
+            libharfbuzz-dev libfribidi-dev
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Configure R cache paths
