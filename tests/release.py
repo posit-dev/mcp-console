@@ -456,8 +456,16 @@ class ReleaseScriptTests(ReleaseFixture):
                         if fields["interpreter"]:
                             return "[Requesting program interpreter: " + fields["interpreter"] + "]"
                         return ""
-                    assert command == ["rpm", "-qa", "--queryformat", "%{NAME}\\n"]
-                    return "glibc\\n"
+                    assert command[:3] == ["rpm", "-qa", "--queryformat"]
+                    row = command[3]
+                    for tag, value in {
+                        "NAME": os.environ["FLOOR_RPM_NAME"],
+                        "VERSION": "8.5.0",
+                        "RELEASE": "28.el8",
+                        "ARCH": "x86_64",
+                    }.items():
+                        row = row.replace("%{" + tag + "}", value)
+                    return row
                 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
                     output = ""
                     if command[0] == "ldd":
@@ -484,12 +492,13 @@ class ReleaseScriptTests(ReleaseFixture):
                     runpy.run_path(sys.argv[0], run_name="__main__")
                 """,
             )
-            for output, accepted in (
-                ("libc.so.6 => /lib/libc.so.6", True),
-                ("libmissing.so => not found", False),
-                ("libb.so => /build/libb.so", False),
+            for package, output, accepted in (
+                ("libstdc++", "libc.so.6 => /lib/libc.so.6", True),
+                ("libstdc++-devel", "libc.so.6 => /lib/libc.so.6", False),
+                ("libstdc++", "libmissing.so => not found", False),
+                ("libstdc++", "libb.so => /build/libb.so", False),
             ):
-                with self.subTest(output=output):
+                with self.subTest(package=package, output=output):
                     calls = directory / "loader-calls"
                     calls.unlink(missing_ok=True)
                     result = subprocess.run(
@@ -502,12 +511,16 @@ class ReleaseScriptTests(ReleaseFixture):
                         env=os.environ
                         | {
                             "UV_TOOL_BIN_DIR": str(prefix / "bin"),
+                            "FLOOR_RPM_NAME": package,
                             "LOADER_CALLS": str(calls),
                             "EXTRA_LOADER_OUTPUT": output,
                         },
                         capture_output=True,
                         text=True,
                         check=False,
+                    )
+                    self.assertIn(
+                        f"{package}\t8.5.0-28.el8.x86_64", result.stdout.splitlines()
                     )
                     if accepted:
                         self.assertEqual(result.returncode, 0, result.stderr)
@@ -522,6 +535,12 @@ class ReleaseScriptTests(ReleaseFixture):
                         )
                     else:
                         self.assertNotEqual(result.returncode, 0, result.stdout)
+                        if package.endswith("-devel"):
+                            self.assertIn(
+                                f"development package installed: {package}",
+                                result.stderr,
+                            )
+                            self.assertFalse(calls.exists())
 
     def linux_floor_bundle(
         self, directory: Path, architecture: str

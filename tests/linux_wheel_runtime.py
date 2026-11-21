@@ -35,10 +35,13 @@ def main() -> None:
     assert not Path("target").exists()
     subprocess.run(["uname", "-a"], check=True)
     packages = subprocess.check_output(
-        ["rpm", "-qa", "--queryformat", "%{NAME}\n"], text=True
+        ["rpm", "-qa", "--queryformat", "%{NAME}\t%{VERSION}-%{RELEASE}.%{ARCH}\n"],
+        text=True,
     )
-    print(packages, flush=True)
-    assert not any(name.endswith("-devel") for name in packages.splitlines())
+    print(packages, end="", flush=True)
+    for line in packages.splitlines():
+        name = line.split("\t", 1)[0]
+        assert not name.endswith("-devel"), f"development package installed: {name}"
     subprocess.run(["uv", "--version"], check=True)
     subprocess.run([sys.executable, "--version"], check=True)
     if args.with_r:
