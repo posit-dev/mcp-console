@@ -15,12 +15,17 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from release import smoke_mcp
+from release import RELEASE_PLATFORMS, smoke_mcp
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
+    parser.add_argument(
+        "--target",
+        required=True,
+        choices=[target for target in RELEASE_PLATFORMS if "windows" not in target],
+    )
     args = parser.parse_args()
     version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
     expected = re.escape(f"mcp-console {version}")
@@ -34,6 +39,15 @@ def main() -> None:
             archive.extractall(unpacked, filter="data")
         prefix = root / "moved installation"
         unpacked.rename(prefix)
+        if args.target.endswith("-apple-darwin"):
+            cpu = args.target.removesuffix("-apple-darwin")
+            arch = "arm64" if cpu == "aarch64" else cpu
+            for member in ("bin/mcp-console", "libexec/mcp-console-sandbox"):
+                result = subprocess.run(["lipo", prefix / member, "-verify_arch", arch])
+                if result.returncode:
+                    raise SystemExit(
+                        f"{member} lacks the {arch} slice for {args.target}"
+                    )
         binary = prefix / "bin/mcp-console"
         empty_path = root / "empty"
         empty_path.mkdir()

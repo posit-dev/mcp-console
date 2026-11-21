@@ -3094,6 +3094,42 @@ version = "0.0.0"
 
 
 class PortableReleaseTests(ReleaseFixture):
+    @unittest.skipUnless(sys.platform == "darwin", "requires macOS Mach-O tools")
+    def test_macos_archive_requires_the_target_slice_in_each_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "main.c"
+            source.write_text("int main(void) { return 0; }\n")
+            for arch in ("arm64", "x86_64"):
+                triple = f"{arch}-apple-macos11"
+                subprocess.run(
+                    ["cc", "-target", triple, source, "-o", root / arch], check=True
+                )
+            launcher = "bin/mcp-console"
+            helper = "libexec/mcp-console-sandbox"
+            archive = root / "mixed.tar.gz"
+            with tarfile.open(archive, "w:gz") as bundle:
+                bundle.add(root / "arm64", arcname=launcher)
+                bundle.add(root / "x86_64", arcname=helper)
+            command = [
+                sys.executable,
+                ROOT / "tests/standalone.py",
+                archive,
+                "--target",
+            ]
+            for target, wrong_member, missing in (
+                ("aarch64-apple-darwin", helper, "arm64"),
+                ("x86_64-apple-darwin", launcher, "x86_64"),
+            ):
+                with self.subTest(target=target, member=wrong_member):
+                    result = subprocess.run(
+                        [*command, target], capture_output=True, text=True
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(
+                        f"{wrong_member} lacks the {missing} slice", result.stderr
+                    )
+
     @unittest.skipUnless(os.name == "nt", "native Windows installation checks")
     def test_windows_install_finds_artifacts_relative_to_the_caller(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -206,7 +206,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           python3 scripts/release.py build-archive dist/*.whl --target "$TARGET" --out-dir archives
-          python3 tests/standalone.py archives/*.tar.gz
+          python3 tests/standalone.py "archives/mcp-console-$TARGET.tar.gz" --target "$TARGET"
 
       - name: Report Linux preparation failure
         if: failure() && runner.os == 'Linux'

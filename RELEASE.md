@@ -126,6 +126,8 @@ Preserve architecture, loader, dependency/path, symbol-version, and metadata che
 Exact loader algorithms and symbol allowlists belong in the release tooling, not a second prose specification.
 
 On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
+Run `python3 tests/standalone.py ARCHIVE --target TARGET` on the matching Unix runner to test the relocated archive.
+For macOS, this checks that both the launcher and its helper contain the requested Mach-O architecture before launching either executable.
 Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
 Run `python tests/windows_distribution.py WHEEL` to audit normal and delayed PE imports in every bundled native executable or library.
 Redistributable VC runtime dependencies are rejected; ordinary Windows system and UCRT libraries are allowed.
