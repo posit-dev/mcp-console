@@ -24,11 +24,12 @@ The first session may download Python and packages.
 If `uvx` uses native Windows ARM64 Python and Console discovers R, the default R package setup needs a separate `ir` executable on `PATH`.
 PyPI has no Windows ARM64 wheel for `r-lib-ir`.
 To use R without `ir`, preinstall the R packages you need, including `reticulate` for sessions that use both R and Python.
-Before connecting your client, omit `r.packages` and set `r.resolution` in your project's `.agents/console/config.yaml`.
+Before connecting your client, disable resolution in your project's `.agents/console/config.yaml` and clear any package list inherited from the global configuration.
 
 ```yaml
 r:
   resolution: disabled
+  packages: []
 ```
 
 On Windows ARM64 with reticulate 1.47.0, R-first discovery cannot distinguish native ARM64 Python from x64 Python running under emulation.
@@ -104,6 +105,7 @@ Keep `bin`, `libexec`, and `share` together when moving the installation.
 To run a program with Console's built-in `read_only` policy, invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...`.
 On Windows, use `bin\mcp-console.exe` with the same arguments.
 For an application-owned policy, replace `--no-config` with `--config-file` followed by the absolute path to the application's YAML file.
+Keep both the bundle and that policy file outside every directory the sandboxed program can modify, including any writable workspace.
 Omit both options when the application intends to honor global and project settings, which can widen filesystem and network permissions.
 See [Run commands in a sandbox](SANDBOX_COMMAND.md) and [Configuration is part of the trust decision](SANDBOX.md#configuration-is-part-of-the-trust-decision).
 
@@ -111,7 +113,7 @@ The launcher requires no MCP server, `ir`, Python, pip, or uv.
 The target program uses its own runtime and dependencies.
 
 For an MCP client, set the client command to the absolute path of the same executable and pass `serve`.
-If the application supplies R and its packages, set `r.resolution` to `disabled` and omit `r.packages`.
+If the application supplies R and its packages, set `r.resolution` to `disabled` and `r.packages` to `[]`.
 Console then uses those libraries without invoking the R package resolver (`ir`).
 Python can also use an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
 

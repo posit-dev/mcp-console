@@ -20,8 +20,10 @@ This page owns the release procedure and required evidence.
 ## Consuming a standalone release
 
 Applications such as Posit Assistant can pin a tag, download `mcp-console-<target>.tar.gz` (Unix) or `mcp-console-<target>.zip` (Windows) and verify its SHA-256 against `SHA256SUMS` from the same release.
-Extract the archive into its own directory, preserving Unix executable permissions.
-For example, after downloading the Linux x86-64 archive and checksum file:
+Keep the bundle and any `--config-file` policy in an application-owned directory outside every path the sandboxed program can modify, including any writable workspace.
+This prevents the program from replacing the launcher or policy used on the next run.
+Extract the whole archive, preserving Unix executable permissions.
+For Linux x86-64, download the archive and checksum file into the application-owned directory and run these commands there.
 
 ```sh
 archive=mcp-console-x86_64-unknown-linux-gnu.tar.gz
