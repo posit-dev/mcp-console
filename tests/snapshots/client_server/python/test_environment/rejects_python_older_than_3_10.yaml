@@ -9,7 +9,7 @@ result:
     - type: text
       text: |-
         Error: selected Python inspection failed (exit status: 1): Traceback (most recent call last):
-          File "<string>", line 145, in <module>
+          File "<string>", line 146, in <module>
           File "<string>", line 19, in describe
         RuntimeError: MCP Console requires Python 3.10 or later
 
@@ -24,7 +24,7 @@ result:
     - type: text
       text: |+
         Error: selected Python inspection failed (exit status: 1): Traceback (most recent call last):
-          File "<string>", line 145, in <module>
+          File "<string>", line 146, in <module>
           File "<string>", line 19, in describe
         RuntimeError: MCP Console requires Python 3.10 or later
 
