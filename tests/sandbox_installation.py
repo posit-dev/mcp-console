@@ -140,7 +140,10 @@ class SandboxInstallationTests(unittest.TestCase):
         relocated = self.root / "relocated"
         self.binary.parent.parent.rename(relocated)
         self.binary = relocated / "bin/mcp-console"
+        # A regular file makes writes beneath either home fail even as root.
         self.console_home.touch()
+        self.environment.update(HOME=str(self.console_home), PATH="")
+        self.environment.pop("XDG_CACHE_HOME", None)
         result = self.run_sandbox()
         self.assertEqual(
             (result.returncode, result.stdout, result.stderr), (0, b"", b"")
