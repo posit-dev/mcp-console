@@ -2,8 +2,8 @@
 
 Only the verified companion's private process memory is changed. DLLs on disk
 and the parent process remain untouched.
-The injected failure fixture is specific to x64. Hosts without MXC exercise
-the actual startup failure on both architectures.
+The injected failure fixture requires x64 Python and an x64 companion.
+Hosts without MXC exercise the actual startup failure on both architectures.
 """
 
 import ctypes
@@ -16,6 +16,8 @@ import sysconfig
 from threading import Thread
 import time
 import unittest
+
+from windows_distribution import PE_MACHINE, pe_offset_and_machine
 
 
 def mcp_startup_failure(process: subprocess.Popen) -> tuple[bytes, bytes]:
@@ -270,11 +272,21 @@ def run_with_unavailable_mxc(
             if event.kind == 3:  # CREATE_PROCESS_DEBUG_EVENT
                 info = event.data.create
                 try:
-                    processes[event.pid] = (
-                        info.process,
-                        Path(path_for(info.file)).name.lower(),
-                        {},
-                    )
+                    image = Path(path_for(info.file))
+                    name = image.name.lower()
+                    processes[event.pid] = (info.process, name, {})
+                    if (
+                        injecting
+                        and inject_unavailable
+                        and name == "mcp-console-sandbox.exe"
+                    ):
+                        # The launcher can select a companion of a different architecture.
+                        with image.open("rb") as executable:
+                            _, machine = pe_offset_and_machine(executable)
+                        if machine != PE_MACHINE["win_amd64"]:
+                            raise unittest.SkipTest(
+                                "simulated unavailable MXC requires an x64 sandbox companion"
+                            )
                 finally:
                     close(info.file)
             elif event.kind == 6:  # LOAD_DLL_DEBUG_EVENT

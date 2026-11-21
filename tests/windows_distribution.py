@@ -5,12 +5,14 @@ UCRT and ordinary Windows system DLLs (including msvcrt.dll) are allowed.
 """
 
 import argparse
+from io import BytesIO
 import json
 from pathlib import Path
 import re
 import struct
 import subprocess
 import sysconfig
+from typing import BinaryIO
 import zipfile
 
 
@@ -22,17 +24,25 @@ NATIVE_SUFFIXES = {".exe", ".dll", ".pyd"}
 PE_MACHINE = {"win_amd64": 0x8664, "win_arm64": 0xAA64}
 
 
+def pe_offset_and_machine(image: BinaryIO) -> tuple[int, int]:
+    assert image.read(2) == b"MZ", "not a PE image"
+    image.seek(0x3C)
+    (offset,) = struct.unpack("<I", image.read(4))
+    image.seek(offset)
+    assert image.read(4) == b"PE\0\0", "missing PE signature"
+    (machine,) = struct.unpack("<H", image.read(2))
+    return offset, machine
+
+
 def pe_imports(content, platform):
     def unpack(format, offset):
         return struct.unpack_from("<" + format, content, offset)
 
-    assert content[:2] == b"MZ", "not a PE image"
-    (pe,) = unpack("I", 0x3C)
-    assert content[pe : pe + 4] == b"PE\0\0", "missing PE signature"
-    machine, section_count, _, _, _, optional_size, _ = unpack("HHIIIHH", pe + 4)
+    pe, machine = pe_offset_and_machine(BytesIO(content))
     assert machine == PE_MACHINE[platform], (
         f"PE machine {machine:#06x}, expected {platform}"
     )
+    _, section_count, _, _, _, optional_size, _ = unpack("HHIIIHH", pe + 4)
     optional = pe + 24
     (magic,) = unpack("H", optional)
     assert magic in {0x10B, 0x20B}, "unsupported PE optional header"
