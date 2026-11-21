@@ -30,6 +30,12 @@ def verify_archive(wheel: Path, archive: Path, target: str) -> None:
                 raise SystemExit(f"unexpected archive member: {member.name}")
             if not member.isfile():
                 raise SystemExit(f"archive {member.name} must be a regular file")
+            # A privileged extractor can restore a named owner in preference
+            # to its numeric ID. Match the builder's ownership in both forms.
+            if (member.uid, member.gid, member.uname, member.gname) != (0, 0, "", ""):
+                raise SystemExit(
+                    f"archive {member.name} must use UID and GID 0 with empty owner names"
+                )
             entry = dist.getinfo(source)
             mode = wheel_permissions(entry)
             if member.mode != mode:

@@ -547,6 +547,30 @@ class ReleaseScriptTests(ReleaseFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         return wheel, directory / f"mcp-console-{target}.tar.gz"
 
+    def assert_linux_floor_rejects(
+        self, wheel: Path, archive: Path, error: str
+    ) -> None:
+        evidence = wheel.parent / "evidence"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/check-linux-wheel"),
+                str(wheel),
+                "--archive",
+                str(archive),
+                "--target",
+                "x86_64-unknown-linux-gnu",
+                "--evidence",
+                str(evidence),
+            ],
+            env=os.environ | {"PATH": str(wheel.parent)},
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(error, result.stderr)
+        self.assertFalse(evidence.exists())
+
     def test_linux_floor_requires_matching_bundle_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -561,7 +585,6 @@ class ReleaseScriptTests(ReleaseFixture):
             public_mode, public_bytes = files[public]
             library_mode, library_bytes = files[library]
             changed = elf_fixture(build="other")
-            evidence = directory / "evidence"
             for error, entries in (
                 (
                     f"archive {public} differs",
@@ -615,25 +638,33 @@ class ReleaseScriptTests(ReleaseFixture):
                             else:
                                 member.size = len(contents)
                                 bundle.addfile(member, io.BytesIO(contents))
-                    result = subprocess.run(
-                        [
-                            sys.executable,
-                            str(ROOT / "scripts/check-linux-wheel"),
-                            str(wheel),
-                            "--archive",
-                            str(archive),
-                            "--target",
-                            "x86_64-unknown-linux-gnu",
-                            "--evidence",
-                            str(evidence),
-                        ],
-                        env=os.environ | {"PATH": str(directory)},
-                        capture_output=True,
-                        text=True,
+                    self.assert_linux_floor_rejects(wheel, archive, error)
+
+    def test_linux_floor_rejects_altered_archive_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            wheel, archive = self.linux_floor_bundle(directory, "x86_64")
+            altered = directory / "altered.tar.gz"
+            for field, value in (
+                ("uid", 1000),
+                ("gid", 1000),
+                ("uname", "nobody"),
+                ("gname", "nogroup"),
+            ):
+                with self.subTest(field=field):
+                    with (
+                        tarfile.open(archive) as source,
+                        tarfile.open(altered, "w:gz") as dest,
+                    ):
+                        for member in source:
+                            if member.name == "bin/mcp-console":
+                                setattr(member, field, value)
+                            dest.addfile(member, source.extractfile(member))
+                    self.assert_linux_floor_rejects(
+                        wheel,
+                        altered,
+                        "archive bin/mcp-console must use UID and GID 0 with empty owner names",
                     )
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(error, result.stderr)
-                    self.assertFalse(evidence.exists())
 
     def test_linux_floor_audits_before_standalone_and_refreshes_r_preparation(
         self,
