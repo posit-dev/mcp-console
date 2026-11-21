@@ -3094,6 +3094,41 @@ version = "0.0.0"
 
 
 class PortableReleaseTests(ReleaseFixture):
+    @unittest.skipUnless(os.name == "nt", "native Windows installation checks")
+    def test_windows_install_finds_artifacts_relative_to_the_caller(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            # Both inputs open as ZIPs and reach their respective artifact audits.
+            fixtures = [
+                (
+                    "--archive",
+                    "bundle.zip",
+                    "no native distribution artifacts inspected",
+                ),
+                (
+                    "--installed-binary",
+                    "launcher.exe",
+                    "missing installed launcher interpreter",
+                ),
+            ]
+            for option, name, diagnostic in fixtures:
+                with self.subTest(option=option):
+                    with zipfile.ZipFile(directory / name, "w") as archive:
+                        archive.writestr("__main__.py", "pass\n")
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            ROOT / "tests/windows_install.py",
+                            option,
+                            name,
+                        ],
+                        cwd=directory,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(diagnostic, result.stderr)
+
     def test_windows_source_install_rejects_preinstalled_r_before_building(
         self,
     ) -> None:

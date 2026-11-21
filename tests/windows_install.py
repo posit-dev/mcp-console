@@ -29,6 +29,11 @@ def run(*command, environment=None):
             raise subprocess.CalledProcessError(status, command)
 
 
+def artifact_path(value: str) -> Path:
+    # Resolve user input before the acceptance checks switch to the checkout.
+    return Path(value).resolve()
+
+
 def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
     version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
     environment = os.environ | {"PATH": ""}
@@ -99,11 +104,11 @@ if __name__ == "__main__":
     artifacts = parser.add_mutually_exclusive_group()
     artifacts.add_argument(
         "--installed-binary",
-        type=Path,
+        type=artifact_path,
         help="accept an already installed release wheel without building from source",
     )
     artifacts.add_argument(
-        "--archive", type=Path, help="accept a relocated native release ZIP"
+        "--archive", type=artifact_path, help="accept a relocated native release ZIP"
     )
     parser.add_argument(
         "--preinstalled-r",
@@ -121,7 +126,7 @@ if __name__ == "__main__":
         raise SystemExit("native Windows installation checks require Windows")
     os.chdir(ROOT)
     if options.installed_binary is not None:
-        binary = options.installed_binary.resolve()
+        binary = options.installed_binary
         native, _ = inspect_installation(binary)
         accept(binary, native, preinstalled_r=options.preinstalled_r)
         raise SystemExit(0)
