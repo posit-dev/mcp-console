@@ -52,7 +52,15 @@ For both the sandbox helper and the launcher, use `codesign --force --options ru
 In `scripts/stage-sandbox-runner`, sign the staged `libexec/mcp-console-sandbox` after stripping it and before recording its SHA-256 in `target/sandbox-runner-build.json`.
 Then build `mcp-console` to embed that digest.
 Preserve the signed helper byte for byte because Console checks its digest at launch.
-Sign `mcp-console` with the same options, then sign the enclosing app and submit it for notarization.
+
+The `sandbox` subcommand launches the requested program, which loads its own libraries.
+With `serve`, `bin/mcp-console` also runs the worker that loads libR, libpython, and native R and Python extensions.
+By default, library validation permits the worker to load code signed by Apple or by the same team as the worker.
+If the worker must load third-party code outside that signing team, set `com.apple.security.cs.disable-library-validation` to `true` in the worker's entitlements plist.
+See [Apple’s library validation guidance](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.disable-library-validation).
+
+Sign `bin/mcp-console` with the same runtime and timestamp options, adding `--entitlements PATH_TO_PLIST` if the worker needs that exception.
+Then sign the enclosing app and submit it for notarization.
 
 ## Private sandbox executable
 

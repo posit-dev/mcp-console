@@ -25,6 +25,15 @@ Native language packages can have additional dependencies.
 A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
 Use the missing `.so` filename in the error to identify the package in the table above.
 
+## R package preparation on EL8
+
+With R 4.5 on RHEL 8 or a compatible distribution, preparing the default `tidyverse` package can fail because its dependency `textshaping` 1.1.0 needs a newer HarfBuzz than EL8 supplies.
+For managed R sessions, set the `CRAN` URL in the selected R installation's `etc/repositories` file to `https://packagemanager.posit.co/cran/2026-11-18/bin/linux/manylinux_2_28-ARCH/4.5`, replacing `ARCH` with `x86_64` or `aarch64`.
+This snapshot supplies a compatible `textshaping` 1.0.5 binary on both architectures.
+
+If you already have the R packages you need, including `reticulate` for mixed R/Python sessions, set `r: {resolution: disabled, packages: []}` in your project's `.agents/console/config.yaml` to use those libraries.
+The standalone `mcp-console sandbox` command launches its target without R or R package preparation.
+
 ## Host and container setup
 
 The host must permit the sandbox's namespace setup and requested native/seccomp facilities.
