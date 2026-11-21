@@ -107,6 +107,11 @@ Until then, use the [development installation](#development-version).
 Once published, download the archive for the host's OS and architecture and verify it against `SHA256SUMS` from the same [GitHub release](https://github.com/posit-dev/mcp-console/releases).
 Extract the whole archive, preserving permissions.
 Keep `bin`, `libexec`, and `share` together when moving the installation.
+
+The checksum verifies the archive's contents.
+The macOS binaries ship without Apple notarization.
+If files extracted from a browser download retain their quarantine flag, Gatekeeper can block the launcher or its sandbox helper even when you run Console from Terminal.
+For command-line use on macOS, [install the PyPI wheel with `uv tool install mcp-console`](SANDBOX_COMMAND.md#install).
 For a notarized macOS app, [rebuild Console with a Developer ID–signed sandbox helper](../RELEASE.md#embedding-console-in-a-notarized-macos-app).
 
 To run a program with Console's built-in `read_only` policy, invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...`.
