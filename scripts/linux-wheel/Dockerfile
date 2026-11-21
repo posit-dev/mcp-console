@@ -23,7 +23,8 @@ RUN microdnf -y --setopt=install_weak_deps=0 install epel-release \
     R-core libcurl openssl-libs libxml2 cairo fontconfig harfbuzz fribidi \
     libjpeg-turbo libpng libtiff libuv libwebp && microdnf clean all
 COPY configure-ci-r.R /tmp/configure-ci-r.R
-RUN Rscript --vanilla /tmp/configure-ci-r.R && rm /tmp/configure-ci-r.R
+# This snapshot supplies textshaping 1.0.5 binaries for EL8's HarfBuzz 1.7.5.
+RUN CI_PPM_SNAPSHOT=2026-11-18 Rscript --vanilla /tmp/configure-ci-r.R && rm /tmp/configure-ci-r.R
 
 FROM r-runtime AS r-preparation
 RUN microdnf -y --enablerepo=powertools --setopt=install_weak_deps=0 install \

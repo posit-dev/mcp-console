@@ -157,7 +157,8 @@ The Python-only AlmaLinux 8 runtime audits the wheel's ABI and companion pin bef
 A separate AlmaLinux 8 minimal image launches the relocated archive with its bundled sandbox helpers and no Python or uv.
 The wheel runs in compiler-free images with Python alone and with R.
 The R runtime includes R's recommended packages, which the isolated resolver expects the R installation to provide.
-The R preparation stage refreshes package resolution for each floor run before producing the final R image.
+The R preparation stage resolves the default packages on each floor run using the dated Posit Package Manager snapshot in `scripts/linux-wheel/Dockerfile`.
+That snapshot supplies a version of `textshaping` compatible with EL8's HarfBuzz on both architectures.
 Language-package build flags do not change distributed wheel binaries.
 
 Native probes require an approved disposable namespace-capable container.
