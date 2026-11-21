@@ -33,7 +33,7 @@ class SandboxInstallationTests(unittest.TestCase):
             destination = prefix / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             if source.is_dir():
-                shutil.copytree(source, destination, symlinks=True)
+                shutil.copytree(source, destination)
             else:
                 shutil.copy2(source, destination)
         self.binary = prefix / "bin" / "mcp-console"

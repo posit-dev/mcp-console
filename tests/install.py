@@ -527,11 +527,22 @@ class InstallationTests(unittest.TestCase):
                     "SandboxInstallationTests.test_resolves_private_runner_through_public_symlink",
                     "SandboxInstallationTests.test_relocates_without_a_writable_console_home_or_path_lookup",
                 )
+                # Damaging the fixture must leave the original linked runner executable.
+                runner = bundle / "libexec/mcp-console-sandbox"
+                original_runner = runner.rename(runner.with_name("original-runner"))
+                original_mode = original_runner.stat().st_mode
+                runner.symlink_to(original_runner)
                 # Every installation must launch, follow its public symlink,
-                # and relocate. Bundle damage and allocation checks exercise
-                # the same copied layout, so run them once against the wheel.
+                # and relocate. Run the full damage suite once against the wheel.
                 for installed, bundle_args, checks in (
-                    (binary, ["--standalone"], launch_checks),
+                    (
+                        binary,
+                        ["--standalone"],
+                        (
+                            *launch_checks,
+                            "SandboxInstallationTests.test_rejects_a_non_executable_private_runner",
+                        ),
+                    ),
                     (
                         directory / "uv-bin" / "mcp-console",
                         ["--wheel", wheels[0]],
@@ -560,6 +571,7 @@ class InstallationTests(unittest.TestCase):
                         self.assertEqual(
                             result.returncode, 0, result.stdout + result.stderr
                         )
+                self.assertEqual(original_runner.stat().st_mode, original_mode)
             finally:
                 hidden.rename(target)
 
