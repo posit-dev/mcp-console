@@ -3163,27 +3163,32 @@ class PortableReleaseTests(ReleaseFixture):
                     ],
                 }
             ) as (url, observed):
-                result = self.run_script(
-                    "wait-pypi",
-                    "dist",
-                    "--pypi-url",
-                    url,
-                    "--timeout-seconds",
-                    "5",
-                    "--poll-interval-seconds",
-                    "0.01",
-                    "--report",
-                    "publication.json",
-                    cwd=root,
-                )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
-            report = json.loads((root / "publication.json").read_text())
+                for _ in range(2):
+                    observed.clear()
+                    result = self.run_script(
+                        "wait-pypi",
+                        "dist",
+                        "--pypi-url",
+                        url,
+                        "--timeout-seconds",
+                        "5",
+                        "--poll-interval-seconds",
+                        "0.01",
+                        "--report",
+                        "dist/publication.json",
+                        cwd=root,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
+            report = json.loads((root / "dist/publication.json").read_text())
             self.assertEqual(report["version"], "0.0.2")
             self.assertEqual(
                 report["wheels"],
                 {item["filename"]: item["digests"]["sha256"] for item in files},
             )
+            result = self.run_script("verify-wheel-set", "dist", cwd=root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("only release wheels may be published", result.stderr)
 
     def test_wait_pypi_retries_temporary_endpoint_failures(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

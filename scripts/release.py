@@ -1166,14 +1166,16 @@ def release_wheels(directory: Path) -> list[Path]:
             sum(wheel.match(pattern) for wheel in wheels) == 1,
             f"expected exactly one {target} wheel",
         )
-    require(
-        set(directory.iterdir()) == set(wheels), "only release wheels may be published"
-    )
     return wheels
 
 
 def verify_wheel_set(args: argparse.Namespace) -> None:
-    for wheel in release_wheels(Path(args.directory)):
+    directory = Path(args.directory)
+    wheels = release_wheels(directory)
+    require(
+        set(directory.iterdir()) == set(wheels), "only release wheels may be published"
+    )
+    for wheel in wheels:
         print(wheel)
 
 
