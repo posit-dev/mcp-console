@@ -48,10 +48,11 @@ The prebuilt ARM64 launcher and sandbox helper have ad hoc signatures, and the x
 Apple requires a Developer ID signature on each executable, including helpers inside a signed app.
 See [Apple’s notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
 
-In `scripts/stage-sandbox-runner`, sign the staged `libexec/mcp-console-sandbox` with your Developer ID Application identity after stripping it and before recording its SHA-256 in `target/sandbox-runner-build.json`.
+For both the sandbox helper and the launcher, use `codesign --force --options runtime --timestamp --sign "$IDENTITY" "$executable"` with your Developer ID Application identity.
+In `scripts/stage-sandbox-runner`, sign the staged `libexec/mcp-console-sandbox` after stripping it and before recording its SHA-256 in `target/sandbox-runner-build.json`.
 Then build `mcp-console` to embed that digest.
 Preserve the signed helper byte for byte because Console checks its digest at launch.
-Sign `mcp-console`, then sign the enclosing app and submit it for notarization.
+Sign `mcp-console` with the same options, then sign the enclosing app and submit it for notarization.
 
 ## Private sandbox executable
 

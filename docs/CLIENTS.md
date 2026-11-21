@@ -119,8 +119,11 @@ See [Run commands in a sandbox](SANDBOX_COMMAND.md) and [Configuration is part o
 The launcher requires no MCP server, `ir`, Python, pip, or uv.
 The target program uses its own runtime and dependencies.
 
-For an MCP client, set the client command to the absolute path of the same executable and pass `serve`.
-If the application supplies R and its packages, set `r.resolution` to `disabled` and `r.packages` to `[]`.
+To embed the MCP server, set the client command to the executable's absolute path and the arguments to `["serve", "--no-config"]` for built-in settings.
+For an application-owned policy, use `["serve", "--config-file", "/absolute/path/to/policy.yaml"]`.
+Keep the bundle and configuration outside directories writable by evaluated code or dependency preparation.
+Use bare `serve` only when the application trusts the global and project settings for both evaluation and dependency preparation.
+If the application supplies R and its packages, set `r.resolution` to `disabled` and `r.packages` to `[]` in its configuration file.
 Console then uses those libraries without invoking the R package resolver (`ir`).
 Python can also use an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
 
