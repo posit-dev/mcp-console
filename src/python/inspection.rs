@@ -31,6 +31,8 @@ pub(crate) fn explicit_executable(value: &std::ffi::OsStr) -> Result<PathBuf, St
 #[serde(deny_unknown_fields)]
 pub(crate) struct NativePython {
     pub(crate) embedding: SelectedPython,
+    // Keep the build platform independent of the workspace's module search path.
+    platform: String,
     pub(crate) prefix: String,
     pub(crate) exec_prefix: String,
     pub(crate) base_prefix: String,
@@ -121,6 +123,7 @@ pub(crate) fn inspect_native(
             libpython: description.libpython,
             python_home,
         },
+        platform: description.platform,
         prefix: description.prefix,
         exec_prefix: description.exec_prefix,
         base_prefix: description.base_prefix,
@@ -134,6 +137,7 @@ pub(crate) fn inspect_native(
 struct Description {
     executable: PathBuf,
     libpython: String,
+    platform: String,
     prefix: String,
     exec_prefix: String,
     base_prefix: String,

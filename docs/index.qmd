@@ -21,7 +21,7 @@ You can also use Console from [R](R.md) or [Python](PYTHON.md).
 [Get started](getting-started.qmd){.btn .btn-primary} [Build on Console](BUILD.md){.btn .btn-outline-primary} [Reference](REFERENCE.md){.btn .btn-outline-primary}
 :::
 
-Console provides a unified API across macOS, Linux, and Windows x64.
+Console provides a unified API across macOS, Linux, and Windows on x86-64 and ARM64.
 It is currently a **development preview**.
 
 ## Work iteratively

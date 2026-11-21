@@ -1,15 +1,58 @@
 # Releasing MCP Console
 
-The release workflow publishes five binary-only PyPI wheels: Apple Silicon and Intel macOS, ARM64 and x86-64 Linux, and Windows x64.
-Linux release validation targets glibc 2.35+ with native Ubuntu 22.04 builds.
+The release workflow builds six platform wheels for PyPI and six native archives for GitHub Releases.
+For available downloads, see the [installation guide](docs/CLIENTS.md#supported-platforms).
+
+| OS                  | x86-64 target              | ARM64 target                | Wheel platform                                    |
+| ------------------- | -------------------------- | --------------------------- | ------------------------------------------------- |
+| Linux (glibc 2.28+) | `x86_64-unknown-linux-gnu` | `aarch64-unknown-linux-gnu` | `manylinux_2_28_x86_64`, `manylinux_2_28_aarch64` |
+| macOS               | `x86_64-apple-darwin`      | `aarch64-apple-darwin`      | `macosx_*_x86_64`, `macosx_*_arm64`               |
+| Windows             | `x86_64-pc-windows-msvc`   | `aarch64-pc-windows-msvc`   | `win_amd64`, `win_arm64`                          |
+
+Linux builds use the native manylinux_2_28 images for the public executable, sandbox runner, and bubblewrap.
 Windows MSVC builds statically link the runtime.
-No source distribution or GitHub release archive is published by this workflow.
 
 `Cargo.toml` owns the version; keep its root package entry in `Cargo.lock` synchronized.
 Between releases, use the most recently released version plus `+dev`.
 Development executables built from Git also report the first 12 characters of `HEAD`, for example `0.0.6+dev.g0123456789ab`; package metadata keeps `0.0.6+dev`.
 The current workflows and [`scripts/release.py`](scripts/release.py) are authoritative for mechanics.
 This page owns the release procedure and required evidence.
+
+## Consuming a standalone release
+
+Applications such as Posit Assistant can pin a tag, download `mcp-console-<target>.tar.gz` (Unix) or `mcp-console-<target>.zip` (Windows) and verify its SHA-256 against `SHA256SUMS` from the same release.
+Keep the bundle and any `--config-file` policy in an application-owned directory outside every path the sandboxed program can modify, including any writable workspace.
+This prevents the program from replacing the launcher or policy used on the next run.
+Extract the whole archive, preserving Unix executable permissions.
+For Linux x86-64, download the archive and checksum file into the application-owned directory and run these commands there.
+
+```sh
+archive=mcp-console-x86_64-unknown-linux-gnu.tar.gz
+awk -v archive="$archive" '$2 == archive' SHA256SUMS | sha256sum --check --strict &&
+  mkdir console &&
+  tar -xzf "$archive" -C console &&
+  console/bin/mcp-console --version &&
+  console/bin/mcp-console sandbox --no-config -- /usr/bin/true
+```
+
+An application can invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...` to use the built-in sandbox policy, or pass `--config-file` with the absolute path to its own policy in place of `--no-config`.
+On Windows, use `bin\mcp-console.exe` with the same arguments.
+Keep `libexec/` and `share/` alongside `bin/` so Console can find and verify its companion.
+The [sandbox launcher](docs/SANDBOX_COMMAND.md) requires no MCP server, `ir`, Python, pip, or uv.
+The application supplies the target program and its dependencies.
+
+### Embedding Console in a notarized macOS app
+
+Build Console from source for a notarized macOS app.
+The prebuilt ARM64 launcher and sandbox helper have ad hoc signatures, and the x86-64 executables are unsigned.
+Apple requires a Developer ID signature on each executable, including helpers inside a signed app.
+See [Apple’s notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+
+For both the sandbox helper and the launcher, use `codesign --force --options runtime --timestamp --sign "$IDENTITY" "$executable"` with your Developer ID Application identity.
+In `scripts/stage-sandbox-runner`, sign the staged `libexec/mcp-console-sandbox` after stripping it and before recording its SHA-256 in `target/sandbox-runner-build.json`.
+Then build `mcp-console` to embed that digest.
+Preserve the signed helper byte for byte because Console checks its digest at launch.
+Sign `mcp-console` with the same options, then sign the enclosing app and submit it for notarization.
 
 ## Private sandbox executable
 
@@ -43,7 +86,10 @@ Changes to SDKs, compilers, linkers, or system libraries may require cleaning bo
 
 Unix installations contain the public executable, the private runner under `libexec`, and licenses under `share/licenses/mcp-console`.
 Linux additionally bundles bubblewrap and its notices/source metadata.
-Windows contains its native Console executable and the single `mcp-console-sandbox.exe` companion under `libexec`, with an environment-bound Python launcher exposing the public command.
+The Linux archive keeps bundled libraries at the same paths relative to the installation prefix as the wheel, so the native executables can load them after extraction.
+Windows wheels keep the native Console and companion under `libexec` and expose an environment-bound Python launcher.
+The standalone archive copies the same native Console executable to `bin/mcp-console.exe`.
+Every archive carries Console’s MIT license alongside the companion licenses.
 
 Move the complete native bundle when relocating it; a symlink to the native executable is supported.
 Do not split Cargo's shared target/build layout.
@@ -51,7 +97,9 @@ Native launch verifies the selected companion and does not download or extract o
 
 Staging/build checks must retain artifact digests, component identity, pin consistency, and required license files.
 Linux staging rejects inherited `CODEX_BWRAP_SOURCE_DIR` and `CODEX_SKIP_BWRAP_BUILD`, including empty values.
-Dynamically linked libcap is a host dependency; static linkage requires a nonempty applicable `MCP_CONSOLE_LIBCAP_NOTICE`.
+Release builds link the EL8 static libcap archive into bubblewrap and include its license in the bundle.
+Source builds that link libcap dynamically require it on the host.
+Static builds supply its license through `MCP_CONSOLE_LIBCAP_NOTICE`.
 Supplying text is not legal certification of its contents.
 
 When advancing the pin, review the companion's protocol, implementation, executable tests, and toolchain together.
@@ -66,16 +114,27 @@ python3 scripts/release.py inspect-wheel WHEEL --target TARGET --report abi.json
 
 Audit every ELF member, including private helpers and extra native libraries, against all advertised wheel tags.
 Preserve architecture, loader, dependency/path, symbol-version, and metadata checks; unknown policies fail rather than inheriting the build host's assumptions.
-`--release` additionally enforces the release floor.
+`--release` also checks the glibc 2.28 floor and requires bubblewrap to link libcap statically.
 Exact loader algorithms and symbol allowlists belong in the release tooling, not a second prose specification.
 
 On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
 Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
 Run `python tests/windows_distribution.py WHEEL` to audit normal and delayed PE imports in every bundled native executable or library.
 Redistributable VC runtime dependencies are rejected; ordinary Windows system and UCRT libraries are allowed.
-Install that wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
+On Windows x86-64, install the wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
 Installation acceptance repeats the import audit for installed wheels and source builds, including the environment-bound public launcher.
-Acceptance probes MXC and runs native execution cases when supported, without provisioning accounts or selecting another backend.
+On Windows 11 ARM64, install the wheel and the `reticulate` and `RSQLite` packages for native R.
+Run both acceptance checks in PowerShell.
+
+```powershell
+$env:MCP_CONSOLE_TEST_REQUIRE_MXC = '1'
+python tests/windows_install.py --preinstalled-r --installed-binary (Get-Command mcp-console.exe).Source
+python tests/windows_install.py --preinstalled-r --archive archives/mcp-console-aarch64-pc-windows-msvc.zip
+```
+
+This matches the release job's MXC requirement and exercises the preinstalled R packages without `ir`.
+The hosted x86-64 Windows Server runner probes for MXC and skips native execution cases when it is unavailable.
+Run those cases on an MXC-capable x86-64 Windows 11 host before release.
 This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
 An ABI report alone is not runtime or sandbox acceptance.
@@ -85,16 +144,20 @@ An ABI report alone is not runtime or sandbox acceptance.
 Run on a matching native Docker host with the evidence directory shared with the daemon:
 
 ```sh
-scripts/check-linux-wheel dist/*.whl \
+scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
   --target x86_64-unknown-linux-gnu --evidence linux-compatibility
 ```
 
 Use `aarch64-unknown-linux-gnu` for ARM64.
+Before starting Docker, the driver compares the installed paths, Unix permissions, and SHA-256 digests of the archive's executables, libraries, and licenses with the wheel.
+It also checks that each tar member has UID and GID 0 and empty owner and group names.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
-The floor fixtures exercise installed wheels without R and with R, with runtime prerequisites separated from build tools.
+The Python-only AlmaLinux 8 runtime audits the wheel's ABI and companion pin before either artifact runs.
+A separate AlmaLinux 8 minimal image launches the relocated archive with its bundled sandbox helpers and no Python or uv.
+The wheel runs in compiler-free images with Python alone and with R.
 The R runtime includes R's recommended packages, which the isolated resolver expects the R installation to provide.
-They refresh R preparation before producing compiler-free runtime images, rather than treating old Docker layers as fresh package resolution.
+The R preparation stage refreshes package resolution for each floor run before producing the final R image.
 Language-package build flags do not change distributed wheel binaries.
 
 Native probes require an approved disposable namespace-capable container.
@@ -117,7 +180,10 @@ Do not cache accounts, credentials, ACLs, or provisioning state.
 MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS_DEVELOPMENT.md#validation).
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
-CI uses CRAN's native Windows/macOS binaries and PPM's portable Linux binaries on both architectures, including the Jammy floor images.
+CI uses CRAN binaries for macOS and Windows x64 and PPM's portable Linux binaries for both Linux architectures.
+Windows ARM64 tests both startup orders with native R and Python, preinstalled `reticulate`, and `r.resolution` set to `disabled`.
+The R-first test uses `RSQLite` to open the connection required by its configured startup block.
+The managed R resolver, `r-lib-ir`, currently lacks a Windows ARM64 wheel.
 Configure both R's repository data file and site profile so profile-free preparation and ordinary R sessions select the same repository.
 Packages without compatible binaries still build from source.
 
@@ -143,7 +209,8 @@ gh workflow run release.yml --ref release/X.Y.Z
 ```
 
 Manual dispatch must skip publication.
-Require all five wheel builds/installed smoke tests and both Linux floor-runtime jobs to pass.
+Require the six native archive and installed-wheel jobs, both Linux floor-runtime jobs, and the aggregate artifact check to pass.
+The `github-release` workflow artifact contains the archives and their checksum manifest for inspection.
 Exercise mixed-language and R-free installed wheels; `smoke-wheel --without-r` isolates R discovery.
 Establish readiness before ordinary cell assertions rather than treating asynchronous tool discovery as runtime readiness.
 
@@ -169,12 +236,14 @@ git push origin "refs/tags/v$release_version"
 ```
 
 Use `-F MESSAGE_FILE` for a noninteractive annotation.
-The tag workflow must verify version, main ancestry, exact-commit push CI, and the five install-tested artifacts before Trusted Publishing.
+The tag workflow must verify version, main ancestry, exact-commit push CI, and the install-tested artifacts before Trusted Publishing.
+After the PyPI upload, a separate job verifies that `SHA256SUMS` lists all six archives exactly once with their measured digests.
+It then uploads the archives and manifest to a draft GitHub release, compares the remote asset digests, and publishes the release.
 
 ## Verify the publication
 
-Check PyPI's version JSON: all five wheels must be present, unyanked, and match the tag workflow's artifact SHA-256 digests.
-The tag workflow checks these hashes and fresh pinned/unqualified public-index installations on all five release platforms, including installed sandbox execution and Python-only MCP evaluation.
+Check PyPI's version JSON: all six wheels must be present, unyanked, and match the tag workflow's artifact SHA-256 digests.
+The tag workflow checks these hashes and fresh pinned/unqualified public-index installations on all six release platforms, including installed sandbox execution and Python-only MCP evaluation.
 It waits up to two minutes for both the version JSON and package index to expose all expected files, including retries for temporary request failures; a visible hash mismatch, yanked file, or HTTP permission error fails immediately.
 Verify fresh public-index installation on every supported release platform:
 
@@ -194,13 +263,14 @@ uv tool install --no-cache --no-sources --default-index https://pypi.org/simple 
 Through an MCP client, establish readiness for that exact version and verify Python `6 * 7` returns `42`; check R when installed.
 A server waiting for protocol input is normal.
 On Windows use PowerShell environment variables and `mcp-console.exe`; replace `/usr/bin/true` with the absolute `System32/cmd.exe` command and `/d /c "exit 0"`.
-Provision native sandbox setup before testing it; the post-publication Windows job also verifies the R/Python bridge.
+Use an MXC-capable Windows host to verify native sandbox execution and the R/Python bridge.
 
 Repeat unqualified `uvx mcp-console --version` and `uv tool install mcp-console` with fresh directories and the same isolation/public-index options; confirm they select the new version.
 Leave older releases unchanged.
 
 ## Return to development
 
+After verifying the first public six-platform release, update the [installation guide](docs/CLIENTS.md#supported-platforms) and [Linux compatibility guide](docs/LINUX_COMPATIBILITY.md) to point to its wheels and archives.
 After publication checks pass, set the version in `Cargo.toml` and its root package entry in `Cargo.lock` to `X.Y.Z+dev`.
 Run `scripts/format` and `scripts/check`, then commit the two version files as `Mark post-release builds as development versions` through the usual review process.
 Keep the release tag on the verified release commit.
@@ -213,5 +283,10 @@ Moving a pushed tag requires explicit user authorization, confirmation that its 
 
 After **any** wheel is published, preserve the tag and all uploaded files.
 **Never yank or remove a PyPI file.** For partial publication, rerun the failed job from the same workflow run while its original artifacts remain.
+The pre-build version check rejects versions already visible on PyPI.
+If the GitHub upload stopped midway, rerun the failed job with the original `github-release` artifact.
+It checks existing assets by digest and uploads the missing files to the draft.
+If GitHub retained an empty asset in the `starter` state after an interrupted upload, remove that placeholder from the draft before retrying.
+A digest mismatch on an uploaded asset requires investigation.
 Do not rebuild that version or replace an uploaded filename.
 Defective published code requires a new version.

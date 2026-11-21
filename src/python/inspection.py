@@ -123,6 +123,7 @@ def describe() -> dict[str, object]:
         pass
 
     return {
+        "platform": sysconfig.get_platform(),
         "metadata": {
             "base_executable": sys._base_executable,
             "pythonpath": os.pathsep.join(sys.path),

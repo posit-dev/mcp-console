@@ -78,6 +78,7 @@ base::local(
           version_string = metadata$version,
           version = as.package_version(metadata$version_number),
           architecture = metadata$architecture,
+          platform = selection$platform,
           anaconda = grepl(
             "anaconda|continuum",
             metadata$version,
@@ -467,17 +468,14 @@ base::local(
           !is.na(managed)
         ))
       }
-      # R-first attachment precedes shared site and workspace setup. Publish
-      # metadata after those paths are active, as for Python-first attachment.
+      # A startup package may have already published reticulate's config.
+      # Refresh it from the running interpreter after site and workspace setup.
       live <- conversion_config(jsonlite::fromJSON(.Call(
         "mcp_console_running_python"
       )))
       globals <- get(".globals", envir = asNamespace("reticulate"))
-      globals$py_config[c("pythonpath", "numpy", "ephemeral")] <- live[c(
-        "pythonpath",
-        "numpy",
-        "ephemeral"
-      )]
+      fields <- c("platform", "pythonpath", "numpy", "ephemeral")
+      globals$py_config[fields] <- live[fields]
       invisible(TRUE)
     }
 

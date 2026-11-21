@@ -135,6 +135,7 @@ def preparation_environment(root: Path, *, with_r: bool = False) -> dict[str, st
     description = {
         "executable": str(root / "invalid-python"),
         "libpython": str(root / "missing-libpython"),
+        "platform": "fixture-platform",
         "metadata": {
             "base_executable": str(root / "invalid-python"),
             "pythonpath": "",

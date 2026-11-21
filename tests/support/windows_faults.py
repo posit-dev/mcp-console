@@ -2,7 +2,8 @@
 
 Only the verified companion's private process memory is changed. DLLs on disk
 and the parent process remain untouched.
-Windows x64 is the supported native acceptance target.
+The injected failure fixture is specific to x64. Hosts without MXC exercise
+the actual startup failure on both architectures.
 """
 
 import ctypes
@@ -11,8 +12,10 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import sysconfig
 from threading import Thread
 import time
+import unittest
 
 
 def mcp_startup_failure(process: subprocess.Popen) -> tuple[bytes, bytes]:
@@ -72,7 +75,13 @@ def mcp_startup_failure(process: subprocess.Popen) -> tuple[bytes, bytes]:
 def run_with_unavailable_mxc(
     command, *, inject_unavailable, cwd, env, input=b"", interaction=None, timeout=40
 ):
-    assert ctypes.sizeof(ctypes.c_void_p) == 8, "native Windows acceptance requires x64"
+    assert ctypes.sizeof(ctypes.c_void_p) == 8, (
+        "native Windows acceptance requires a 64-bit interpreter"
+    )
+    if inject_unavailable and sysconfig.get_platform() != "win-amd64":
+        raise unittest.SkipTest(
+            "simulated unavailable MXC on a capable host requires the x64 fixture"
+        )
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     pointer = ctypes.c_void_p
     size = ctypes.c_size_t

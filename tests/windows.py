@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 from threading import Thread
@@ -29,6 +30,7 @@ from support.checkpoints import wait_for_path
 from support.installation import native_console
 from support.normalization import code
 from support.r import r_duckdb_snapshot_environment, r_test_environment
+from support.windows_mxc import requires_mxc
 from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
 from windows_cargo import WindowsCargo  # noqa: F401 -- include build acceptance
@@ -47,6 +49,24 @@ BINARY = Path(
     os.environ.get("MCP_CONSOLE_TEST_BINARY", ROOT / "target/debug/mcp-console.exe")
 )
 NATIVE_BINARY = native_console(BINARY)
+
+
+def preinstalled_r_environment() -> dict[str, str]:
+    # Keep the selected R installation when hiding interpreter and package launchers.
+    r_home = (
+        os.environ.get("R_HOME")
+        or subprocess.check_output(
+            [shutil.which("R") or "R", "RHOME"], text=True
+        ).strip()
+    )
+    environment = dict(
+        os.environ,
+        R_HOME=r_home,
+        PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
+    )
+    environment.pop("RETICULATE_PYTHON", None)
+    environment.pop("RETICULATE_UV", None)
+    return environment
 
 
 class Session:
@@ -584,7 +604,8 @@ class WindowsPackaging(unittest.TestCase):
                         timeout=60,
                     )
                     self.assertEqual(build.returncode, 0, build.stderr)
-                    wheel = root / f"{kind}.whl"
+                    platform = sysconfig.get_platform().replace("-", "_")
+                    wheel = root / f"{kind}-1-py3-none-{platform}.whl"
                     with zipfile.ZipFile(wheel, "w") as archive:
                         archive.write(
                             binary, f"fixture.data/data/libexec/{binary.name}"
@@ -598,6 +619,22 @@ class WindowsPackaging(unittest.TestCase):
                     if kind == "static":
                         self.assertEqual(audit.returncode, 0, audit.stderr)
                         self.assertIn("kernel32.dll", audit.stdout.lower())
+                        other = "win_arm64" if platform == "win_amd64" else "win_amd64"
+                        mislabeled = wheel.rename(
+                            root / f"static-1-py3-none-{other}.whl"
+                        )
+                        audit = subprocess.run(
+                            [
+                                sys.executable,
+                                ROOT / "tests/windows_distribution.py",
+                                mislabeled,
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                        )
+                        self.assertNotEqual(audit.returncode, 0)
+                        self.assertIn(f"expected {other}", audit.stderr)
                     else:
                         self.assertNotEqual(audit.returncode, 0)
                         self.assertIn(f"{kind} import VCRUNTIME140.dll", audit.stderr)
@@ -1145,20 +1182,14 @@ class WindowsConsole(unittest.TestCase):
                     session.close()
 
     def test_r_without_python(self):
-        # Capture R before removing the interpreter launchers from PATH.
-        r_home = (
-            os.environ.get("R_HOME")
-            or subprocess.check_output(
-                [shutil.which("R") or "R", "RHOME"], text=True
-            ).strip()
+        environment = preinstalled_r_environment()
+        session = Session(
+            environment,
+            bare_r=True,
+            overrides=[
+                "r=" + json.dumps(str(Path(environment["R_HOME"]) / "bin/R.exe"))
+            ],
         )
-        environment = dict(
-            os.environ,
-            R_HOME=r_home,
-            PATH=str(Path(os.environ["SystemRoot"]) / "System32"),
-        )
-        environment.pop("RETICULATE_PYTHON", None)
-        session = Session(environment, bare_r=True)
         self.addCleanup(session.close)
         session.initialize()
         self.assertIn("42", json.dumps(session.send(r="answer <- 42L; answer")))
@@ -1320,6 +1351,7 @@ class WindowsConsole(unittest.TestCase):
             RETICULATE_PYTHON=sys.executable,
         )
         environment.pop("R_HOME", None)
+        environment.pop("PROCESSOR_ARCHITECTURE", None)
         session = Session(environment)
         self.addCleanup(session.close)
         session.initialize()
@@ -1327,9 +1359,13 @@ class WindowsConsole(unittest.TestCase):
         result = session.send(
             python=dedent("""
                 import ctypes
+                import os
                 from pathlib import Path
                 import sys
+                import sysconfig
 
+                architecture = {"win-amd64": "AMD64", "win-arm64": "ARM64"}
+                assert os.environ["PROCESSOR_ARCHITECTURE"] == architecture[sysconfig.get_platform()]
                 assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
                 # Console must find Python's supplied runtime without relying
                 # on a separately installed system redistributable. A Python
@@ -1382,6 +1418,59 @@ class WindowsConsole(unittest.TestCase):
             control="restart", python="print('fresh', 'answer' in globals())"
         )
         self.assertIn("fresh False", json.dumps(result))
+
+    @requires_mxc(BINARY)
+    def test_sandboxed_preinstalled_r_python_bridge(self):
+        session = Session(
+            preinstalled_r_environment(),
+            python=sys.executable,
+            overrides=["r.resolution=disabled"],
+            sandbox=True,
+        )
+        self.addCleanup(session.close)
+        session.initialize()
+        session.expect(
+            "41",
+            # fmt: r
+            r=code("""
+                platform <- reticulate::import("sysconfig")$get_platform()
+                stopifnot(
+                  Sys.getenv("MCP_CONSOLE_SANDBOX") == "1",
+                  identical(reticulate::py_config()$platform, platform)
+                )
+                seed <- 41L
+                print(seed)
+                """),
+        )
+        session.expect("42", python="answer = r.seed + 1; print(answer)")
+        session.expect(
+            "round trip complete",
+            r="stopifnot(py$answer == 42L); cat('round trip complete')",
+        )
+
+    def test_preinstalled_r_startup_python_bridge(self):
+        # fmt: r
+        source = code("""
+            stopifnot(!reticulate::py_available(initialize = FALSE))
+            .console$sql_connection(DBI::dbConnect(RSQLite::SQLite(), ":memory:"))
+            stopifnot(identical(reticulate::py$`__name__`, "__main__"))
+            seed <- reticulate::py_eval("40 + 1")
+            platform <- reticulate::import("sysconfig")$get_platform()
+            stopifnot(identical(reticulate::py_config()$platform, platform))
+            """)
+        startup = json.dumps({"language": "r", "code": source})
+        session = Session(
+            preinstalled_r_environment(),
+            python=sys.executable,
+            overrides=["r.resolution=disabled", f"startup={startup}"],
+        )
+        self.addCleanup(session.close)
+        session.initialize()
+        session.expect("42", python="answer = r.seed + 1; print(answer)")
+        session.expect(
+            "round trip complete",
+            r="stopifnot(py$answer == 42L); cat('round trip complete')",
+        )
 
     def test_r_initializes_before_python(self):
         session = self.session(defer_bootstrap=True)
@@ -1857,7 +1946,10 @@ class WindowsConsole(unittest.TestCase):
                         python=code("""
                             import os
 
-                            assert os.environ["PROCESSOR_ARCHITECTURE"] == "AMD64"
+                            import sysconfig
+
+                            expected = {"win-amd64": "AMD64", "win-arm64": "ARM64"}
+                            assert os.environ["PROCESSOR_ARCHITECTURE"] == expected[sysconfig.get_platform()]
                             print("PYTHON_SMOKE", 2 + 2)
                             """),
                     )

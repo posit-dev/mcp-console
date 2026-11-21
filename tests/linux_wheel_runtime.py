@@ -24,7 +24,7 @@ def main() -> None:
 
     glibc = subprocess.check_output(["getconf", "GNU_LIBC_VERSION"], text=True).strip()
     print(glibc, Path("/etc/os-release").read_text(), flush=True)
-    assert glibc == "glibc 2.35"
+    assert glibc == "glibc 2.28"
     assert platform.machine() == args.target.split("-", 1)[0]
     assert all(
         shutil.which(tool) is None
@@ -34,11 +34,14 @@ def main() -> None:
     assert not Path("Cargo.toml").exists()
     assert not Path("target").exists()
     subprocess.run(["uname", "-a"], check=True)
-    packages = subprocess.check_output(["dpkg-query", "-W"], text=True)
-    print(packages, flush=True)
-    assert not any(
-        line.split()[0].split(":")[0].endswith("-dev") for line in packages.splitlines()
+    packages = subprocess.check_output(
+        ["rpm", "-qa", "--queryformat", "%{NAME}\t%{VERSION}-%{RELEASE}.%{ARCH}\n"],
+        text=True,
     )
+    print(packages, end="", flush=True)
+    for line in packages.splitlines():
+        name = line.split("\t", 1)[0]
+        assert not name.endswith("-devel"), f"development package installed: {name}"
     subprocess.run(["uv", "--version"], check=True)
     subprocess.run([sys.executable, "--version"], check=True)
     if args.with_r:
@@ -101,7 +104,13 @@ def main() -> None:
             path in result.stdout for path in ("/work/", "/build/", "/usr/local/cargo/")
         )
     subprocess.run(
-        [sys.executable, str(fixture / "sandbox_installation.py"), str(installed)],
+        [
+            sys.executable,
+            str(fixture / "sandbox_installation.py"),
+            "--wheel",
+            str(args.wheel),
+            str(installed),
+        ],
         check=True,
     )
     print(

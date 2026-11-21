@@ -75,6 +75,28 @@ base::local(
         # do not rediscover an executable or rerun environment activation.
         config <- globals$py_config
         sys <- reticulate::import("sys", convert = TRUE)
+        platform <- config[["platform"]]
+        if (is.null(platform)) {
+          # Older reticulate did not record the platform. Ask the same Python
+          # executable with workspace imports and site startup disabled.
+          probe <- shQuote("import sysconfig; print(sysconfig.get_platform())")
+          platform <- system2(
+            sys$executable,
+            c("-I", "-S", "-c", probe),
+            stdout = TRUE
+          )
+          if (
+            !is.null(attr(platform, "status")) ||
+              length(platform) != 1L ||
+              !nzchar(platform)
+          ) {
+            stop(
+              "Could not determine the platform of Python at ",
+              sys$executable,
+              call. = FALSE
+            )
+          }
+        }
         inspected <<- jsonlite::toJSON(
           list(
             embedding = list(
@@ -82,6 +104,7 @@ base::local(
               libpython = config$libpython,
               python_home = config$pythonhome
             ),
+            platform = platform,
             prefix = sys$prefix,
             exec_prefix = sys$exec_prefix,
             base_prefix = sys$base_prefix,
@@ -152,11 +175,11 @@ base::local(
           "Installation of Python not found, Python bindings not loaded."
         )
       } else if (reticulate:::is_incompatible_arch(config)) {
-        fmt <- "Your current architecture is %s; however, this version of Python was compiled for %s."
         message <- sprintf(
-          fmt,
-          reticulate:::current_python_arch(),
-          config$architecture
+          "Python at '%s' (%s) is incompatible with this build of R (%s).",
+          config$python,
+          paste(c(config$platform, config$architecture), collapse = ", "),
+          R.version$arch
         )
         python_not_found(message)
       }
@@ -171,7 +194,9 @@ base::local(
           stop(error)
         }
       )
-      embedding <- jsonlite::fromJSON(inspected)$embedding
+      identity <- jsonlite::fromJSON(inspected)
+      embedding <- identity$embedding
+      config$platform <- identity$platform
       config$python <- embedding$python
       config$executable <- embedding$python
       config$libpython <- embedding$libpython
@@ -243,16 +268,21 @@ base::local(
       # Console owns CPython's environment. Reticulate attaches conversion
       # and callbacks without activating or changing the running interpreter.
       on.exit(finish_python_initialization(), add = TRUE)
-      reticulate:::py_initialize(
-        config$python,
-        config$libpython,
-        config$pythonhome,
-        "",
-        config$version$major,
-        config$version$minor,
-        interactive(),
-        numpy_load_error
+      arguments <- list(
+        python = config$python,
+        libpython = config$libpython,
+        pythonhome = config$pythonhome,
+        virtualenv_activate = "",
+        python_minor_version = config$version$minor,
+        interactive = interactive(),
+        numpy_load_error = numpy_load_error
       )
+      py_initialize <- reticulate:::py_initialize
+      # Reticulate dropped this argument when it removed Python 2 support.
+      if ("python_major_version" %in% names(formals(py_initialize))) {
+        arguments$python_major_version <- config$version$major
+      }
+      do.call(py_initialize, arguments)
 
       # Reticulate owns conversion, cross-language calls, and event integration.
       reg.finalizer(
@@ -305,6 +335,19 @@ base::local(
     install_python_initializer <- function(...) {
       namespace <<- asNamespace("reticulate")
       globals <<- get(".globals", envir = namespace)
+      if (
+        .Platform$OS.type == "windows" &&
+          exists("current_python_arch", envir = namespace, inherits = FALSE) &&
+          namespace$current_python_arch() == "Unknown"
+      ) {
+        # Reticulate 1.47 infers pointer width from R's subarchitecture suffix,
+        # which is empty on native Windows ARM64. Mixed x64/ARM64 installations
+        # must select a native Python explicitly with this reticulate version.
+        # Newer reticulate checks the build platform and has no such helper.
+        replace_binding("current_python_arch", function() {
+          paste0(.Machine$sizeof.pointer * 8L, "bit")
+        })
+      }
       replace_binding("initialize_python", initialize_python)
       original_ensure_initialized <- get(
         "ensure_python_initialized",

@@ -156,6 +156,11 @@ A profile diagnostic that R survives does not make the session unusable.
 If R fails initialization or is interrupted, fix the startup file externally and explicitly restart; ordinary calls do not retry initialization.
 Edits to `.Rprofile` take effect on runtime restart because R reads the file again, even though YAML configuration remains captured for the server connection.
 
+On Windows ARM64, reticulate 1.47.0 reports R's architecture as `Unknown` during native R startup and rejects even an explicitly selected ARM64 Python interpreter.
+Move calls that initialize Python from `.Rprofile` or `.First()` into your first R cell.
+If a default package initializes Python when loaded, remove it from R's default packages and load it in that cell.
+A [Console R startup block](#session-startup-source) that selects a SQL connection can also run these calls.
+
 ## Select a SQL connection at startup {#session-startup-source}
 
 <span id="session-startup"></span>
