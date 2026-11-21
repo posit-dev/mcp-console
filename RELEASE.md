@@ -1,6 +1,7 @@
 # Releasing MCP Console
 
-Each release ships six platform wheels on PyPI and six native archives on GitHub Releases.
+The release workflow builds six platform wheels for PyPI and six native archives for GitHub Releases.
+For available downloads, see the [installation guide](docs/CLIENTS.md#supported-platforms).
 
 | OS                  | x86-64 target              | ARM64 target                | Wheel platform                                    |
 | ------------------- | -------------------------- | --------------------------- | ------------------------------------------------- |
@@ -40,10 +41,17 @@ Keep `libexec/` and `share/` alongside `bin/` so Console can find and verify its
 The [sandbox launcher](docs/SANDBOX_COMMAND.md) requires no MCP server, `ir`, Python, pip, or uv.
 The application supplies the target program and its dependencies.
 
-When signing a macOS app that embeds the prebuilt archive, preserve `libexec/mcp-console-sandbox` byte for byte.
-Console verifies the helper's SHA-256 digest before launch, and re-signing the helper changes that digest.
-If your distribution requires its own helper signature, build Console from source and add signing to `scripts/stage-sandbox-runner` after it strips the helper and before it records the digest in `target/sandbox-runner-build.json`.
-Then build `mcp-console` to embed the signed helper's digest, sign `mcp-console`, and sign the enclosing app.
+### Embedding Console in a notarized macOS app
+
+Build Console from source for a notarized macOS app.
+The prebuilt ARM64 launcher and sandbox helper have ad hoc signatures, and the x86-64 executables are unsigned.
+Apple requires a Developer ID signature on each executable, including helpers inside a signed app.
+See [Apple’s notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+
+In `scripts/stage-sandbox-runner`, sign the staged `libexec/mcp-console-sandbox` with your Developer ID Application identity after stripping it and before recording its SHA-256 in `target/sandbox-runner-build.json`.
+Then build `mcp-console` to embed that digest.
+Preserve the signed helper byte for byte because Console checks its digest at launch.
+Sign `mcp-console`, then sign the enclosing app and submit it for notarization.
 
 ## Private sandbox executable
 
@@ -141,6 +149,7 @@ scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
 
 Use `aarch64-unknown-linux-gnu` for ARM64.
 Before starting Docker, the driver compares the installed paths, Unix permissions, and SHA-256 digests of the archive's executables, libraries, and licenses with the wheel.
+It also checks that each tar member has UID and GID 0 and empty owner and group names.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
 The Python-only AlmaLinux 8 runtime audits the wheel's ABI and companion pin before either artifact runs.
@@ -260,6 +269,7 @@ Leave older releases unchanged.
 
 ## Return to development
 
+After verifying the first public six-platform release, update the [installation guide](docs/CLIENTS.md#supported-platforms) and [Linux compatibility guide](docs/LINUX_COMPATIBILITY.md) to point to its wheels and archives.
 After publication checks pass, set the version in `Cargo.toml` and its root package entry in `Cargo.lock` to `X.Y.Z+dev`.
 Run `scripts/format` and `scripts/check`, then commit the two version files as `Mark post-release builds as development versions` through the usual review process.
 Keep the release tag on the verified release commit.

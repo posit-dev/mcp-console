@@ -9,16 +9,18 @@ For installation and client setup, see [Get started](getting-started.qmd).
 
 ## Runtime libraries
 
-Console supports Linux hosts on x86-64 and ARM64 with glibc 2.28 or newer, including RHEL 8.
-The release archives and wheels include bubblewrap with libcap linked statically.
+Console 0.0.7 has `manylinux_2_34` wheels for x86-64 and ARM64.
+See the [published files on PyPI](https://pypi.org/project/mcp-console/0.0.7/#files).
+Their bundled bubblewrap requires the system libcap library.
+The development release workflow builds wheels and standalone archives for glibc 2.28 or newer, including RHEL 8, and links libcap statically into bubblewrap.
 Console and its companion use the system GNU runtime libraries.
 Native language packages can have additional dependencies.
 
-| RHEL package | Ubuntu/Debian package | Shared library   | Use                                                      |
-| ------------ | --------------------- | ---------------- | -------------------------------------------------------- |
-| `libgcc`     | `libgcc-s1`           | `libgcc_s.so.1`  | GNU compiler runtime                                     |
-| `libstdc++`  | `libstdc++6`          | `libstdc++.so.6` | C++ runtime for native code                              |
-| `libcap`     | `libcap2`             | `libcap.so.2`    | Source builds of bubblewrap that link libcap dynamically |
+| RHEL package | Ubuntu/Debian package | Shared library   | Use                                                                 |
+| ------------ | --------------------- | ---------------- | ------------------------------------------------------------------- |
+| `libgcc`     | `libgcc-s1`           | `libgcc_s.so.1`  | GNU compiler runtime                                                |
+| `libstdc++`  | `libstdc++6`          | `libstdc++.so.6` | C++ runtime for native code                                         |
+| `libcap`     | `libcap2`             | `libcap.so.2`    | Bubblewrap in the 0.0.7 wheels and dynamically linked source builds |
 
 A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
 Use the missing `.so` filename in the error to identify the package in the table above.
