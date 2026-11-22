@@ -9,10 +9,8 @@ For installation and client setup, see [Get started](getting-started.qmd).
 
 ## Runtime libraries
 
-Console 0.0.7 has `manylinux_2_34` wheels for x86-64 and ARM64.
-See the [published files on PyPI](https://pypi.org/project/mcp-console/0.0.7/#files).
-Their bundled bubblewrap requires the system libcap library.
-The development release workflow builds wheels and standalone archives for glibc 2.28 or newer, including RHEL 8, and links libcap statically into bubblewrap.
+Console 0.4.0 supports glibc 2.28 or newer, including RHEL 8, on x86-64 and ARM64.
+Both the [PyPI wheels](https://pypi.org/project/mcp-console/0.4.0/#files) and the [standalone archives](https://github.com/posit-dev/mcp-console/releases/tag/v0.4.0) bundle bubblewrap with libcap linked statically.
 Console and its companion use the system GNU runtime libraries.
 Native language packages can have additional dependencies.
 

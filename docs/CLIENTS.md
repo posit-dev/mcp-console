@@ -8,11 +8,9 @@ It can run Console without a separate Console installation.
 
 ## Supported platforms
 
-Console 0.0.7 provides wheels for macOS and Linux on x86-64 and ARM64, and for Windows on x86-64.
-Its Linux wheels are tagged `manylinux_2_34`.
-See the [published files on PyPI](https://pypi.org/project/mcp-console/0.0.7/#files).
-The next release adds a Windows ARM64 wheel and lowers the Linux glibc requirement to 2.28 on both architectures.
-To use these targets before the wheels are published, [build from a source revision that includes this support](BUILD_FROM_SOURCE.md#install-console).
+Console 0.4.0 provides wheels for macOS, Windows, and Linux on x86-64 and ARM64.
+The Linux wheels require glibc 2.28 or newer.
+See the [published files on PyPI](https://pypi.org/project/mcp-console/0.4.0/#files).
 
 Sandboxed Windows sessions require Windows 11 with [Microsoft Execution Containers (MXC)](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/08/kb5120998-windows-11-24h2-25h2-update#microsoft-execution-containers).
 See [Windows sandbox requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) for host setup and troubleshooting, or [Windows development](WINDOWS_DEVELOPMENT.md) for native builds and validation.
@@ -25,7 +23,7 @@ To let your agent use R, install it separately, for example with [rig](https://g
 Python and SQL work without R.
 The first session may download Python and packages.
 
-On Windows ARM64, if your development build uses native ARM64 Python and discovers R, the default R package setup needs a separate `ir` executable on `PATH`.
+On Windows ARM64, if Console uses native ARM64 Python and discovers R, the default R package setup needs a separate `ir` executable on `PATH`.
 PyPI has no Windows ARM64 wheel for `r-lib-ir`.
 To use R without `ir`, preinstall the R packages you need, including `reticulate` for sessions that use both R and Python.
 Before connecting your client, disable resolution in your project's `.agents/console/config.yaml` and clear any package list inherited from the global configuration.
@@ -102,9 +100,7 @@ To update, rerun the `uv tool install` command and restart your client.
 
 ## Standalone executable
 
-The first standalone archives for all six targets are planned for the next release.
-Until then, use the [development installation](#development-version).
-Once published, download the archive for the host's OS and architecture and verify it against `SHA256SUMS` from the same [GitHub release](https://github.com/posit-dev/mcp-console/releases).
+Download the archive for the host's OS and architecture and verify it against `SHA256SUMS` from the same [GitHub release](https://github.com/posit-dev/mcp-console/releases/tag/v0.4.0).
 Extract the whole archive, preserving permissions.
 Keep `bin`, `libexec`, and `share` together when moving the installation.
 

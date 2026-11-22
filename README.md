@@ -10,12 +10,11 @@ Console prepares environments and packages automatically; no Console configurati
 It works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
 
 **Development preview:** interfaces may change.
-The development version supports macOS, Linux, and Windows on x86-64 and ARM64.
+Console supports macOS, Linux, and Windows on x86-64 and ARM64.
 
 ## Quickstart
 
-For native Windows ARM64, use the [development installation](docs/CLIENTS.md#development-version) until the first `win_arm64` wheel is published.
-On [platforms with a published wheel](docs/CLIENTS.md#supported-platforms), install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run the command for your client.
+On [supported platforms](docs/CLIENTS.md#supported-platforms), install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run the command for your client.
 
 ```sh
 uvx mcp-console configure-client codex
