@@ -525,21 +525,41 @@ class InstallationTests(unittest.TestCase):
                 launch_checks = (
                     "SandboxInstallationTests.test_runs_original_binary",
                     "SandboxInstallationTests.test_resolves_private_runner_through_public_symlink",
-                    "SandboxInstallationTests.test_relocates_the_bundle_without_a_writable_home_or_path_lookup",
+                    "SandboxInstallationTests.test_relocates_without_a_writable_console_home_or_path_lookup",
                 )
+                # Damaging the fixture must leave the original linked runner executable.
+                runner = bundle / "libexec/mcp-console-sandbox"
+                original_runner = runner.rename(runner.with_name("original-runner"))
+                original_mode = original_runner.stat().st_mode
+                runner.symlink_to(original_runner)
                 # Every installation must launch, follow its public symlink,
-                # and relocate. Bundle damage and allocation checks exercise
-                # the same copied layout, so run them once against the wheel.
-                for installed, checks in (
-                    (binary, launch_checks),
-                    (directory / "uv-bin" / "mcp-console", launch_checks),
-                    (directory / "wheel-bin" / "mcp-console", ()),
+                # and relocate. Run the full damage suite once against the wheel.
+                for installed, bundle_args, checks in (
+                    (
+                        binary,
+                        ["--standalone"],
+                        (
+                            *launch_checks,
+                            "SandboxInstallationTests.test_rejects_a_non_executable_private_runner",
+                        ),
+                    ),
+                    (
+                        directory / "uv-bin" / "mcp-console",
+                        ["--wheel", wheels[0]],
+                        launch_checks,
+                    ),
+                    (
+                        directory / "wheel-bin" / "mcp-console",
+                        ["--wheel", wheels[0]],
+                        (),
+                    ),
                 ):
                     with self.subTest(installer=installed):
                         result = subprocess.run(
                             [
                                 sys.executable,
                                 str(ROOT / "tests" / "sandbox_installation.py"),
+                                *bundle_args,
                                 str(installed),
                                 *checks,
                             ],
@@ -551,6 +571,7 @@ class InstallationTests(unittest.TestCase):
                         self.assertEqual(
                             result.returncode, 0, result.stdout + result.stderr
                         )
+                self.assertEqual(original_runner.stat().st_mode, original_mode)
             finally:
                 hidden.rename(target)
 

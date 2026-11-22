@@ -2,7 +2,14 @@
 environment: base
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -15,6 +22,7 @@ send:
     sys <- reticulate::import("sys")
     stopifnot(
       identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(config$platform, Sys.getenv("MCP_CONSOLE_TEST_PYTHON_PLATFORM")),
       identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
       identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
       identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
@@ -42,7 +50,11 @@ result:
   isError: false
 ---
 send:
-  python: assert id(peer_object) == peer_identity; print('same interpreter')
+  python: |
+    import sysconfig
+
+    assert sysconfig is project_sysconfig
+    print("same interpreter")
 result:
   content:
     - type: text
@@ -53,7 +65,14 @@ result:
 environment: virtualenv
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -66,6 +85,7 @@ send:
     sys <- reticulate::import("sys")
     stopifnot(
       identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(config$platform, Sys.getenv("MCP_CONSOLE_TEST_PYTHON_PLATFORM")),
       identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
       identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
       identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
@@ -93,7 +113,11 @@ result:
   isError: false
 ---
 send:
-  python: assert id(peer_object) == peer_identity; print('same interpreter')
+  python: |
+    import sysconfig
+
+    assert sysconfig is project_sysconfig
+    print("same interpreter")
 result:
   content:
     - type: text
@@ -104,7 +128,14 @@ result:
 environment: conda-marker
 ---
 send:
-  python: peer_object = object(); peer_identity = id(peer_object)
+  python: |
+    import sys
+
+    if "sysconfig" in sys.modules:
+        del sys.modules["sysconfig"]
+    import sysconfig as project_sysconfig
+
+    assert project_sysconfig.project_value == 42
 result:
   content:
     - type: text
@@ -117,6 +148,7 @@ send:
     sys <- reticulate::import("sys")
     stopifnot(
       identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(config$platform, Sys.getenv("MCP_CONSOLE_TEST_PYTHON_PLATFORM")),
       identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
       identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
       identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
@@ -144,7 +176,11 @@ result:
   isError: false
 ---
 send:
-  python: assert id(peer_object) == peer_identity; print('same interpreter')
+  python: |
+    import sysconfig
+
+    assert sysconfig is project_sysconfig
+    print("same interpreter")
 result:
   content:
     - type: text

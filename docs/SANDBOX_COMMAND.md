@@ -7,13 +7,13 @@ Read [Sandbox and trust](SANDBOX.md) for the permission model, or [Sandbox permi
 
 ## Install
 
-Install Console with [uv](https://docs.astral.sh/uv/getting-started/installation/):
+On [platforms with a published wheel](CLIENTS.md#supported-platforms), install Console with [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```sh
 uv tool install mcp-console
 ```
 
-The sandbox supports macOS, Linux, and Windows x64.
+For native Windows ARM64, use the [development installation](CLIENTS.md#development-version) until the first `win_arm64` wheel is published.
 See [platform requirements](SANDBOX_CONFIGURATION.md#native-capabilities) for host setup, including MXC on Windows.
 
 ## Run a program

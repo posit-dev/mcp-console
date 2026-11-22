@@ -3,12 +3,17 @@
 Install Console's prerequisites, then connect your coding agent or another MCP client.
 [Get started](getting-started.qmd) walks through a first analysis once you are connected.
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) so `uvx` is available to your client.
+For the `uvx` launcher, install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 It can run Console without a separate Console installation.
 
 ## Supported platforms
 
-Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for Windows x64.
+Console 0.0.7 provides wheels for macOS and Linux on x86-64 and ARM64, and for Windows on x86-64.
+Its Linux wheels are tagged `manylinux_2_34`.
+See the [published files on PyPI](https://pypi.org/project/mcp-console/0.0.7/#files).
+The next release adds a Windows ARM64 wheel and lowers the Linux glibc requirement to 2.28 on both architectures.
+To use these targets before the wheels are published, [build from a source revision that includes this support](BUILD_FROM_SOURCE.md#install-console).
+
 Sandboxed Windows sessions require Windows 11 with [Microsoft Execution Containers (MXC)](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/08/kb5120998-windows-11-24h2-25h2-update#microsoft-execution-containers).
 See [Windows sandbox requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) for host setup and troubleshooting, or [Windows development](WINDOWS_DEVELOPMENT.md) for native builds and validation.
 
@@ -19,6 +24,21 @@ If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATI
 To let your agent use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
 Python and SQL work without R.
 The first session may download Python and packages.
+
+On Windows ARM64, if your development build uses native ARM64 Python and discovers R, the default R package setup needs a separate `ir` executable on `PATH`.
+PyPI has no Windows ARM64 wheel for `r-lib-ir`.
+To use R without `ir`, preinstall the R packages you need, including `reticulate` for sessions that use both R and Python.
+Before connecting your client, disable resolution in your project's `.agents/console/config.yaml` and clear any package list inherited from the global configuration.
+
+```yaml
+r:
+  resolution: disabled
+  packages: []
+```
+
+On Windows ARM64 with reticulate 1.47.0, R-first discovery cannot distinguish native ARM64 Python from x64 Python running under emulation.
+If you have both, set `python` in the same configuration file to the absolute path of the native interpreter, for example `python: 'C:/Python314-arm64/python.exe'`.
+If an R profile or default package initializes Python, [defer that call until after native R startup](RUNTIME_CONFIGURATION.md#native-r-startup).
 
 To verify the selected runtimes and prepare caches before opening a client, follow [Check your installation](CLI.md#check-your-installation).
 
@@ -79,6 +99,38 @@ Restart your client after setup.
 The `--no-uvx` option registers the installed executable by its absolute path; the default `uvx` launch may run a published version instead.
 To update, rerun the `uv tool install` command and restart your client.
 [Build from source](BUILD_FROM_SOURCE.md) covers shell setup, other clients, and installing a specific branch, tag, or commit.
+
+## Standalone executable
+
+The first standalone archives for all six targets are planned for the next release.
+Until then, use the [development installation](#development-version).
+Once published, download the archive for the host's OS and architecture and verify it against `SHA256SUMS` from the same [GitHub release](https://github.com/posit-dev/mcp-console/releases).
+Extract the whole archive, preserving permissions.
+Keep `bin`, `libexec`, and `share` together when moving the installation.
+
+The checksum verifies the archive's contents.
+The macOS binaries ship without Apple notarization.
+If files extracted from a browser download retain their quarantine flag, Gatekeeper can block the launcher or its sandbox helper even when you run Console from Terminal.
+For command-line use on macOS, [install the PyPI wheel with `uv tool install mcp-console`](SANDBOX_COMMAND.md#install).
+For a notarized macOS app, [rebuild Console with a Developer ID–signed sandbox helper](../RELEASE.md#embedding-console-in-a-notarized-macos-app).
+
+To run a program with Console's built-in `read_only` policy, invoke `bin/mcp-console sandbox --no-config -- PROGRAM ARG...`.
+On Windows, use `bin\mcp-console.exe` with the same arguments.
+For an application-owned policy, replace `--no-config` with `--config-file` followed by the absolute path to the application's YAML file.
+Keep both the bundle and that policy file outside every directory the sandboxed program can modify, including any writable workspace.
+Omit both options when the application intends to honor global and project settings, which can widen filesystem and network permissions.
+See [Run commands in a sandbox](SANDBOX_COMMAND.md) and [Configuration is part of the trust decision](SANDBOX.md#configuration-is-part-of-the-trust-decision).
+
+The launcher requires no MCP server, `ir`, Python, pip, or uv.
+The target program uses its own runtime and dependencies.
+
+To embed the MCP server, set the client command to the executable's absolute path and the arguments to `["serve", "--no-config"]` for built-in settings.
+For an application-owned policy, use `["serve", "--config-file", "/absolute/path/to/policy.yaml"]`.
+Keep the bundle and configuration outside directories writable by evaluated code or dependency preparation.
+Use bare `serve` only when the application trusts the global and project settings for both evaluation and dependency preparation.
+If the application supplies R and its packages, set `r.resolution` to `disabled` and `r.packages` to `[]` in its configuration file.
+Console then uses those libraries without invoking the R package resolver (`ir`).
+Python can also use an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
 
 ## R and Python clients {#connect-from-application-code}
 

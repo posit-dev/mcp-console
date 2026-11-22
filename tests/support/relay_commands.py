@@ -34,6 +34,7 @@ WORKER_COMMANDS = [
                     "libpython": "/native/lib/libpython",
                     "python_home": "/native/home",
                 },
+                "platform": "fixture-platform",
                 "prefix": "/native/prefix",
                 "exec_prefix": "/native/exec-prefix",
                 "base_prefix": "/native/base-prefix",

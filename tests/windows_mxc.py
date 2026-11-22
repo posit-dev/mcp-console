@@ -2,10 +2,13 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import sysconfig
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from threading import Thread
 
 from support.normalization import code
@@ -19,6 +22,32 @@ from windows_sandbox import BINARY, workspace
 
 @unittest.skipUnless(os.name == "nt", "native Windows MXC")
 class WindowsMxc(unittest.TestCase):
+    @unittest.skipUnless(sysconfig.get_platform() == "win-amd64", "requires x64 Python")
+    def test_x64_fault_fixture_skips_a_non_x64_companion(self):
+        from support.windows_faults import run_with_unavailable_mxc
+
+        # A 32-bit stand-in exercises the mismatch on ordinary x64 Windows CI.
+        windows = Path(os.environ["SystemRoot"])
+        cmd32 = windows / "SysWOW64/cmd.exe"
+        if not cmd32.is_file():
+            self.skipTest("requires the 32-bit Windows command processor")
+        with workspace() as root:
+            shutil.copy2(cmd32, root / "mcp-console-sandbox.exe")
+            with self.assertRaisesRegex(
+                unittest.SkipTest, "requires an x64 sandbox companion"
+            ):
+                run_with_unavailable_mxc(
+                    [
+                        windows / "System32/cmd.exe",
+                        "/d",
+                        "/c",
+                        r".\mcp-console-sandbox.exe /d /c exit 0",
+                    ],
+                    inject_unavailable=True,
+                    cwd=root,
+                    env=os.environ,
+                )
+
     def test_startup_failures_withhold_code_at_every_public_entry_point(self):
         from support.windows_faults import run_with_unavailable_mxc
 

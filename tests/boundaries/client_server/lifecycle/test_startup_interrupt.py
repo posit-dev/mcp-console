@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
@@ -31,7 +32,7 @@ RUNNING = "\n[running; poll with an empty send]"
 @contextmanager
 def before_resolver_spawn(
     binary: Path, execution: Execution, ordinal: int
-) -> Iterator[tuple[McpClient, FifoCheckpoint, FifoCheckpoint, Path]]:
+) -> Iterator[tuple[McpClient, FifoCheckpoint, Path]]:
     # fmt: python
     server = code("""
         import os
@@ -107,7 +108,19 @@ def before_resolver_spawn(
         )
         try:
             client.initialize_and_list_tools()
-            yield client, started, release, root
+            started.wait(f"resolver fork {ordinal}", client=client)
+            # The resolver can reach fork before the server registers the
+            # operation. Observe both before submitting the cell or interrupt.
+            deadline = client.response_deadline()
+            while True:
+                client.send(session="default", timeout_ms=100)
+                status = last_tool_text(client)
+                if status == "\n[phase: dependency preparation]\n[worker starting]":
+                    break
+                assert status == "\n[phase: startup]\n[worker starting]", status
+                assert time.monotonic() < deadline, "resolver handle was not registered"
+                client.transcript.pop()
+            yield client, release, root
         finally:
             # Release the resolver fork before transport teardown, even when an
             # assertion fails while it is paused before child creation.
@@ -120,16 +133,8 @@ def before_resolver_spawn(
 def test_interrupts_first_cell_before_resolver_registration(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with before_resolver_spawn(binary, execution, 1) as (
-        client,
-        started,
-        release,
-        root,
-    ):
-        started.wait("first resolver has not been spawned", client=client)
+    with before_resolver_spawn(binary, execution, 1) as (client, release, root):
         assert not (root / "resolver.jsonl").exists()
-        # The preparation handle is registered, but its materializer is held
-        # before process creation. Observe that owner before and after interrupt.
         client.send(r="startup_cell_ran <- TRUE", timeout_ms=0)
         assert phase_progress(last_tool_text(client)) == "dependency preparation"
         assert without_elapsed(last_tool_text(client)) == RUNNING
@@ -152,13 +157,7 @@ def test_interrupts_first_cell_before_resolver_registration(
 def test_interrupts_first_cell_between_resolver_phases(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with before_resolver_spawn(binary, execution, 2) as (
-        client,
-        started,
-        release,
-        root,
-    ):
-        started.wait("default preparation has not been spawned", client=client)
+    with before_resolver_spawn(binary, execution, 2) as (client, release, root):
         invocations = [
             json.loads(line)
             for line in (root / "resolver.jsonl").read_text().splitlines()
@@ -189,13 +188,7 @@ def test_interrupts_first_cell_admitted_during_stdin_startup(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
-    with before_resolver_spawn(binary, execution, 1) as (
-        client,
-        started,
-        release,
-        root,
-    ):
-        started.wait("stdin startup has not spawned its first resolver", client=client)
+    with before_resolver_spawn(binary, execution, 1) as (client, release, root):
         assert not (root / "resolver.jsonl").exists()
         client.send(stdin="old input\n", timeout_ms=0)
         assert last_tool_text(client) == (

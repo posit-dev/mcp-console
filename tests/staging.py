@@ -74,7 +74,9 @@ class StagingTests(unittest.TestCase):
                     stream.write(b"1")
                 with open(os.environ["BUILD_RELEASE"], "rb", buffering=0) as stream:
                     assert stream.read(1) == b"1"
-            binary = output / "aarch64-apple-darwin/release/mcp-console-sandbox"
+            target = sys.argv[sys.argv.index("--target") + 1]
+            name = "mcp-console-sandbox.exe" if "windows" in target else "mcp-console-sandbox"
+            binary = output / target / "release" / name
             binary.parent.mkdir(parents=True, exist_ok=True)
             binary.write_text(os.environ.get("RUSTFLAGS", "initial"))
             """,
@@ -139,6 +141,22 @@ class StagingTests(unittest.TestCase):
             check=True,
         )
         return json.loads(result.stdout)
+
+    def test_windows_arm64_companion_is_staged_for_the_requested_target(self) -> None:
+        root = self.roots[0]
+        target = "aarch64-pc-windows-msvc"
+        result = subprocess.run(
+            self.command(root, "--target", target),
+            env=self.environment,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.describe(root)["staged_target"], target)
+        self.assertEqual(
+            (root / "wheel-data/data/libexec/mcp-console-sandbox.exe").read_text(),
+            "initial",
+        )
 
     def test_separate_checkouts_reuse_the_pinned_source_and_cargo_output(self) -> None:
         first, second = self.roots

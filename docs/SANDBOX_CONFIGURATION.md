@@ -112,6 +112,9 @@ Platform behavior matters.
 macOS and Linux can grant individual files.
 macOS can grant creation at absent paths; Linux skips absent write roots until a later launch.
 Linux cannot reliably reopen a narrower read beneath a broader denied mount.
+On Windows, a read-only exception inside a writable directory remains inaccessible for the duration of the launch if the path was absent at setup.
+This requires MXC support for denying access to a path.
+The next launch checks whether the path now exists and can be granted read-only access.
 Create intended writable directories first.
 Console does not grant extra paths or switch backends to make an unsupported policy work.
 
@@ -373,11 +376,11 @@ See [Cache selection](PACKAGE_CONFIGURATION.md#cache-locations) for clearing inh
 
 ## Platform support {#native-capabilities}
 
-| Platform | Important limits                                                                                                                                                             |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| macOS    | Seatbelt enforcement and managed proxy supported. Console rejects `tcp_udp`.                                                                                                 |
-| Linux    | Bubblewrap enforcement; managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.     |
-| Windows  | Windows x64 requires MXC for workers and preparation. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP and Unix sockets are rejected. |
+| Platform | Important limits                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS    | Seatbelt enforcement and managed proxy supported. Console rejects `tcp_udp`.                                                                                             |
+| Linux    | Bubblewrap enforcement; managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific. |
+| Windows  | Windows requires MXC for workers and preparation. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP and Unix sockets are rejected. |
 
 A common schema does not imply equal native capabilities.
 Console rejects unsupported explicit requests rather than silently ignoring them.

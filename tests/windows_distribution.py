@@ -5,11 +5,14 @@ UCRT and ordinary Windows system DLLs (including msvcrt.dll) are allowed.
 """
 
 import argparse
+from io import BytesIO
 import json
 from pathlib import Path
 import re
 import struct
 import subprocess
+import sysconfig
+from typing import BinaryIO
 import zipfile
 
 
@@ -18,15 +21,27 @@ VC_RUNTIME = re.compile(
     re.IGNORECASE,
 )
 NATIVE_SUFFIXES = {".exe", ".dll", ".pyd"}
+PE_MACHINE = {"win_amd64": 0x8664, "win_arm64": 0xAA64}
 
 
-def pe_imports(content):
+def pe_offset_and_machine(image: BinaryIO) -> tuple[int, int]:
+    assert image.read(2) == b"MZ", "not a PE image"
+    image.seek(0x3C)
+    (offset,) = struct.unpack("<I", image.read(4))
+    image.seek(offset)
+    assert image.read(4) == b"PE\0\0", "missing PE signature"
+    (machine,) = struct.unpack("<H", image.read(2))
+    return offset, machine
+
+
+def pe_imports(content, platform):
     def unpack(format, offset):
         return struct.unpack_from("<" + format, content, offset)
 
-    assert content[:2] == b"MZ", "not a PE image"
-    (pe,) = unpack("I", 0x3C)
-    assert content[pe : pe + 4] == b"PE\0\0", "missing PE signature"
+    pe, machine = pe_offset_and_machine(BytesIO(content))
+    assert machine == PE_MACHINE[platform], (
+        f"PE machine {machine:#06x}, expected {platform}"
+    )
     _, section_count, _, _, _, optional_size, _ = unpack("HHIIIHH", pe + 4)
     optional = pe + 24
     (magic,) = unpack("H", optional)
@@ -91,11 +106,13 @@ def pe_imports(content):
     return result
 
 
-def inspect_artifacts(artifacts):
+def inspect_artifacts(artifacts, platform=None):
+    if platform is None:
+        platform = sysconfig.get_platform().replace("-", "_")
     reports = {}
     rejected = []
     for name, content in artifacts:
-        imports = pe_imports(content)
+        imports = pe_imports(content, platform)
         reports[str(name)] = imports
         for kind, names in imports.items():
             rejected.extend(
@@ -114,9 +131,12 @@ def inspect_artifacts(artifacts):
 def inspect_wheel(wheel):
     with zipfile.ZipFile(wheel) as archive:
         return inspect_artifacts(
-            (name, archive.read(name))
-            for name in archive.namelist()
-            if Path(name).suffix.lower() in NATIVE_SUFFIXES
+            (
+                (name, archive.read(name))
+                for name in archive.namelist()
+                if Path(name).suffix.lower() in NATIVE_SUFFIXES
+            ),
+            wheel.stem.rsplit("-", 1)[1],
         )
 
 

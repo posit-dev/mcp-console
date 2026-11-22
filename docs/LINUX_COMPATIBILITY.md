@@ -9,25 +9,30 @@ For installation and client setup, see [Get started](getting-started.qmd).
 
 ## Runtime libraries
 
-Console supports Linux hosts with glibc 2.35 or newer.
-The following runtime libraries may already be installed on your system; the installation commands below are only needed when they are missing.
-They are system dependencies, separate from the Python packages installed by `uv`.
+Console 0.0.7 has `manylinux_2_34` wheels for x86-64 and ARM64.
+See the [published files on PyPI](https://pypi.org/project/mcp-console/0.0.7/#files).
+Their bundled bubblewrap requires the system libcap library.
+The development release workflow builds wheels and standalone archives for glibc 2.28 or newer, including RHEL 8, and links libcap statically into bubblewrap.
+Console and its companion use the system GNU runtime libraries.
+Native language packages can have additional dependencies.
 
-| Ubuntu/Debian package | Shared library   | Needed for                                                       |
-| --------------------- | ---------------- | ---------------------------------------------------------------- |
-| `libcap2`             | `libcap.so.2`    | Linux process capabilities in the bundled Bubblewrap sandbox.    |
-| `libgcc-s1`           | `libgcc_s.so.1`  | GNU runtime support for Console and its sandbox executables.     |
-| `libstdc++6`          | `libstdc++.so.6` | C++ runtime support for native analysis packages such as DuckDB. |
-
-On Ubuntu or Debian, install missing runtime libraries with:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
-```
+| RHEL package | Ubuntu/Debian package | Shared library   | Use                                                                 |
+| ------------ | --------------------- | ---------------- | ------------------------------------------------------------------- |
+| `libgcc`     | `libgcc-s1`           | `libgcc_s.so.1`  | GNU compiler runtime                                                |
+| `libstdc++`  | `libstdc++6`          | `libstdc++.so.6` | C++ runtime for native code                                         |
+| `libcap`     | `libcap2`             | `libcap.so.2`    | Bubblewrap in the 0.0.7 wheels and dynamically linked source builds |
 
 A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
 Use the missing `.so` filename in the error to identify the package in the table above.
+
+## R package preparation on EL8
+
+With R 4.5 on RHEL 8 or a compatible distribution, preparing the default `tidyverse` package can fail because its dependency `textshaping` 1.1.0 needs a newer HarfBuzz than EL8 supplies.
+For managed R sessions, set the `CRAN` URL in the selected R installation's `etc/repositories` file to `https://packagemanager.posit.co/cran/2026-11-18/bin/linux/manylinux_2_28-ARCH/4.5`, replacing `ARCH` with `x86_64` or `aarch64`.
+This snapshot supplies a compatible `textshaping` 1.0.5 binary on both architectures.
+
+If you already have the R packages you need, including `reticulate` for mixed R/Python sessions, set `r: {resolution: disabled, packages: []}` in your project's `.agents/console/config.yaml` to use those libraries.
+The standalone `mcp-console sandbox` command launches its target without R or R package preparation.
 
 ## Host and container setup
 

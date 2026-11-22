@@ -1,6 +1,6 @@
 name: Release
 
-# Build native macOS, Linux, and Windows x64 wheels and publish them to PyPI.
+# Build native archives and wheels on x86-64 and ARM64.
 #
 # Releases are tag-driven. A manual workflow run builds artifacts for
 # inspection but does not publish.
@@ -59,6 +59,10 @@ jobs:
         with:
           python-version: "3.14"
 
+      # Keep the guard inside each build job so a targeted rerun also checks PyPI.
+      - name: Refuse to rebuild a version already on PyPI
+        run: python scripts/release.py check-unpublished
+
       - name: Read private sandbox source pin
         id: sandbox-pin
         run: scripts/stage-sandbox-runner --github-output "$GITHUB_OUTPUT"
@@ -69,6 +73,7 @@ jobs:
           repository: ${{ steps.sandbox-pin.outputs.repository }}
           ref: ${{ steps.sandbox-pin.outputs.commit }}
           path: .sandbox-runner-source
+          persist-credentials: false
 
       # Chrome is unused here; its repository can block apt with inconsistent metadata.
       - name: Disable unused Chrome apt repository
@@ -102,24 +107,27 @@ jobs:
           cache-local-path: ${{ runner.temp }}/mcp-console-cache
           cache-suffix: release-v1-${{ steps.cache-epoch.outputs.value }}
 
-      - name: Install Linux build and sandbox dependencies
+      - name: Build Linux wheel and companions on glibc 2.28
         if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkgconf libcurl4-openssl-dev libcap-dev libssl-dev binutils
+          docker run --rm -v "$PWD:/work" -w /work \
+            "quay.io/pypa/manylinux_2_28_${TARGET%%-*}" bash scripts/linux-wheel/build.sh "$TARGET"
 
       - name: Stage private sandbox runner
+        if: runner.os == 'macOS'
         run: >-
           scripts/stage-sandbox-runner
           .sandbox-runner-source
           --target "${{ matrix.target }}"
 
-      - name: Build wheel
+      - name: Build macOS wheel
+        if: runner.os == 'macOS'
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           rust-toolchain: stable
           target: ${{ matrix.target }}
-          # Use native runners while retaining PyPI-compatible Linux wheel tags.
           container: off
           args: --release --locked --compatibility pypi --out dist
 
@@ -149,7 +157,9 @@ jobs:
           MAKEFLAGS: -j1
           R_MAKEVARS_USER: ${{ runner.temp }}/preparation.Makevars
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            build-essential pkgconf libcurl4-openssl-dev libssl-dev binutils \
             r-base-dev libxml2-dev libcairo2-dev libfontconfig1-dev \
             libharfbuzz-dev libfribidi-dev libjpeg-dev libpng-dev libtiff-dev \
             libuv1-dev libwebp-dev
@@ -159,10 +169,11 @@ jobs:
           export PATH="$RUNNER_TEMP/cmake/bin:$PATH"
           R_HOME="$(R RHOME)"
           export R_HOME
+          printf 'R_HOME=%s\n' "$R_HOME" >> "$GITHUB_ENV"
           uv tool run --isolated --python 3.14 --from r-lib-ir ir run \
             --rscript "$R_HOME/bin/Rscript" \
             --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
-            --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+            --with duckdb --with nanoarrow --with yyjsonr --with ggplot2 \
             --with jsonlite --with pillar --with tibble --with utf8 \
             --isolated --vanilla -e 'sessionInfo()'
           uv cache clean cmake
@@ -188,7 +199,14 @@ jobs:
             target/${{ matrix.target }}/release/mcp-console \
             --target "${{ matrix.target }}" \
             --without-r
-          python3 tests/sandbox_installation.py "$UV_TOOL_BIN_DIR/mcp-console"
+          python3 tests/sandbox_installation.py --wheel dist/*.whl "$UV_TOOL_BIN_DIR/mcp-console"
+
+      - name: Build and test the standalone archive
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          python3 scripts/release.py build-archive dist/*.whl --target "$TARGET" --out-dir archives
+          python3 tests/standalone.py "archives/mcp-console-$TARGET.tar.gz" --target "$TARGET"
 
       - name: Report Linux preparation failure
         if: failure() && runner.os == 'Linux'
@@ -219,6 +237,13 @@ jobs:
           path: linux-compatibility
           if-no-files-found: warn
 
+      - name: Upload standalone archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: archive-${{ matrix.target }}
+          path: archives/*
+          if-no-files-found: error
+
       - name: Upload wheel
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -227,11 +252,29 @@ jobs:
           if-no-files-found: error
 
   windows-wheel:
-    name: pypi-x86_64-pc-windows-msvc
-    runs-on: windows-latest
+    name: pypi-${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            wheel-tag: win_amd64
+            python-arch: x64
+            r-option: ""
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            wheel-tag: win_arm64
+            python-arch: arm64
+            r-option: --preinstalled-r
     timeout-minutes: 60
     env:
       MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
+      MCP_CONSOLE_TEST_REQUIRE_MXC: ${{ matrix.os == 'windows-11-arm' && '1' || '0' }}
       UV_NO_CONFIG: "1"
       LANGUAGE: en
     steps:
@@ -241,7 +284,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
+          architecture: ${{ matrix.python-arch }}
           python-version: "3.14"
+
+      # Keep the guard inside each build job so a targeted rerun also checks PyPI.
+      - name: Refuse to rebuild a version already on PyPI
+        run: python scripts/release.py check-unpublished
 
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -271,6 +319,11 @@ jobs:
           path: .sandbox-runner-source
           persist-credentials: false
 
+      - name: Select native MSVC build environment
+        uses: ./.sandbox-runner-source/.github/actions/setup-msvc-env
+        with:
+          target: ${{ matrix.target }}
+
       # Use the PEP 517 backend: it relocates the native command and adds the
       # environment-bound Windows launcher that direct Maturin builds omit.
       - name: Build Windows wheel
@@ -278,7 +331,9 @@ jobs:
 
       - name: Install wheel through its public tool command
         run: |
-          $wheel = (Get-Item dist/*-win_amd64.whl).FullName
+          $wheel = (Get-Item dist/*-${{ matrix.wheel-tag }}.whl).FullName
+          python tests/windows_distribution.py $wheel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           uv tool install --python (Get-Command python).Source $wheel
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
@@ -288,9 +343,11 @@ jobs:
           use-public-rspm: false
 
       - name: Configure binary R repositories
+        if: matrix.python-arch == 'x64'
         run: Rscript --vanilla scripts/configure-ci-r.R
 
       - name: Install native smoke-test dependencies
+        if: matrix.python-arch == 'x64'
         uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           working-directory: r
@@ -301,23 +358,42 @@ jobs:
             any::reticulate
             any::jsonlite
 
-      - name: Prepare Python and select the R runtime
+      - name: Install Python bridge dependency
+        if: matrix.python-arch == 'x64'
+        run: uv pip install --python (Get-Command python).Source numpy
+
+      - name: Install prebuilt R bridge for native Windows ARM64
+        if: matrix.python-arch == 'arm64'
+        run: Rscript --vanilla scripts/install-ci-windows-arm-r-bridge.R
+
+      - name: Select native R
         run: |
-          $ciPython = (Get-Command python).Source
-          uv pip install --python $ciPython numpy
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Build and test the standalone Windows archive
+        run: |
+          $wheel = (Get-Item dist/*-${{ matrix.wheel-tag }}.whl).FullName
+          python scripts/release.py build-archive $wheel --target "${{ matrix.target }}" --out-dir archives
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/windows_install.py --archive (Get-Item archives/*.zip).FullName ${{ matrix.r-option }}
+
       - name: Accept installed Windows wheel
-        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe" ${{ matrix.r-option }}
+
+      - name: Upload standalone archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: archive-${{ matrix.target }}
+          path: archives/*
+          if-no-files-found: error
 
       - name: Upload wheel
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pypi-x86_64-pc-windows-msvc
-          path: dist/*-win_amd64.whl
+          name: pypi-${{ matrix.target }}
+          path: dist/*-${{ matrix.wheel-tag }}.whl
           if-no-files-found: error
 
   linux-floor:
@@ -352,11 +428,17 @@ jobs:
           name: pypi-${{ matrix.target }}
           path: dist
 
-      - name: Validate Linux wheel in clean floor runtimes
+      - name: Download standalone archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: archive-${{ matrix.target }}
+          path: archives
+
+      - name: Validate Linux archive and wheel in clean floor runtimes
         shell: bash
         run: |
           mkdir -p linux-compatibility
-          python3 scripts/check-linux-wheel dist/*.whl \
+          python3 scripts/check-linux-wheel dist/*.whl --archive archives/*.tar.gz \
             --target "${{ matrix.target }}" \
             --evidence linux-compatibility \
             2>&1 | tee linux-compatibility/runtime.log
@@ -369,9 +451,33 @@ jobs:
           path: linux-compatibility
           if-no-files-found: warn
 
+  collect:
+    name: Verify six wheels and checksum six archives
+    needs: [wheels, windows-wheel]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pypi-*
+          path: dist
+          merge-multiple: true
+      - run: python3 scripts/release.py verify-wheel-set dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: archive-*
+          path: archives
+          merge-multiple: true
+      - run: python3 scripts/release.py archive-checksums archives
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: github-release
+          path: archives
+          if-no-files-found: error
+
   publish-pypi:
     name: publish PyPI
-    needs: [wheels, windows-wheel, linux-floor]
+    needs: [collect, linux-floor]
 
     # Manual dispatch is build-only. Only tag-triggered runs may publish.
     if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
@@ -422,6 +528,27 @@ jobs:
             --check-url https://pypi.org/simple \
             dist/*.whl
 
+  publish-github:
+    name: Publish GitHub release assets
+    needs: publish-pypi
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: github-release
+          path: archives
+      - name: Verify and attach the tested archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release.py publish-archives archives
+
   verify-pypi:
     name: public-pypi-${{ matrix.target }}
     needs: publish-pypi
@@ -457,7 +584,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libcap2 libgcc-s1 libstdc++6 binutils
+          sudo apt-get install -y --no-install-recommends libgcc-s1 libstdc++6
 
       - name: Download published artifacts for hash comparison
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -560,11 +687,29 @@ jobs:
           PY
 
   verify-pypi-windows:
-    name: public-pypi-x86_64-pc-windows-msvc
+    name: public-pypi-${{ matrix.target }}
     needs: publish-pypi
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            wheel-tag: win_amd64
+            python-arch: x64
+            r-option: ""
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            wheel-tag: win_arm64
+            python-arch: arm64
+            r-option: --preinstalled-r
     timeout-minutes: 30
     env:
+      MCP_CONSOLE_TEST_REQUIRE_MXC: ${{ matrix.os == 'windows-11-arm' && '1' || '0' }}
       UV_NO_CONFIG: "1"
       LANGUAGE: en
     steps:
@@ -574,6 +719,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
+          architecture: ${{ matrix.python-arch }}
           python-version: "3.14"
 
       - name: Set up uv
@@ -593,9 +739,11 @@ jobs:
           use-public-rspm: false
 
       - name: Configure binary R repositories
+        if: matrix.python-arch == 'x64'
         run: Rscript --vanilla scripts/configure-ci-r.R
 
       - name: Install native smoke-test dependencies
+        if: matrix.python-arch == 'x64'
         uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           working-directory: r
@@ -605,6 +753,10 @@ jobs:
           packages: |
             any::reticulate
             any::jsonlite
+
+      - name: Install prebuilt R bridge for native Windows ARM64
+        if: matrix.python-arch == 'arm64'
+        run: Rscript --vanilla scripts/install-ci-windows-arm-r-bridge.R
 
       - name: Download published artifacts for hash comparison
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -625,16 +777,18 @@ jobs:
           uv tool install --python (Get-Command python).Source --no-cache --no-sources --default-index https://pypi.org/simple "mcp-console==$version"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: Prepare Python and select the R runtime
+      - name: Install Python bridge dependency
+        if: matrix.python-arch == 'x64'
+        run: uv pip install --python (Get-Command python).Source numpy
+
+      - name: Select native R
         run: |
-          uv pip install --python (Get-Command python).Source numpy
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Accept pinned public-index installation
-        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe" ${{ matrix.r-option }}
 
       - name: Verify a fresh unqualified public-index installation
         run: |
@@ -647,4 +801,4 @@ jobs:
           if ($actual -ne "mcp-console $version") { throw "Unexpected latest uvx version: $actual" }
           uv tool install --python (Get-Command python).Source --no-cache --no-sources --default-index https://pypi.org/simple mcp-console
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+          python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe" ${{ matrix.r-option }}

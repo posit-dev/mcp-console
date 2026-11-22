@@ -53,13 +53,17 @@ mod worker_protocol;
 mod worker_relay;
 
 fn main() -> ExitCode {
-    #[cfg(all(windows, target_arch = "x86_64"))]
+    #[cfg(windows)]
     if std::env::var_os("PROCESSOR_ARCHITECTURE").is_none_or(|value| value.is_empty()) {
         // Filtered MCP environments can omit this Windows runtime variable.
         // R DuckDB's native teardown can crash without it, including in the
         // preparation child. Each Console process restores its own architecture.
+        #[cfg(target_arch = "x86_64")]
+        let architecture = "AMD64";
+        #[cfg(target_arch = "aarch64")]
+        let architecture = "ARM64";
         // SAFETY: entry is single-threaded, before native runtime loading.
-        unsafe { std::env::set_var("PROCESSOR_ARCHITECTURE", "AMD64") };
+        unsafe { std::env::set_var("PROCESSOR_ARCHITECTURE", architecture) };
     }
     let cli = cli::Cli::parse();
     let mut overrides = cli.overrides;

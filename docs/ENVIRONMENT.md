@@ -181,7 +181,7 @@ Managed R preparation also supplies `IR_NO_LOCAL_SOURCES=1` and a package-subpro
 | `XDG_CONFIG_HOME`                     | Participates in Linux Matplotlib config lookup, not Console YAML discovery.                                                                                          |
 | `LD_LIBRARY_PATH`                     | Adjusted for selected R/Python libraries on Linux.                                                                                                                   |
 | `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES` | Removed when launching the native sandbox runner; this is not a blanket guarantee for direct execution.                                                              |
-| `PROCESSOR_ARCHITECTURE`              | On Windows x64, absent/empty values default to `AMD64` before runtime loading; supplied nonempty values remain.                                                      |
+| `PROCESSOR_ARCHITECTURE`              | On Windows, Console sets an absent or empty value to its native architecture (`AMD64` or `ARM64`) before loading runtimes.                                           |
 
 Private plotting/cache initialization still occurs with `cache: host` when `sandbox.tempdir: managed` is selected.
 Other tempdir modes and `--no-sandbox` retain normal library cache selection after the configuration/cache assignments above.

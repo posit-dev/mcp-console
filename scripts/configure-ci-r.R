@@ -13,7 +13,8 @@ if (system == "Linux") {
   # Jammy ARM64 has no distro-specific binaries. Portable binaries retain the
   # same glibc floor on both architectures and need no HTTP user-agent rewrite.
   cran <- sprintf(
-    "https://packagemanager.posit.co/cran/latest/bin/linux/manylinux_2_28-%s/%s",
+    "https://packagemanager.posit.co/cran/%s/bin/linux/manylinux_2_28-%s/%s",
+    Sys.getenv("CI_PPM_SNAPSHOT", unset = "latest"),
     R.version$arch,
     version
   )
