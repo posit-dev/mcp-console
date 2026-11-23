@@ -383,8 +383,9 @@ impl Sandbox {
             .into_iter()
             .flat_map(|(paths, access)| {
                 paths.into_iter().map(move |path| {
-                    let path = crate::console_paths::expand_home(std::path::Path::new(&path))
-                        .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
+                    let path =
+                        crate::console_paths::expand_permission_home(std::path::Path::new(&path))
+                            .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
                     let path = path.to_str().ok_or_else(|| {
                         format!("{prefix}.filesystem: expanded path must be UTF-8")
                     })?;
@@ -655,7 +656,7 @@ fn capture_writable_root(
     workspace: &Path,
     context: PolicyContext,
 ) -> Result<Option<WritableRoot>, String> {
-    let path = crate::console_paths::expand_home(&path)?;
+    let path = crate::console_paths::expand_permission_home(&path)?;
     let root = resolve_writable_root(path.clone(), workspace)?;
     let guarded = context == PolicyContext::Launch && !path.is_absolute();
     // A symlink can become an ordinary directory before a later launch.

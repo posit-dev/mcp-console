@@ -15,25 +15,31 @@ pub(crate) fn home_console_directory() -> Result<Option<PathBuf>, String> {
 
 /// Expand only a leading home component in public paths. Use the controller's
 /// launch environment, independently of R and child environment overrides.
-/// Keep symlinks and all other path components for their existing owners.
 pub(crate) fn expand_home(path: &Path) -> Result<PathBuf, String> {
     let Ok(relative) = path.strip_prefix("~") else {
         return Ok(path.to_path_buf());
     };
     let home = home_directory()?.ok_or("cannot expand '~' without a user home directory")?;
-    #[cfg(windows)]
-    if relative
-        .components()
-        .any(|part| part == Component::ParentDir)
-    {
-        return absolute_preserving_parents(&home, relative)
-            .map_err(|error| format!("cannot expand '{}': {error}", path.display()));
-    }
     Ok(if relative.as_os_str().is_empty() {
         home
     } else {
         home.join(relative)
     })
+}
+
+/// Preserve components for the launcher's symlink check, even under a verbatim Windows home.
+pub(crate) fn expand_permission_home(path: &Path) -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    if let Ok(relative) = path.strip_prefix("~")
+        && relative
+            .components()
+            .any(|part| part == Component::ParentDir)
+    {
+        let home = expand_home(Path::new("~"))?;
+        return absolute_preserving_parents(&home, relative)
+            .map_err(|error| format!("cannot expand '{}': {error}", path.display()));
+    }
+    expand_home(path)
 }
 
 /// Capture an absolute path whose parent traversals can still be inspected at launch.

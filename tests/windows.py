@@ -941,6 +941,48 @@ class WindowsConsole(unittest.TestCase):
                         [str(home / "private")],
                     )
 
+    def test_verbatim_home_opens_config_and_retains_policy_parent_traversals(self):
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = Path(_getfinalpathname(root))
+            declared = Path("~") / "unused" / ".." / "output"
+            (root / "policy.yaml").write_text(
+                json.dumps(
+                    {
+                        "cache": {"directory": str(declared)},
+                        "sandbox": {"filesystem": {"read_write": [str(declared)]}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    BINARY,
+                    "config",
+                    "resolve",
+                    "--format",
+                    "json",
+                    "--config-file",
+                    r"~\unused\..\policy.yaml",
+                ],
+                cwd=root,
+                env=os.environ
+                | {"HOME": str(home), "MCP_CONSOLE_HOME": str(root / "console")},
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result)
+            self.assertEqual(result.stderr, "", result)
+            configuration = json.loads(result.stdout)
+            expected = str(home / declared.relative_to("~"))
+            self.assertEqual(configuration["cache"]["directory"], expected)
+            self.assertEqual(
+                configuration["sandbox"]["filesystem"]["read_write"], [expected]
+            )
+
     def test_native_home_configuration_discovery(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
