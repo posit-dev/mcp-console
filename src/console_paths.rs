@@ -1,5 +1,7 @@
 //! Console-owned files on the controller host.
 
+#[cfg(windows)]
+use std::path::Component;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn home_console_directory() -> Result<Option<PathBuf>, String> {
@@ -21,11 +23,44 @@ pub(crate) fn expand_home(path: &Path) -> Result<PathBuf, String> {
         return Ok(path.to_path_buf());
     };
     let home = home_directory()?.ok_or("cannot expand '~' without a user home directory")?;
+    #[cfg(windows)]
+    if relative
+        .components()
+        .any(|part| part == Component::ParentDir)
+    {
+        return absolute_preserving_parents(&home, relative)
+            .map_err(|error| format!("cannot expand '{}': {error}", path.display()));
+    }
     Ok(if relative.as_os_str().is_empty() {
         home
     } else {
         home.join(relative)
     })
+}
+
+/// Capture an absolute path whose parent traversals can still be inspected at launch.
+pub(crate) fn absolute_preserving_parents(base: &Path, path: &Path) -> std::io::Result<PathBuf> {
+    #[cfg(windows)]
+    if path.components().any(|part| part == Component::ParentDir) {
+        // GetFullPathNameW folds `..`, as does PathBuf::push on a verbatim
+        // base. Resolve only the drive or UNC root, then append the components.
+        let mut parts = path.components().peekable();
+        let mut root = base.to_owned();
+        while let Some(part) =
+            parts.next_if(|part| matches!(part, Component::Prefix(_) | Component::RootDir))
+        {
+            root.push(part);
+        }
+        if !root.is_absolute() {
+            root = std::path::absolute(root)?;
+        }
+        for part in parts {
+            root.push("");
+            root.as_mut_os_string().push(part.as_os_str());
+        }
+        return Ok(root);
+    }
+    std::path::absolute(base.join(path))
 }
 
 pub(crate) fn home_directory() -> Result<Option<PathBuf>, String> {

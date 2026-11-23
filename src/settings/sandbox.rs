@@ -710,17 +710,24 @@ pub(crate) fn revalidate_writable_roots(settings: &mut SandboxSettings) -> Resul
 /// through that link. The native runner still owns binding ordinary paths.
 fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
     let mut prefix = PathBuf::new();
-    for component in normalize_permission_path(path).components() {
-        prefix.push(component);
-        if !matches!(component, Component::Normal(_)) {
-            continue;
-        }
-        // Seatbelt normalizes macOS system aliases such as /tmp to /private/tmp.
-        if cfg!(target_os = "macos") && matches!(prefix.to_str(), Some("/tmp" | "/var" | "/etc")) {
-            continue;
+    for component in path.components() {
+        match component {
+            Component::ParentDir if prefix.parent().is_none() => continue,
+            Component::ParentDir => {}
+            Component::Normal(_) => prefix.push(component),
+            _ => {
+                prefix.push(component);
+                continue;
+            }
         }
         match std::fs::symlink_metadata(&prefix) {
             Ok(metadata) if metadata.is_symlink() => {
+                #[cfg(target_os = "macos")]
+                // The runner collapses parents lexically. Leaving a system link
+                // through `..` can name a different parent on the filesystem.
+                if component != Component::ParentDir && is_macos_system_alias(&prefix, &metadata) {
+                    continue;
+                }
                 eprintln!(
                     "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
                     path.display()
@@ -731,7 +738,7 @@ fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
             Err(error)
                 if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
             {
-                break;
+                // A later `..` may return to an existing parent.
             }
             Err(error) => {
                 return Err(format!(
@@ -740,8 +747,24 @@ fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
                 ));
             }
         }
+        if component == Component::ParentDir {
+            prefix.pop();
+        }
     }
     Ok(false)
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_system_alias(path: &Path, metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+
+    // Compare the links themselves. Other links to /private/tmp have their own identity.
+    path.parent() == Some(Path::new("/"))
+        && ["/tmp", "/var", "/etc"].iter().any(|alias| {
+            std::fs::symlink_metadata(alias).is_ok_and(|system| {
+                (system.dev(), system.ino()) == (metadata.dev(), metadata.ino())
+            })
+        })
 }
 
 /// A launch directory must not implicitly authorize the host or the entire home.
@@ -806,7 +829,7 @@ pub(crate) fn resolve_writable_root(
     path: PathBuf,
     workspace: &std::path::Path,
 ) -> Result<String, String> {
-    let root = std::path::absolute(workspace.join(&path))
+    let root = crate::console_paths::absolute_preserving_parents(workspace, &path)
         .map_err(|error| format!("cannot resolve writable root '{}': {error}", path.display()))?;
     // The runner configuration carries paths as JSON strings.
     root.into_os_string()

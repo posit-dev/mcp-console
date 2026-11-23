@@ -1,0 +1,7 @@
+---
+writable_root: /TMP/<directory>/child/..
+exit_code: 0
+stderr: >
+  Warning: ignoring symlinked writable root
+  '/TMP/<directory>/../../<directory>'. Grant writes using the target
+  path.

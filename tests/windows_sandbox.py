@@ -820,10 +820,11 @@ class WindowsSandbox(unittest.TestCase):
             value = target / "value"
             (alias / "value").write_text("original")
             self.assertEqual(value.read_text(), "original")
-            for grants, expected in (
-                ([str(alias)], "read-only"),
-                ([str(alias), str(target)], "writable"),
+            for ignored, direct_grants, expected in (
+                (alias, [], "read-only"),
+                (alias / ".." / "target", [str(target)], "writable"),
             ):
+                grants = [str(ignored), *direct_grants]
                 with self.subTest(grants=grants):
                     result = subprocess.run(
                         [
@@ -847,7 +848,7 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.stdout.strip(), expected)
                     self.assertEqual(
                         result.stderr,
-                        f"Warning: ignoring symlinked writable root '{alias}'. "
+                        f"Warning: ignoring symlinked writable root '{ignored}'. "
                         "Grant writes using the target path.\n",
                     )
                     self.assertEqual(

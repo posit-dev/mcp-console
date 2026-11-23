@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import SANDBOX, requires
+from support.requirements import MACOS_TMP_CASE_ALIAS, SANDBOX, requires
 from support.suites import run_this_suite
 
 
@@ -27,7 +27,13 @@ def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transc
         (host / "other").mkdir()
         (host / "shortcut").symlink_to("output", target_is_directory=True)
         (host / "other-shortcut").symlink_to("other", target_is_directory=True)
-        aliases = ["shortcut", "shortcut/locked", "other-shortcut"]
+        aliases = [
+            "shortcut",
+            "shortcut/locked",
+            "other-shortcut",
+            "shortcut/../output",
+            "missing/../shortcut/../output",
+        ]
         config = {
             "sandbox": {
                 "profile": "read_only",
@@ -87,6 +93,46 @@ def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transc
             {
                 "stdout": result.stdout,
                 "stderr": result.stderr.replace(str(host), "<host>"),
+            }
+        ]
+
+
+@requires(MACOS_TMP_CASE_ALIAS)
+def test_system_tmp_alias_accepts_equivalent_spelling(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as directory:
+        host = Path(directory)
+        alias = Path("/TMP") / host.name
+        (host / "child").mkdir()
+        allowed = alias / "child" / ".."
+        ignored = alias / ".." / ".." / host.name
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "--no-config",
+                "--writable-root",
+                allowed,
+                "--writable-root",
+                ignored,
+                "--",
+                "/usr/bin/touch",
+                host / "created",
+            ],
+            cwd=host,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result
+        assert result.stderr == (
+            f"Warning: ignoring symlinked writable root '{ignored}'. "
+            "Grant writes using the target path.\n"
+        ), result
+        assert (host / "created").is_file()
+        return [
+            {
+                "writable_root": str(allowed).replace(host.name, "<directory>"),
+                "exit_code": result.returncode,
+                "stderr": result.stderr.replace(host.name, "<directory>"),
             }
         ]
 

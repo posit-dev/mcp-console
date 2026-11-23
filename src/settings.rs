@@ -357,7 +357,7 @@ fn capture(
         }
         let expanded = crate::console_paths::expand_home(path)
             .map_err(|error| format!("{name}: cache.directory: {error}"))?;
-        *path = std::path::absolute(directory.join(expanded))
+        *path = crate::console_paths::absolute_preserving_parents(directory, &expanded)
             .map_err(|error| format!("{name}: cannot locate cache.directory: {error}"))?;
     }
     if let Some(packages) = project.r.as_ref().and_then(|r| r.packages.as_ref()) {

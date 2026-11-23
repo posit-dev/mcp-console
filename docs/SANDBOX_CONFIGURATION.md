@@ -99,11 +99,12 @@ To grant writes there explicitly, supply an absolute path.
 Console checks absent paths too and repeats the check before each native launch.
 
 If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant.
+It checks each component as written, including a directory followed by `..`.
 Code can still use the link with the target's existing permissions.
 For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
 Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
 The same rule applies to directory junctions on Windows.
-On macOS, the standard `/tmp`, `/var`, and `/etc` aliases retain their system meaning.
+On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.
 Console also checks write grants for host temporary directories and dependency caches.
 
 Console passes checked paths to the native runner by name.
