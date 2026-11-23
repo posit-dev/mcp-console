@@ -103,7 +103,7 @@ Neither policy hides readable host secrets by default.
 | `sandbox.filesystem.read_write`              | List of paths permitting reads, creation, edits, and deletion. Default within a supplied filesystem mapping: `[]`.                                                                                                                      |
 | `sandbox.filesystem.deny`                    | List of paths denying reads and writes. Default within a supplied filesystem mapping: `[]`.                                                                                                                                             |
 | `sandbox.tempdir`                            | `managed` (default) or `{managed: {parent: PATH}}` for private writable storage removed after cleanup. `read_write` grants writes to existing host temporary directories. `read_only` omits automatic temporary write grants.           |
-| `sandbox.tempdir.managed.parent`             | Absolute path to an existing directory where the runner can create private storage. Plain `managed` uses the runner's system temporary directory.                                                                                       |
+| `sandbox.tempdir.managed.parent`             | Existing directory, absolute after `~` expansion. Plain `managed` uses the runner's system temporary directory. See [temporary directory permissions](SANDBOX_CONFIGURATION.md#temporary-storage).                                      |
 | `sandbox.network`                            | `true` / `enabled` for direct networking; `false` / `restricted` for restricted networking without a proxy; a hostname pattern or sequence of patterns for a managed proxy; or a mapping below. `null` omits this field from its layer. |
 | `sandbox.network.proxy`                      | Required mapping when network is a mapping; selects the managed proxy.                                                                                                                                                                  |
 | `sandbox.network.proxy.mode`                 | `full` (default) or `limited`. Limited permits plain HTTP GET, HEAD, and OPTIONS, with no HTTPS CONNECT or SOCKS.                                                                                                                       |
@@ -479,7 +479,7 @@ The R configuration guide covers constructors, property edits, precedence, and l
 ## Paths
 
 Relative paths use the launch directory, including paths written in a global file.
-A leading `~` expands to the launching user's home in interpreter selectors, `cache.directory`, sandbox and resolver filesystem paths, supported Unix-socket paths, configuration filenames, and `--writable-root`.
+A leading `~` expands to the launching user's home in interpreter selectors, `cache.directory`, sandbox and resolver filesystem paths, managed tempdir parents, supported Unix-socket paths, configuration filenames, and `--writable-root`.
 `MCP_CONSOLE_HOME` also accepts a leading `~`.
 
 Expansion uses a nonempty, absolute `HOME` from the launch environment.

@@ -22,6 +22,14 @@ stderr: >
   absolute path
 ---
 arguments:
+  - --no-config
+  - -c
+  - sandbox.tempdir.managed.parent=~/private
+stderr: >
+  configuration with CLI overrides: sandbox.tempdir.managed.parent: HOME
+  must be an absolute path
+---
+arguments:
   - --config-file
   - ~/config.yaml
 stderr: |

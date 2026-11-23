@@ -45,6 +45,11 @@ stderr: >
   configuration with CLI overrides: sandbox.tempdir.managed.parent must be
   an absolute path
 ---
+path: resolver.sandbox.tempdir.managed.parent
+stderr: >
+  configuration with CLI overrides:
+  resolver.sandbox.tempdir.managed.parent must be an absolute path
+---
 path: resolver.sandbox.tempdir
 stderr: >
   configuration with CLI overrides: resolver: sandbox: tempdir:

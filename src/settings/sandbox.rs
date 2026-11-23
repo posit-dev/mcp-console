@@ -155,7 +155,7 @@ pub(crate) fn apply_workspace_profile(policy: &mut SandboxSettings) {
 }
 
 pub(crate) enum Tempdir {
-    Managed(Option<PathBuf>),
+    Managed(Option<String>),
     ReadWrite,
     ReadOnly,
 }
@@ -171,7 +171,7 @@ impl<'de> Deserialize<'de> for Tempdir {
         #[derive(Deserialize)]
         #[serde(rename_all = "snake_case", deny_unknown_fields)]
         enum Selection {
-            Managed { parent: PathBuf },
+            Managed { parent: String },
             ReadWrite,
             ReadOnly,
         }
@@ -375,7 +375,7 @@ impl<'de> Deserialize<'de> for UnixSockets {
 }
 
 impl Sandbox {
-    pub(super) fn compile(self, resolver: bool) -> Result<SandboxSettings, String> {
+    pub(super) fn compile(mut self, resolver: bool) -> Result<SandboxSettings, String> {
         if resolver
             && self
                 .profile
@@ -390,12 +390,17 @@ impl Sandbox {
             "sandbox"
         };
         let mut policy = SandboxSettings::new();
-        if let Tempdir::Managed(Some(parent)) = &self.tempdir
-            && !parent.is_absolute()
-        {
-            return Err(format!(
-                "{prefix}.tempdir.managed.parent must be an absolute path"
-            ));
+        if let Tempdir::Managed(Some(parent)) = &mut self.tempdir {
+            let field = format!("{prefix}.tempdir.managed.parent");
+            let path = crate::console_paths::expand_home(Path::new(parent))
+                .map_err(|error| format!("{field}: {error}"))?;
+            if !path.is_absolute() {
+                return Err(format!("{field} must be an absolute path"));
+            }
+            *parent = path
+                .into_os_string()
+                .into_string()
+                .map_err(|_| format!("{field}: expanded path must be UTF-8"))?;
         }
         policy.insert("tempdir".into(), self.tempdir.configuration());
         if matches!(
