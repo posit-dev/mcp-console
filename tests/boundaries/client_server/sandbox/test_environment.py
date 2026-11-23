@@ -153,6 +153,54 @@ def test_preserves_caller_selected_python_over_project_environment(
 
 
 @requires(SANDBOX, R)
+def test_preserves_literal_private_r_library_after_preparation(
+    binary: Path,
+) -> Transcript:
+    environment, _ = r_test_environment()
+    with TemporaryDirectory(dir="/tmp") as directory:
+        workspace = Path(directory).resolve()
+        parent = workspace / "scratch[1]"
+        parent.mkdir()
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "sandbox.tempdir.managed.parent=" + json.dumps(str(parent)),
+            ),
+            environment,
+            workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    private_library <- .libPaths()[[1L]]
+                    stopifnot(
+                      identical(dirname(private_library), tempdir()),
+                      identical(
+                        dirname(dirname(Sys.getenv("TMPDIR"))),
+                        file.path(getwd(), "scratch[1]")
+                      ),
+                      file.create(file.path(private_library, "marker"))
+                    )
+                    """)
+            )
+            client.expect("[prepared]", requirements={"r": ["praise"]})
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    stopifnot(
+                      identical(.libPaths()[[1L]], private_library),
+                      file.exists(file.path(private_library, "marker")),
+                      identical(dirname(find.package("praise")), .libPaths()[[2L]])
+                    )
+                    """)
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, R)
 def test_r_uses_a_utf8_tempdir_after_python_starts(binary: Path) -> Transcript:
     environment, _ = r_test_environment()
     environment["LC_ALL"] = UTF8_LOCALE

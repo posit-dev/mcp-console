@@ -1,5 +1,27 @@
 base::local(
   {
+    set_library_paths <- function(paths) {
+      # .libPaths() expands globs. Its inputs here are already literal,
+      # normalized directories with forward slashes on Windows.
+      quote_path <- function(path) {
+        # Unix filenames can contain bytes that are invalid in the locale.
+        bytes <- !base::validEnc(path)
+        quoted <- base::gsub(
+          r"{([\\*?\[])}",
+          r"{\\\1}",
+          path,
+          perl = TRUE,
+          useBytes = bytes
+        )
+        if (bytes) {
+          base::Encoding(quoted) <- base::Encoding(path)
+        }
+        quoted
+      }
+      quoted <- base::vapply(paths, quote_path, "", USE.NAMES = FALSE)
+      base::.libPaths(quoted)
+    }
+
     managed <- base::Sys.getenv("MCP_CONSOLE_R_LIBRARY", unset = "")
     if (base::nzchar(managed)) {
       managed <- base::normalizePath(managed, winslash = "/", mustWork = TRUE)
@@ -16,7 +38,7 @@ base::local(
         winslash = "/",
         mustWork = TRUE
       )
-      base::.libPaths(base::c(temporary_library, base::.libPaths()))
+      set_library_paths(base::c(temporary_library, base::.libPaths()))
       base::stopifnot(base::identical(
         base::.libPaths()[[1L]],
         temporary_library
@@ -86,7 +108,7 @@ base::local(
           after = if (base::is.na(index)) 0L else index - 1L
         )
       }
-      base::.libPaths(base::c(temporary_library, paths))
+      set_library_paths(base::c(temporary_library, paths))
       if (!library %in% base::.libPaths()) {
         base::stop("resolved R library was not added to .libPaths()")
       }

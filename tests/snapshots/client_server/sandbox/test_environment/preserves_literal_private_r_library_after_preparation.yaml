@@ -1,0 +1,42 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  r: |
+    private_library <- .libPaths()[[1L]]
+    stopifnot(
+      identical(dirname(private_library), tempdir()),
+      identical(
+        dirname(dirname(Sys.getenv("TMPDIR"))),
+        file.path(getwd(), "scratch[1]")
+      ),
+      file.create(file.path(private_library, "marker"))
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(.libPaths()[[1L]], private_library),
+      file.exists(file.path(private_library, "marker")),
+      identical(dirname(find.package("praise")), .libPaths()[[2L]])
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
