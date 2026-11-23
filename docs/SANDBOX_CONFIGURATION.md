@@ -100,7 +100,7 @@ Console checks absent paths too and repeats the check before each native launch.
 
 If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant for the current launch.
 It checks each component as written, including a directory followed by `..`.
-The server retains the declared path.
+The server retains the declared path and lists it as a configured write location in the tool description.
 If the link becomes an ordinary directory, a restarted worker can use the grant.
 Code can still use the link with the target's existing permissions.
 For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.

@@ -30,11 +30,11 @@ description: >-
 
 
   Evaluated code can read host files subject to configured restrictions and
-  cannot directly access the network. Writable locations: private `TMPDIR`,
-  `"<workspace>/configured output"`, `"<workspace>/cli output"`; subject to more
-  specific read/deny rules. Package preparation may execute installation or
-  build code with separate filesystem and network permissions; use only trusted
-  dependencies.
+  cannot directly access the network. Configured write locations include private
+  `TMPDIR`, `"<workspace>/configured output"`, `"<workspace>/cli output"`.
+  Console checks these grants at each launch and applies more specific read/deny
+  rules. Package preparation may execute installation or build code with
+  separate filesystem and network permissions; use only trusted dependencies.
 ---
 workspace_writable: true
 description: >-
@@ -67,8 +67,9 @@ description: >-
 
 
   Evaluated code can read host files subject to configured restrictions and
-  cannot directly access the network. Writable locations: private `TMPDIR`,
-  `"<workspace>/configured output"`, `"<workspace>"`, `"<workspace>/cli
-  output"`; subject to more specific read/deny rules. Package preparation may
-  execute installation or build code with separate filesystem and network
-  permissions; use only trusted dependencies.
+  cannot directly access the network. Configured write locations include private
+  `TMPDIR`, `"<workspace>/configured output"`, `"<workspace>"`,
+  `"<workspace>/cli output"`. Console checks these grants at each launch and
+  applies more specific read/deny rules. Package preparation may execute
+  installation or build code with separate filesystem and network permissions;
+  use only trusted dependencies.

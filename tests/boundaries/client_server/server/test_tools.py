@@ -661,7 +661,10 @@ def test_describes_captured_writable_locations(binary: Path) -> Transcript:
                 client.initialize_and_list_tools()
                 tool = client.transcript[-1]["result"]["tools"][0]
                 description = tool["description"]
-                assert "Writable locations: private `TMPDIR`" in description
+                assert (
+                    "Configured write locations include private `TMPDIR`" in description
+                )
+                assert "checks these grants at each launch" in description
                 for path in ("configured output", "cli output"):
                     assert json.dumps(str(workspace / path)) in description
                 assert json.dumps(str(workspace / "read only")) not in description

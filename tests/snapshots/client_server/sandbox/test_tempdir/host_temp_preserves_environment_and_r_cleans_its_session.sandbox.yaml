@@ -69,10 +69,11 @@ result:
 
 
         Evaluated code can read host files subject to configured restrictions
-        and cannot directly access the network. Writable locations: host
-        temporary directories; subject to more specific read/deny rules. Package
-        preparation may execute installation or build code with separate
-        filesystem and network permissions; use only trusted dependencies.
+        and cannot directly access the network. Configured write locations
+        include host temporary directories. Console checks these grants at each
+        launch and applies more specific read/deny rules. Package preparation
+        may execute installation or build code with separate filesystem and
+        network permissions; use only trusted dependencies.
       inputSchema:
         $schema: https://json-schema.org/draft/2020-12/schema
         additionalProperties: false

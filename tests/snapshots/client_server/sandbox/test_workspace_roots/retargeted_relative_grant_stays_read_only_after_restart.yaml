@@ -64,11 +64,12 @@ result:
 
 
         Evaluated code can read host files subject to configured restrictions
-        and cannot directly access the network. Writable locations: private
-        `TMPDIR`, workspace, `"<writable-root>"`, `"<fixture>/output"`,
-        `"<fixture>/home/project/../pending"`; subject to more specific
-        read/deny rules. Package preparation may execute installation or build
-        code with separate filesystem and network permissions; use only trusted
+        and cannot directly access the network. Configured write locations
+        include private `TMPDIR`, workspace, `"<writable-root>"`,
+        `"<fixture>/output"`, `"<fixture>/home/project/../pending"`. Console
+        checks these grants at each launch and applies more specific read/deny
+        rules. Package preparation may execute installation or build code with
+        separate filesystem and network permissions; use only trusted
         dependencies.
       inputSchema:
         $schema: https://json-schema.org/draft/2020-12/schema

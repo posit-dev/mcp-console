@@ -351,7 +351,10 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
         ) as client:
             client.initialize_and_list_tools()
             description = client.transcript[-1]["result"]["tools"][0]["description"]
+            assert "Configured write locations include" in description, description
             assert json.dumps(str(grant)) in description, description
+            assert json.dumps(str(project / "../pending")) in description, description
+            assert "checks these grants at each launch" in description, description
             warning = (
                 f"Warning: ignoring symlinked writable root '{project / '../pending'}'. "
                 "Grant writes using the target path.\n"
