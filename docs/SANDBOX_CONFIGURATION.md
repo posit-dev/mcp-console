@@ -84,9 +84,9 @@ Native setup errors remain launch failures, without a retry using weaker permiss
 ### Native enforcement
 
 On macOS, the runner applies network limits after Console's Seatbelt extension.
-On Windows, MXC restricts outbound TCP access to the proxy's listening addresses and ports when domain filtering is active.
-Local binding can remain available in both cases.
-The proxy checks requests for local destinations against the same domain rules.
+On Linux and macOS the proxy checks requests for local destinations against the same domain rules, including when local binding is allowed.
+Windows rejects selective domain limits with an enabled network or managed proxy.
+MXC's host-loopback permission also makes unrelated local services reachable.
 Windows rejects mandatory `allow_local_binding: false` before starting the workload.
 MXC controls traffic to and from listeners and has no policy for prohibiting socket binding itself.
 Domain limits reject direct host Unix-socket grants.
