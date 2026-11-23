@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::local_runtime::RInstallation;
+use crate::r_environment::is_library_pattern;
 use crate::worker_protocol::{RInitializationState, WorkerMessage};
 
 static R_INSTALLATION: OnceLock<Option<RInstallation>> = OnceLock::new();
@@ -307,13 +308,6 @@ fn startup_library_paths() -> Vec<PathBuf> {
         .collect()
 }
 
-fn is_library_pattern(path: &Path) -> bool {
-    path.as_os_str()
-        .as_encoded_bytes()
-        .iter()
-        .any(|ch| matches!(ch, b'*' | b'?' | b'[') || (cfg!(unix) && *ch == b'\\'))
-}
-
 // Profiles can change the working directory. Capture project patterns where
 // R will expand them to initialize .libPaths().
 fn startup_project_patterns() -> std::io::Result<Vec<PathBuf>> {
@@ -336,9 +330,6 @@ fn prepare_startup_library(
     mut paths: Vec<PathBuf>,
 ) -> Result<Option<ProjectLibrary>, Box<dyn std::error::Error>> {
     const MANAGED: &str = "MCP_CONSOLE_R_LIBRARY";
-    if is_library_pattern(library) {
-        return Err("resolved R library path contains wildcard characters; use a library directory without glob syntax when preparing packages before R starts".into());
-    }
     // Remove only the spelling Console supplied. A project alias for the
     // previous directory is a separate entry.
     let previous = std::env::var_os(MANAGED)

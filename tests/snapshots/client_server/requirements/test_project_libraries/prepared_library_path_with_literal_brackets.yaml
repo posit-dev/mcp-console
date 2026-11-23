@@ -34,7 +34,6 @@ result:
   content:
     - type: text
       text: >-
-        resolved R library path contains wildcard characters; use a library
-        directory without glob syntax when preparing packages before R starts;
-        further requirement changes are unavailable until session restart
+        resolved R library path contains wildcard characters. Use a library
+        directory without glob syntax
   isError: true

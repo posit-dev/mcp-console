@@ -152,6 +152,11 @@ impl Context {
                     on_started,
                     report,
                 )?;
+                // Every accepted built-in library can become R_LIBS on restart.
+                // Reject an ambiguous path before the controller retires a worker.
+                if crate::r_environment::is_library_pattern(r.library()) {
+                    return Err("resolved R library path contains wildcard characters. Use a library directory without glob syntax".into());
+                }
                 serde_json::to_value(r).map_err(|error| error.to_string())
             }
             Operation::ResolveRStandalone { requirements } => {
