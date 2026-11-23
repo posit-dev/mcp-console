@@ -24,22 +24,25 @@ def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transc
         output.mkdir()
         (output / "locked").write_text("original")
         (output / "secret").write_text("private")
-        (host / "other").mkdir()
+        (host / "other" / "first").mkdir(parents=True)
+        (host / "other" / "second").mkdir()
         (host / "shortcut").symlink_to("output", target_is_directory=True)
         (host / "other-shortcut").symlink_to("other", target_is_directory=True)
+        (host / "siblings").symlink_to("other", target_is_directory=True)
         aliases = [
             "shortcut",
             "shortcut/locked",
             "other-shortcut",
             "shortcut/../output",
             "missing/../shortcut/../output",
+            "siblings/first",
         ]
         config = {
             "sandbox": {
                 "profile": "read_only",
                 "filesystem": {
                     "read_write": aliases,
-                    "read_only": ["output/locked"],
+                    "read_only": ["output/locked", "siblings/second"],
                     "deny": ["output/secret"],
                 },
             }
@@ -118,9 +121,27 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
             host / "nested" / "indirect", target_is_directory=True
         )
         (host / "leaving").symlink_to("crossing/../sibling", target_is_directory=True)
+        (host / "dangling").symlink_to("missing", target_is_directory=True)
+        (host / "via-dangling").symlink_to("dangling", target_is_directory=True)
+        (target / "child" / "elsewhere").symlink_to(
+            host / "nested", target_is_directory=True
+        )
         transcript = []
         for scenario, access, grant, restriction in (
             ("read exception", "read_only", "shortcut", "shortcut/child"),
+            (
+                "trailing slash on a write alias",
+                "read_only",
+                "shortcut/",
+                "shortcut/child",
+            ),
+            ("chained dangling alias", "deny", "dangling", "via-dangling/locked"),
+            (
+                "leaving an ignored root through a nested link",
+                "read_only",
+                "shortcut/child",
+                "parent-alias/shortcut/child/elsewhere/start",
+            ),
             ("deny exception", "deny", "shortcut", "shortcut/child"),
             (
                 "declared parent traversal",
@@ -178,7 +199,7 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
             assert result.stderr == (
                 "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
                 f"cannot enforce restriction '{host / restriction}' beneath ignored "
-                f"writable root '{host / grant}'. Specify the restriction using the target path.\n"
+                f"writable root '{os.path.join(host, grant)}'. Specify the restriction using the target path.\n"
             ), result
             transcript.append(
                 {

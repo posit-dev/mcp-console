@@ -802,32 +802,47 @@ class WindowsSandbox(unittest.TestCase):
             target.mkdir()
             (target / "locked").mkdir()
             alias = root / "shortcut"
-            subprocess.run(
-                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
-                check=True,
-                capture_output=True,
-            )
             chain = root / "second"
-            subprocess.run(
-                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", chain, alias],
-                check=True,
-                capture_output=True,
-            )
+            sibling = root / "sibling"
+            sibling.mkdir()
+            (sibling / "locked").mkdir()
+            dangling = root / "dangling"
+            for name, destination in (
+                (alias, target),
+                (chain, alias),
+                (target / "to-sibling", sibling),
+                (dangling, root / "missing"),
+                (root / "to-dangling", dangling),
+            ):
+                subprocess.run(
+                    [
+                        os.environ["COMSPEC"],
+                        "/d",
+                        "/c",
+                        "mklink",
+                        "/j",
+                        name,
+                        destination,
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
             # Resolve the parent only, leaving the junction in the restriction.
             verbatim = Path(_getfinalpathname(root)) / alias.name
             ordinary = root / "ordinary"
             ordinary.mkdir()
-            (root / "sibling").mkdir()
-            for locked in (
-                verbatim / "locked",
-                chain / "locked",
-                ordinary / ".." / alias.name / ".." / "sibling",
+            for grant, locked in (
+                (alias, verbatim / "locked"),
+                (alias, chain / "locked"),
+                (alias, ordinary / ".." / alias.name / ".." / "sibling"),
+                (alias, chain / "to-sibling" / "locked"),
+                (dangling, root / "to-dangling" / "locked"),
             ):
                 with self.subTest(locked=locked):
                     policy = {
                         "sandbox": {
                             "filesystem": {
-                                "read_write": [str(target), str(alias)],
+                                "read_write": [str(target), str(grant)],
                                 "read_only": [str(locked)],
                             }
                         }
@@ -854,7 +869,7 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(
                         result.stderr,
                         "configuration environment 'POLICY': sandbox preflight failed (exit code: 1): "
-                        f"cannot enforce restriction '{locked}' beneath ignored writable root '{alias}'. "
+                        f"cannot enforce restriction '{locked}' beneath ignored writable root '{grant}'. "
                         "Specify the restriction using the target path.\n",
                     )
 

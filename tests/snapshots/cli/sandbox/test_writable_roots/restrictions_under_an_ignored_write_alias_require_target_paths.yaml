@@ -7,6 +7,31 @@ stderr: >
   ignored writable root '<host>/shortcut'. Specify the restriction using
   the target path.
 ---
+scenario: trailing slash on a write alias
+access: read_only
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/shortcut/child' beneath
+  ignored writable root '<host>/shortcut/'. Specify the restriction using
+  the target path.
+---
+scenario: chained dangling alias
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/via-dangling/locked'
+  beneath ignored writable root '<host>/dangling'. Specify the restriction
+  using the target path.
+---
+scenario: leaving an ignored root through a nested link
+access: read_only
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '<host>/parent-alias/shortcut/child/elsewhere/start' beneath ignored
+  writable root '<host>/shortcut/child'. Specify the restriction using the
+  target path.
+---
 scenario: deny exception
 access: deny
 stderr: >

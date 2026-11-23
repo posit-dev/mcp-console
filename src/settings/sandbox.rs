@@ -814,7 +814,18 @@ fn exception_uses_alias(
         Some(traversal) => traversal,
         slot @ None => slot.insert(AliasTraversal::inspect(root)?),
     };
-    let Some(first_shared) = child_traversal.first_shared_link(root_traversal)? else {
+    let mut first_shared = None;
+    for (index, (path, metadata)) in child_traversal.links.iter().enumerate() {
+        if root_traversal.contains_link(path, metadata)? {
+            // There is no existing target under which we could distinguish
+            // these paths. Require the target spelling for the restriction.
+            if !path.try_exists()? {
+                return Ok(true);
+            }
+            first_shared.get_or_insert(index);
+        }
+    }
+    let Some(first_shared) = first_shared else {
         return Ok(false);
     };
     // Either the declared traversal or the runner's lexical spelling may
@@ -830,9 +841,9 @@ fn exception_uses_alias(
     {
         return Ok(true);
     }
-    // A restriction can enter the ignored grant before '..' takes it back
-    // out. Only that prefix counts; a shared link later in the path cannot
-    // turn an earlier visit through the target itself into an alias.
+    // Check the directory reached before '..' or a symlink redirects lookup.
+    // A shared link later in the path cannot turn an earlier visit through
+    // the target itself into an alias.
     for (departed, links_seen) in child_traversal.departed {
         if first_shared < links_seen
             && (might_be_within(root, &departed)?
@@ -863,6 +874,9 @@ impl AliasTraversal {
                     // Resolve the parent only. Identity belongs to the link, and a
                     // relative link target starts in its physical parent directory.
                     let parent = prefix.parent().expect("link has a parent").canonicalize()?;
+                    traversal
+                        .departed
+                        .push((parent.clone(), traversal.links.len()));
                     let link = parent.join(prefix.file_name().expect("link has a name"));
                     if seen.insert(link.clone()) {
                         let target = crate::console_paths::absolute_preserving_parents(
@@ -881,15 +895,13 @@ impl AliasTraversal {
         Ok(traversal)
     }
 
-    fn first_shared_link(&self, other: &Self) -> std::io::Result<Option<usize>> {
-        for (index, (left, a)) in self.links.iter().enumerate() {
-            for (right, b) in &other.links {
-                if same_entry(left, a, right, b)? {
-                    return Ok(Some(index));
-                }
+    fn contains_link(&self, path: &Path, metadata: &std::fs::Metadata) -> std::io::Result<bool> {
+        for (other, other_metadata) in &self.links {
+            if same_entry(path, metadata, other, other_metadata)? {
+                return Ok(true);
             }
         }
-        Ok(None)
+        Ok(false)
     }
 }
 
@@ -1008,7 +1020,9 @@ impl PermissionPath<'_> {
             Self::Declared(path) => (path, true),
             Self::LinkTarget(path) => (path, false),
         };
-        let mut prefixes: Vec<_> = path.ancestors().collect();
+        // lstat("link/") follows the link. Strip trailing separators and '.'
+        // while preserving every '..' for the component checks below.
+        let mut prefixes: Vec<_> = path.components().as_path().ancestors().collect();
         let mut lexical = prefixes.pop().expect("path has an ancestor").to_owned();
         for declared in prefixes.into_iter().rev() {
             let (written, leaving) = match declared.components().next_back() {
