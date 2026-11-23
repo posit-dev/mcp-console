@@ -97,7 +97,13 @@ pub(crate) fn reinstall_services() -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn ensure_initialized() -> Result<bool, String> {
+pub(crate) enum InitializeFor {
+    Eager,
+    ConfiguredStartup,
+    Cell,
+}
+
+pub(crate) fn ensure_initialized(purpose: InitializeFor) -> Result<bool, String> {
     if library::runtime_configured()? {
         return Ok(true);
     }
@@ -123,6 +129,9 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
         {
             Ok(selected) => selected,
             Err(error) => {
+                if matches!(purpose, InitializeFor::ConfiguredStartup) {
+                    return Err(error);
+                }
                 crate::worker::emit_output(
                     crate::worker_protocol::ConsoleChannel::Diagnostic,
                     format!("Error: {error}\n").as_bytes(),
@@ -134,10 +143,14 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
     }
     // R declarations and selection callbacks genuinely require R. Only an
     // unresolved compatibility selection enters this path.
-    if !crate::worker::ensure_r()?.ready_or_report() {
+    let r = crate::worker::ensure_r()?;
+    if matches!(purpose, InitializeFor::ConfiguredStartup) {
+        r.require()?;
+    } else if !r.ready_or_report() {
         return Ok(false);
     }
-    if crate::worker::bootstrapping() {
+    let optional = matches!(purpose, InitializeFor::Eager);
+    if optional {
         // A bare R library can genuinely lack the Python selection adapter.
         // Its advertised Python field is not an installed runtime capability;
         // eager startup must leave ordinary R cells usable in that session.
@@ -149,7 +162,7 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
         }
     }
     let adapter = adapter().ok_or("R selection adapter is unavailable")?;
-    let selected = match adapter.select(crate::worker::bootstrapping())? {
+    let selected = match adapter.select(optional)? {
         reticulate::Selection::Selected(selected) => selected,
         // Discovery ran its ordinary callbacks and found no interpreter. This
         // completes optional bootstrap; an actual Python cell still reports
@@ -174,7 +187,7 @@ impl Runtime {
     pub(crate) fn evaluate(&mut self, source: &str) -> Result<(), String> {
         let filename = format!("<mcp-console:python:e{}>", self.next_evaluation_id);
         self.next_evaluation_id += 1;
-        if !ensure_initialized()? {
+        if !ensure_initialized(InitializeFor::Cell)? {
             crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
                 "PythonInitializationError",
                 "Python initialization did not complete",
@@ -206,7 +219,10 @@ pub(crate) fn install_sql_runtime(source: &str) -> Result<bool, String> {
 }
 
 pub(crate) fn dispatch_sql(source: &str) -> Result<SqlProvider, String> {
-    if !crate::worker::r_available() && !library::runtime_configured()? && !ensure_initialized()? {
+    if !crate::worker::r_available()
+        && !library::runtime_configured()?
+        && !ensure_initialized(InitializeFor::Cell)?
+    {
         return Ok(SqlProvider::Handled);
     }
     library::dispatch_sql(source)
@@ -221,14 +237,14 @@ pub(crate) fn r_sql_connection_selected() -> Result<bool, String> {
 }
 
 pub(crate) fn initialize_managed_sql() -> Result<(), String> {
-    if ensure_initialized()? && library::runtime_configured()? {
+    if ensure_initialized(InitializeFor::Eager)? && library::runtime_configured()? {
         library::initialize_managed_sql()?;
     }
     Ok(())
 }
 
 pub(crate) fn initialize_sql_source(source: &str) -> Result<bool, String> {
-    if !ensure_initialized()? {
+    if !ensure_initialized(InitializeFor::ConfiguredStartup)? {
         return Err("Python initialization is incomplete".into());
     }
     library::initialize_sql_source(source)

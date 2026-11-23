@@ -28,7 +28,16 @@ from support.records import (
     Transcript,
     TranscriptWithCompanions,
 )
-from support.requirements import POSIX, PROCESS_EVENTS, R, SQL, command, requires
+from support.requirements import (
+    POSIX,
+    PROCESS_EVENTS,
+    R,
+    SQL,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
+from support.r import r_test_environment
 from support.resolvers import matplotlib_test_environment
 from support.snapshots import execution_snapshots
 from support.python import isolated_python
@@ -937,6 +946,53 @@ def test_failed_startup_withholds_sql_and_preserves_partial_effects(
     return TranscriptWithCompanions(
         transcripts.pop("python-exception.yaml").transcript, transcripts
     )
+
+
+@requires(SQL, posix_r_tempdir_whitespace(accepted=False))
+@executions(SANDBOXED)
+def test_python_startup_reports_r_selection_failure(
+    binary: Path, execution: Execution
+) -> Transcript:
+    environment, _ = r_test_environment()
+    environment.pop("RETICULATE_PYTHON", None)
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory).resolve()
+        parent = workspace / "private temp"
+        parent.mkdir()
+        configure(
+            workspace,
+            "python",
+            "import sqlite3\n_console.sql_connection(sqlite3.connect(':memory:'))",
+        )
+        # Let R select Python, even on hosts with a standalone uv on PATH.
+        arguments = execution.serve(
+            "-c",
+            "languages=[sql]",
+            "-c",
+            "r.resolution=disabled",
+            "-c",
+            "resolver.environment.RETICULATE_UV=managed",
+            "-c",
+            "sandbox.tempdir.managed.parent=" + json.dumps(str(parent)),
+        )
+        with McpClient(binary, arguments, environment, workspace) as client:
+            client.initialize_and_list_tools()
+            diagnostic = (
+                "R requires a temporary directory without whitespace. "
+                "Set sandbox.tempdir.managed.parent to a suitable directory and relaunch Console, "
+                "or set TMPDIR before starting R"
+            )
+            wait_for_idle_output(
+                client,
+                f"Error: {diagnostic}; SQL withheld; explicit restart required\n\n[idle]",
+                "configured Python startup failure",
+                completion_timeout_seconds=client.response_timeout,
+            )
+            client.expect(
+                f"Error: SQL unavailable: {diagnostic}; explicit restart required\n",
+                sql="SELECT 42",
+            )
+            return client.finish()
 
 
 @requires(POSIX, SQL)

@@ -112,7 +112,8 @@ impl Coordinator {
         let startup_configured = self.startup.is_some();
         let startup_complete = self.initialize_startup();
         let mut complete = if startup_complete && languages.enables(Language::Python) {
-            crate::python::ensure_initialized().map_err(io::Error::other)?
+            crate::python::ensure_initialized(crate::python::InitializeFor::Eager)
+                .map_err(io::Error::other)?
         } else {
             true
         };
@@ -165,16 +166,16 @@ impl Coordinator {
                 true
             }
             result => {
-                let message = match result {
-                    Err(message) => message,
-                    _ => "configured startup did not complete".into(),
+                let message = match &result {
+                    Err(message) => message.strip_suffix('.').unwrap_or(message),
+                    _ => "configured startup did not complete",
                 };
                 emit_output(
                     ConsoleChannel::Diagnostic,
                     format!("Error: {message}; SQL withheld; explicit restart required\n")
                         .as_bytes(),
                 );
-                self.sql.withhold_startup(Some(message));
+                self.sql.withhold_startup(Some(message.to_owned()));
                 false
             }
         }
