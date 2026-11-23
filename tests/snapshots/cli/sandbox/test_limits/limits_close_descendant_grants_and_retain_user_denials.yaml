@@ -1,0 +1,8 @@
+---
+source: file
+stdout: |
+  descendant grants capped; user denial retained; public write allowed
+---
+source: environment
+stdout: |
+  descendant grants capped; user denial retained; public write allowed

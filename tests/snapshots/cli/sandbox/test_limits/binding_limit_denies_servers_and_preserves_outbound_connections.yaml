@@ -1,0 +1,3 @@
+---
+stdout: |
+  bind and listen denied; ordinary outbound connection retained

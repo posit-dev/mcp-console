@@ -207,6 +207,10 @@ See [tool presentation](TOOL_CONFIGURATION.md), [database startup](RUNTIME_CONFI
 
 ## Files and precedence
 
+Trusted launchers can supply mandatory sandbox limits separately with `serve --limits-env NAME` or `sandbox --limits-env NAME`.
+These limits do not participate in the configuration merging below.
+See [mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) for the document shape, execution scope, and native support.
+
 When Console starts, it reads configuration from these sources, in order:
 
 | Source          | Location or option                                                  | Use                                  |

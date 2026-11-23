@@ -771,7 +771,7 @@ pub(crate) fn resolve_writable_root(
         .map_err(|_| format!("writable root '{}' is not valid UTF-8", path.display()))
 }
 
-fn validate_domain(host: &str) -> Result<(), &'static str> {
+pub(super) fn validate_domain(host: &str) -> Result<(), &'static str> {
     let host = host.trim();
     let literal = host
         .strip_prefix('[')

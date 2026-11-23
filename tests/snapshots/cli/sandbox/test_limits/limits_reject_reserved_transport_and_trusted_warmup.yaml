@@ -1,0 +1,10 @@
+---
+case: reserved transport
+exit_code: 1
+stderr: |
+  --limits-env cannot use the reserved MCP_CONSOLE_ namespace
+---
+case: trusted warmup
+exit_code: 1
+stderr: |
+  sandbox limits cannot be combined with trusted installation warmup

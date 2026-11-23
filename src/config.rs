@@ -7,6 +7,7 @@ use serde_json::{Map, Value};
 pub(crate) mod init;
 mod inline;
 mod yaml;
+pub(crate) use yaml::load as parse_document;
 
 pub struct Loaded {
     pub value: Option<Value>,

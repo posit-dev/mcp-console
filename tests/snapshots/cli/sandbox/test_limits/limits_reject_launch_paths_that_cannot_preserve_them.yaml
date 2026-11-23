@@ -1,0 +1,33 @@
+---
+arguments:
+  - serve
+  - --no-sandbox
+exit_code: 1
+stderr: >
+  sandbox limits require sandboxing; --no-sandbox and inherited full
+  access are unavailable
+---
+arguments:
+  - config
+  - resolve
+exit_code: 1
+stderr: >
+  --limits-env is supported only by serve and sandbox; configuration
+  exports and warmup do not carry mandatory limits
+---
+arguments:
+  - warmup
+exit_code: 1
+stderr: >
+  --limits-env is supported only by serve and sandbox; configuration
+  exports and warmup do not carry mandatory limits
+---
+arguments:
+  - sandbox
+  - --runner-config-env
+  - TEST_RUNNER
+  - --
+exit_code: 1
+stderr: >
+  --limits-env cannot be combined with --runner-config-env; use the public
+  sandbox configuration

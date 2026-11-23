@@ -17,6 +17,82 @@ Clearing a whole policy with `null` restores its defaults while retaining enforc
 Use [host execution](#run-without-the-sandbox) to disable enforcement.
 [`warmup`](CLI.md#check-your-installation) prepares dependencies with host permissions, then checks runtimes under the worker sandbox.
 
+## Apply mandatory limits from a launcher {#mandatory-limits}
+
+An integration can pass a separate YAML or JSON document through `--limits-env NAME` on `serve` or `sandbox`:
+
+```sh
+PA_LIMITS='filesystem: {deny: ["~/client-data", "~/.ssh"]}' \
+  mcp-console serve --limits-env PA_LIMITS
+```
+
+The launcher supplies the variable in Console's initial environment.
+Console reads it once, separately from configuration files and `-c` overrides.
+The same limits apply to evaluated code, standalone commands, and dependency-preparation subprocesses.
+Console's own configuration reads, cache-directory creation, and recording remain trusted host operations outside those child sandboxes.
+The limits remain in force across worker restarts.
+Start a new Console process to change them.
+
+The document contains only limits; it has no outer `sandbox` key:
+
+```yaml
+filesystem:
+  deny: [~/client-data, ~/.ssh]
+network:
+  domains:
+    allow: ["*.posit.co"]
+    deny: [blocked.posit.co]
+  allow_local_binding: false
+```
+
+Ordinary settings request access; limits can only remove access.
+A filesystem deny closes the whole subtree, including narrower read/write grants, writable roots, and profile grants.
+Broader grants remain usable outside the denied subtree.
+The runner also checks generated permissions, including temporary storage.
+If required private storage intersects a denied path, setup fails before the workload starts.
+Overlapping ordinary grants are capped rather than rejected merely for overlapping.
+
+A domain must pass both the ordinary allowlist and the limits allowlist, and neither denylist may match it.
+An omitted or `null` limits allowlist imposes no additional cap; `allow: []` permits no destinations.
+Matching uses the existing hostname-pattern rules rather than comparing pattern strings.
+An enabled network is routed through the managed proxy when limits require filtering.
+Restricted networking without a proxy remains restricted without a proxy.
+`allow_local_binding: false` removes permission; `true` does not grant it.
+On Linux, a mandatory false value denies `bind` and `listen` in the workload while preserving ordinary outbound connections.
+A binding-only limit does not add a proxy on Linux.
+An empty document mapping `{}` imposes no additional restrictions.
+
+Filesystem paths use the captured launch directory and launch user's home, as ordinary permission paths do.
+They must be nonempty literal paths; wildcards are rejected.
+The runner resolves existing symlink prefixes even when trailing components do not yet exist.
+Unknown fields and invalid values fail before the workload starts.
+
+The limits input is trusted launcher state.
+The integration must control the arguments and environment used to launch Console; the flag does not restrict processes started independently of that integration.
+Console removes the selected variable from child environments, including ordinary configuration entries that try to restore it.
+Names beginning with `MCP_CONSOLE_` are reserved for Console's internal transports and cannot select the limits input.
+The launcher should supply limits separately from ordinary `--config-env` input; both flags can be used together.
+
+Active limits reject `--no-sandbox`, inherited full access, and trusted installation warmup.
+`--limits-env` is unavailable on `warmup`, `config resolve`, and other commands; configuration exports do not carry mandatory limits.
+It also cannot be combined with the private `--runner-config-env` or `--settings-env` inputs.
+There is no public check-only operation for limits yet.
+Native setup errors remain launch failures, without a retry using weaker permissions.
+
+### Native combinations that remain unsupported
+
+Mandatory domain filtering is currently supported by Console on Linux.
+It rejects direct host Unix-socket grants that could bypass the filter.
+Windows MXC proxying permits bidirectional host-loopback access, so mandatory domain limits with active proxy networking are rejected there.
+Windows also rejects mandatory `allow_local_binding: false`, because its traffic controls do not establish that socket binding is forbidden.
+The native macOS runner rejects network limits combined with a Seatbelt extension; Console currently supplies such an extension for both workers and preparation.
+Console's macOS network-limits integration therefore remains unavailable.
+Filesystem limits do not require a network limit and use the native filesystem backend on all three platforms.
+The native runner also rejects externally enforced policies with active limits and minimal-filesystem presets with filesystem denies, because it cannot verify the resulting ceiling.
+
+These failures identify unsupported enforcement combinations; they do not mean an ordinary grant attempted to override a limit.
+Remaining platform work and launch diagnostics are tracked in [Open work](TODO.md#sandbox-and-platforms).
+
 ## Choose a base profile {#profiles-and-temporary-storage}
 
 The [permission field reference](CONFIGURATION.md#sandbox-settings) lists profiles and defaults for workers and preparation.

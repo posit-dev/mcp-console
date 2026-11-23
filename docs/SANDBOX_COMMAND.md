@@ -7,6 +7,9 @@ Read [Sandbox and trust](SANDBOX.md) for the permission model, or [Sandbox permi
 
 ## Install
 
+For a managed integration, `--limits-env NAME` accepts a separate trusted policy ceiling alongside ordinary configuration.
+See [mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) for its schema and platform support.
+
 On [supported platforms](CLIENTS.md#supported-platforms), install Console with [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```sh

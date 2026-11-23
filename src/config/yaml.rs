@@ -4,7 +4,7 @@
 use saphyr::{LoadableYamlNode, MarkedYaml, Scalar, YamlData};
 use serde_json::Value;
 
-pub(super) fn load(source: &str) -> Result<Value, String> {
+pub(crate) fn load(source: &str) -> Result<Value, String> {
     // Saphyr's node loader currently keeps the last value for duplicate keys.
     let documents = MarkedYaml::load_from_str(source).map_err(|error| error.to_string())?;
     let [document] = documents.as_slice() else {

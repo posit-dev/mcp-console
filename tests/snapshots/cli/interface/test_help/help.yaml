@@ -39,6 +39,9 @@ stderr: |
     -c, --config <KEY=VALUE>
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
     -h, --help
             Print help (see more with '--help')
     -V, --version
@@ -102,6 +105,10 @@ stdout: |
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
 
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
+
     -h, --help
             Print help (see a summary with '-h')
 
@@ -119,7 +126,7 @@ stdout: |
   Create or inspect configuration without starting interpreters or preparing
   packages
 
-  Usage: mcp-console config <COMMAND>
+  Usage: mcp-console config [OPTIONS] <COMMAND>
 
   Commands:
     init     Create an annotated Console configuration with workspace permissions
@@ -127,7 +134,9 @@ stdout: |
     help     Print this message or the help of the given subcommand(s)
 
   Options:
-    -h, --help  Print help
+        --limits-env <NAME>  Apply mandatory sandbox limits from a trusted YAML or
+                             JSON environment variable (serve and sandbox only)
+    -h, --help               Print help
 ---
 command: mcp-console config init --help
 stdout: |
@@ -144,6 +153,9 @@ stdout: |
                               KEY=VALUE assignments
         --dry-run             Print the destination and proposed contents without
                               creating files or directories
+        --limits-env <NAME>   Apply mandatory sandbox limits from a trusted YAML
+                              or JSON environment variable (serve and sandbox
+                              only)
     -h, --help                Print help
 
   Starts with workspace permissions and commented examples for common settings.
@@ -199,6 +211,10 @@ stdout: |
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
 
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
+
         --no-sandbox
             Resolve defaults for a subsequent serve --no-sandbox launch
 
@@ -250,6 +266,9 @@ stdout: |
                                  warming after configuration
         --dry-run                Preview setup without writing files, installing,
                                  or starting background warmup
+        --limits-env <NAME>      Apply mandatory sandbox limits from a trusted
+                                 YAML or JSON environment variable (serve and
+                                 sandbox only)
     -h, --help                   Print help
 
   Prints each configuration file and setting changed. Unrelated settings are
@@ -308,6 +327,10 @@ stdout: |
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
 
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
+
         --no-sandbox
             Run evaluated code and dependency resolution with host permissions
 
@@ -363,6 +386,10 @@ stdout: |
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
 
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
+
         --no-sandbox
             Run evaluated code and dependency resolution with host permissions
 
@@ -381,10 +408,12 @@ command: mcp-console worker --help
 stdout: |
   Run the internal R worker
 
-  Usage: mcp-console worker
+  Usage: mcp-console worker [OPTIONS]
 
   Options:
-    -h, --help  Print help
+        --limits-env <NAME>  Apply mandatory sandbox limits from a trusted YAML or
+                             JSON environment variable (serve and sandbox only)
+    -h, --help               Print help
 ---
 command: mcp-console sandbox
 exit_code: 2
@@ -446,6 +475,10 @@ stdout: |
         --config-env <NAME>
             Use only this environment variable's YAML or JSON configuration, then
             apply -c overrides
+
+        --limits-env <NAME>
+            Apply mandatory sandbox limits from a trusted YAML or JSON environment
+            variable (serve and sandbox only)
 
         --writable-root <PATH>
             Allow writes to an additional path (temporary launch option)

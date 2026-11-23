@@ -66,6 +66,25 @@ fn main() -> ExitCode {
         unsafe { std::env::set_var("PROCESSOR_ARCHITECTURE", architecture) };
     }
     let cli = cli::Cli::parse();
+    let limits = if let Some(name) = cli.limits_env.as_deref() {
+        if !matches!(
+            &cli.command,
+            cli::Command::Serve { .. } | cli::Command::Sandbox { .. }
+        ) {
+            return exit_with_error(
+                "--limits-env is supported only by serve and sandbox; configuration exports and warmup do not carry mandatory limits",
+            );
+        }
+        let captured = std::env::current_dir()
+            .map_err(|error| error.to_string())
+            .and_then(|directory| settings::limits::Captured::from_environment(name, &directory));
+        match captured {
+            Ok(limits) => Some(limits),
+            Err(error) => return exit_with_error(error),
+        }
+    } else {
+        None
+    };
     let mut overrides = cli.overrides;
     match cli.command {
         cli::Command::Warmup {
@@ -141,6 +160,7 @@ fn main() -> ExitCode {
                 no_sandbox,
                 writable_root,
                 &overrides,
+                limits.as_ref(),
             ) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => exit_with_error(error),
@@ -181,6 +201,7 @@ fn main() -> ExitCode {
                 settings_env.as_deref(),
                 writable_root,
                 &overrides,
+                limits.as_ref(),
             ) {
                 Ok(exit_code) => exit_code,
                 Err(error) => exit_with_error(error),
@@ -244,6 +265,7 @@ fn run_server(
     no_sandbox: bool,
     writable_roots: Vec<std::path::PathBuf>,
     overrides: &cli::ConfigOverrides,
+    limits: Option<&settings::limits::Captured>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(unix))]
     if control_socket.is_some() {
@@ -262,11 +284,16 @@ fn run_server(
         r,
         languages,
         source: _,
-        policy,
-        resolver,
+        mut policy,
+        mut resolver,
         sandbox_requested,
         resolver_sandbox_requested,
     } = settings::discover(&directory, overrides)?;
+    if let Some(limits) = limits {
+        limits.apply(&mut policy);
+        limits.apply(&mut resolver);
+    }
+    settings::limits::require_enforcement(&policy, no_sandbox)?;
     if no_sandbox && (sandbox_requested || resolver_sandbox_requested) {
         return Err("explicit sandbox or resolver.sandbox permissions require sandboxing; remove them when using --no-sandbox".into());
     }

@@ -209,8 +209,10 @@ impl Preparation {
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<T, String> {
+        crate::settings::limits::require_enforcement(&settings, no_sandbox)?;
         let executable = std::env::current_exe().map_err(|error| error.to_string())?;
         let mut command = std::process::Command::new(&executable);
+        crate::settings::limits::remove_source_environment(&mut command, &settings);
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
@@ -276,6 +278,9 @@ impl Preparation {
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<(Self, Discovery), String> {
+        crate::settings::limits::require_enforcement(&settings, no_sandbox)?;
+        let limits_environment =
+            crate::settings::limits::source_environment(&settings).map(str::to_owned);
         let mut command = if !no_sandbox {
             // Preparation and the retained worker must agree on whether Python
             // is managed, including with an isolated resolver environment.
@@ -295,6 +300,9 @@ impl Preparation {
             command.env("RETICULATE_PYTHON", python);
         } else {
             command.env_remove("RETICULATE_PYTHON");
+        }
+        if let Some(name) = limits_environment {
+            command.env_remove(name);
         }
         command.arg("resolve");
         let open = Input::Open { mode, installation };
