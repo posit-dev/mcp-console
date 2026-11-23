@@ -100,18 +100,22 @@ Console checks absent paths too and repeats the check before each native launch.
 
 If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant for the current launch.
 It checks each component as written, including a directory followed by `..`.
-The server retains the declared path and lists it as a configured write location in the tool description.
+The server retains the declared path for later launches.
 If the link becomes an ordinary directory, a restarted worker can use the grant.
 Code can still use the link with the target's existing permissions.
 For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
 Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
 If a `read_only` or `deny` exception is named through the ignored root, Console rejects the launch.
-This also applies when the exception reaches the same link through another spelling or uses `..` after the link.
+This also applies when the exception reaches the ignored root through another symlink or spelling, even if a subsequent `..` leaves the root.
 If both paths cross the same link and their missing components leave the relationship uncertain, Console rejects the launch.
 Name the exception using the target path, for example `output/locked`.
 The same rule applies to directory junctions on Windows.
 On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.
 Console also checks write grants for host temporary directories and dependency caches.
+
+For a locally configured worker profile, the tool description lists the worker's configured write locations.
+With `inherit_codex`, it describes how the client selects the worker profile.
+Resolver grants apply separately to package preparation.
 
 Console passes checked paths to the native runner by name.
 On Linux the runner resolves each path again when it sets up the writable mount.

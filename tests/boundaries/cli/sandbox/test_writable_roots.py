@@ -111,6 +111,13 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
         (host / "crossing").symlink_to("nested/start", target_is_directory=True)
         (host / "shortcut").symlink_to(target, target_is_directory=True)
         (host / "parent-alias").symlink_to(".", target_is_directory=True)
+        (host / "nested" / "indirect").symlink_to(
+            "../shortcut", target_is_directory=True
+        )
+        (host / "second-link").symlink_to(
+            host / "nested" / "indirect", target_is_directory=True
+        )
+        (host / "leaving").symlink_to("crossing/../sibling", target_is_directory=True)
         transcript = []
         for scenario, access, grant, restriction in (
             ("read exception", "read_only", "shortcut", "shortcut/child"),
@@ -122,6 +129,14 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
                 "shortcut/../output/child",
             ),
             ("parent alias", "deny", "shortcut", "parent-alias/shortcut/child"),
+            ("symlink chain", "deny", "shortcut", "second-link/child"),
+            (
+                "leaving an equivalent spelling of the write root",
+                "read_only",
+                "crossing",
+                "parent-alias/crossing/../sibling",
+            ),
+            ("parent traversal inside a link", "deny", "crossing", "leaving"),
             (
                 "physical parent traversal",
                 "deny",

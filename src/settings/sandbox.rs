@@ -1,5 +1,6 @@
 //! Human-facing permissions and execution-host additions after configuration layering.
 
+use std::collections::HashSet;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
@@ -773,9 +774,10 @@ fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<
     if !has_untrusted_symlink(path)? {
         return Ok(false);
     }
+    let mut root_traversal = None;
     for restriction in restrictions {
         if restriction.starts_with(path)
-            || exception_uses_alias(path, restriction).map_err(|error| {
+            || exception_uses_alias(path, &mut root_traversal, restriction).map_err(|error| {
                 format!(
                     "cannot compare restriction '{}' with writable root '{}': {error}",
                     restriction.display(),
@@ -799,15 +801,22 @@ fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<
 
 /// Both paths must traverse the same link. A restriction named directly by
 /// its target remains attached to that target when the alias grant is dropped.
-fn exception_uses_alias(root: &Path, child: &Path) -> std::io::Result<bool> {
-    let shared = any_untrusted_link(child, |child_link, child_meta| {
-        any_untrusted_link(root, |root_link, root_meta| {
-            same_entry(root_link, root_meta, child_link, child_meta)
-        })
-    })?;
-    if !shared {
+fn exception_uses_alias(
+    root: &Path,
+    root_traversal: &mut Option<AliasTraversal>,
+    child: &Path,
+) -> std::io::Result<bool> {
+    let child_traversal = AliasTraversal::inspect(child)?;
+    if child_traversal.links.is_empty() {
         return Ok(false);
     }
+    let root_traversal = match root_traversal {
+        Some(traversal) => traversal,
+        slot @ None => slot.insert(AliasTraversal::inspect(root)?),
+    };
+    let Some(first_shared) = child_traversal.first_shared_link(root_traversal)? else {
+        return Ok(false);
+    };
     // Either the declared traversal or the runner's lexical spelling may
     // place the exception below this grant. Compare equivalent existing paths
     // by filesystem identity even when the volume preserves caller casing.
@@ -816,8 +825,72 @@ fn exception_uses_alias(root: &Path, child: &Path) -> std::io::Result<bool> {
     }
     let native_root = normalize_permission_path(root);
     let native_child = normalize_permission_path(child);
-    Ok((native_root != root || native_child != child)
-        && might_be_within(&native_root, &native_child)?)
+    if (native_root != root || native_child != child)
+        && might_be_within(&native_root, &native_child)?
+    {
+        return Ok(true);
+    }
+    // A restriction can enter the ignored grant before '..' takes it back
+    // out. Only that prefix counts; a shared link later in the path cannot
+    // turn an earlier visit through the target itself into an alias.
+    for (departed, links_seen) in child_traversal.departed {
+        if first_shared < links_seen
+            && (might_be_within(root, &departed)?
+                || (root != native_root && might_be_within(&native_root, &departed)?))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+#[derive(Default)]
+struct AliasTraversal {
+    links: Vec<(PathBuf, std::fs::Metadata)>,
+    // The number of links seen on entry distinguishes earlier direct visits.
+    departed: Vec<(PathBuf, usize)>,
+}
+
+impl AliasTraversal {
+    fn inspect(path: &Path) -> std::io::Result<Self> {
+        let mut traversal = Self::default();
+        let mut seen = HashSet::new();
+        let mut pending = Vec::new();
+        PermissionPath::Declared(path).push_steps(&mut pending)?;
+        while let Some(step) = pending.pop() {
+            match step {
+                AliasStep::Enter(prefix, metadata) => {
+                    // Resolve the parent only. Identity belongs to the link, and a
+                    // relative link target starts in its physical parent directory.
+                    let parent = prefix.parent().expect("link has a parent").canonicalize()?;
+                    let link = parent.join(prefix.file_name().expect("link has a name"));
+                    if seen.insert(link.clone()) {
+                        let target = crate::console_paths::absolute_preserving_parents(
+                            &parent,
+                            &std::fs::read_link(&link)?,
+                        )?;
+                        traversal.links.push((link, metadata));
+                        PermissionPath::LinkTarget(&target).push_steps(&mut pending)?;
+                    }
+                }
+                AliasStep::Leave(prefix) => {
+                    traversal.departed.push((prefix, traversal.links.len()));
+                }
+            }
+        }
+        Ok(traversal)
+    }
+
+    fn first_shared_link(&self, other: &Self) -> std::io::Result<Option<usize>> {
+        for (index, (left, a)) in self.links.iter().enumerate() {
+            for (right, b) in &other.links {
+                if same_entry(left, a, right, b)? {
+                    return Ok(Some(index));
+                }
+            }
+        }
+        Ok(None)
+    }
 }
 
 fn might_be_within(root: &Path, child: &Path) -> std::io::Result<bool> {
@@ -846,7 +919,8 @@ fn might_be_within(root: &Path, child: &Path) -> std::io::Result<bool> {
 }
 
 pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {
-    any_untrusted_link(path, |_, _| Ok(true))
+    PermissionPath::Declared(path)
+        .any_step(|step| matches!(step, AliasStep::Enter(..)))
         .map_err(|error| format!("cannot inspect writable root '{}': {error}", path.display()))
 }
 
@@ -892,51 +966,82 @@ fn existing_entry(path: &Path) -> std::io::Result<Option<std::fs::Metadata>> {
     }
 }
 
-fn any_untrusted_link(
-    path: &Path,
-    mut matches: impl FnMut(&Path, &std::fs::Metadata) -> std::io::Result<bool>,
-) -> std::io::Result<bool> {
-    // Walk both the original spelling and the native lexical prefixes. After
-    // link/.. they can be different directories; after missing/.. only the
-    // lexical prefix may exist.
-    let mut prefixes: Vec<_> = path.ancestors().collect();
-    let mut lexical = prefixes.pop().expect("path has an ancestor").to_owned();
-    for declared in prefixes.into_iter().rev() {
-        let (written, leaving) = match declared.components().next_back() {
-            Some(Component::Normal(name)) => {
-                lexical.push(name);
-                (declared, false)
-            }
-            Some(Component::ParentDir) => (
-                declared.parent().expect("parent traversal has a prefix"),
-                true,
-            ),
-            _ => continue,
-        };
-        for prefix in
-            std::iter::once(lexical.as_path()).chain((written != lexical).then_some(written))
-        {
-            let Some(metadata) = existing_entry(prefix)? else {
-                continue;
-            };
-            if !metadata.is_symlink() {
-                continue;
-            }
-            #[cfg(target_os = "macos")]
-            let system_alias = is_macos_system_alias(prefix, &metadata);
-            #[cfg(not(target_os = "macos"))]
-            let system_alias = false;
-            // Normal links are inspected when entered. The standard macOS
-            // aliases become ambiguous only when '..' leaves the alias.
-            if leaving == system_alias && matches(prefix, &metadata)? {
-                return Ok(true);
-            }
-        }
-        if leaving {
-            lexical.pop();
-        }
+fn untrusted_link(prefix: &Path, leaving: bool) -> std::io::Result<Option<std::fs::Metadata>> {
+    let Some(metadata) = existing_entry(prefix)?.filter(|metadata| metadata.is_symlink()) else {
+        return Ok(None);
+    };
+    #[cfg(target_os = "macos")]
+    let system_alias = is_macos_system_alias(prefix, &metadata);
+    #[cfg(not(target_os = "macos"))]
+    let system_alias = false;
+    // Normal links are inspected when entered. The standard macOS
+    // aliases become ambiguous only when '..' leaves the alias.
+    Ok((leaving == system_alias).then_some(metadata))
+}
+
+enum PermissionPath<'a> {
+    Declared(&'a Path),
+    LinkTarget(&'a Path),
+}
+
+enum AliasStep {
+    Enter(PathBuf, std::fs::Metadata),
+    Leave(PathBuf),
+}
+
+impl PermissionPath<'_> {
+    fn push_steps(self, pending: &mut Vec<AliasStep>) -> std::io::Result<()> {
+        let start = pending.len();
+        self.any_step(|step| {
+            pending.push(step);
+            false
+        })?;
+        pending[start..].reverse();
+        Ok(())
     }
-    Ok(false)
+
+    fn any_step(self, mut matches: impl FnMut(AliasStep) -> bool) -> std::io::Result<bool> {
+        // Walk both the original spelling and the native lexical prefixes. After
+        // link/.. they can be different directories; after missing/.. only the
+        // lexical prefix may exist. The OS alone resolves components inside a link.
+        let (path, declared_path) = match self {
+            Self::Declared(path) => (path, true),
+            Self::LinkTarget(path) => (path, false),
+        };
+        let mut prefixes: Vec<_> = path.ancestors().collect();
+        let mut lexical = prefixes.pop().expect("path has an ancestor").to_owned();
+        for declared in prefixes.into_iter().rev() {
+            let (written, leaving) = match declared.components().next_back() {
+                Some(Component::Normal(name)) => {
+                    lexical.push(name);
+                    (declared, false)
+                }
+                Some(Component::ParentDir) => (
+                    declared.parent().expect("parent traversal has a prefix"),
+                    true,
+                ),
+                _ => continue,
+            };
+            for prefix in (declared_path && written != lexical)
+                .then_some(lexical.as_path())
+                .into_iter()
+                .chain(std::iter::once(written))
+            {
+                if let Some(metadata) = untrusted_link(prefix, leaving)?
+                    && matches(AliasStep::Enter(prefix.to_owned(), metadata))
+                {
+                    return Ok(true);
+                }
+                if leaving && matches(AliasStep::Leave(prefix.to_owned())) {
+                    return Ok(true);
+                }
+            }
+            if leaving {
+                lexical.pop();
+            }
+        }
+        Ok(false)
+    }
 }
 
 #[cfg(target_os = "macos")]

@@ -31,6 +31,30 @@ stderr: >
   '<host>/parent-alias/shortcut/child' beneath ignored writable root
   '<host>/shortcut'. Specify the restriction using the target path.
 ---
+scenario: symlink chain
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/second-link/child'
+  beneath ignored writable root '<host>/shortcut'. Specify the restriction
+  using the target path.
+---
+scenario: leaving an equivalent spelling of the write root
+access: read_only
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '<host>/parent-alias/crossing/../sibling' beneath ignored writable root
+  '<host>/crossing'. Specify the restriction using the target path.
+---
+scenario: parent traversal inside a link
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/leaving' beneath ignored
+  writable root '<host>/crossing'. Specify the restriction using the
+  target path.
+---
 scenario: physical parent traversal
 access: deny
 stderr: >
