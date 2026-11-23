@@ -264,6 +264,33 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     }
 }
 
+pub(super) fn rejects_tempdir(_r_home: &std::path::Path) -> Result<bool, Box<dyn Error>> {
+    unsafe extern "C" {
+        fn mcp_r_tempdir_has_whitespace(fallback: *const c_char) -> c_int;
+    }
+    #[cfg(unix)]
+    let fallback = c"/tmp";
+    #[cfg(windows)]
+    let fallback = windows::user_home()?;
+    if unsafe { mcp_r_tempdir_has_whitespace(fallback.as_ptr()) } == 0 {
+        return Ok(false);
+    }
+    // R 4.3 extended its Windows whitespace restriction to Unix. The base
+    // package ships with the selected libR and records its version.
+    #[cfg(unix)]
+    {
+        let path = _r_home.join("library/base/DESCRIPTION");
+        let description = std::fs::read_to_string(&path)?;
+        let version = description
+            .lines()
+            .find_map(|line| line.strip_prefix("Version:"))
+            .ok_or_else(|| format!("missing Version in {}", path.display()))?;
+        Ok(semver::Version::parse(version.trim())? >= semver::Version::new(4, 3, 0))
+    }
+    #[cfg(windows)]
+    Ok(true)
+}
+
 pub(super) fn initialize_r(
     installation: &crate::local_runtime::RInstallation,
     vanilla: bool,

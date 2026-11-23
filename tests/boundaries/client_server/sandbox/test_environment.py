@@ -12,7 +12,13 @@ from support.client import McpClient
 from support.normalization import code
 from support.r import r_test_environment
 from support.records import Transcript
-from support.requirements import SANDBOX, requires
+from support.requirements import (
+    SANDBOX,
+    SQL,
+    posix_r_spaced_tempdir_probe,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.suites import run_this_suite
 
 
@@ -142,6 +148,83 @@ def test_preserves_caller_selected_python_over_project_environment(
             )
             assert last_tool_text(client) == "caller-selected Python retained\n", (
                 last_tool_text(client)
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, SQL, posix_r_tempdir_whitespace(accepted=False))
+def test_r_tempdir_whitespace_preserves_the_worker(binary: Path) -> Transcript:
+    reference = posix_r_spaced_tempdir_probe()
+    assert (
+        reference is not None and b"'R_TempDir' contains space" in reference.stderr
+    ), reference
+    environment, _ = r_test_environment()
+    with TemporaryDirectory() as directory:
+        workspace = Path(directory).resolve()
+        parent = workspace / "private temp"
+        parent.mkdir()
+        (workspace / "alias").symlink_to(parent, target_is_directory=True)
+        config = workspace / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            json.dumps(
+                {
+                    "r": {"resolution": "disabled"},
+                    "python": sys.executable,
+                    "sandbox": {"tempdir": {"managed": {"parent": str(parent)}}},
+                }
+            )
+        )
+        with McpClient(binary, ("serve",), environment, workspace) as client:
+            client.initialize_and_list_tools()
+            client.expect(python="answer = 42")
+            client.expect(None, r="1L")
+            message = last_tool_text(client)
+            assert "R requires a temporary directory without whitespace" in message, (
+                message
+            )
+            assert "sandbox.tempdir.managed.parent" in message, message
+            client.expect(message, sql="SELECT 1")
+            client.expect("42\n", python="print(answer)")
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    private = Path(os.environ["TMPDIR"]).relative_to(Path.cwd() / "private temp")
+                    os.environ["TMP"] = str(Path.cwd() / "alias" / private)
+                    os.environ["TMPDIR"] = str(Path.cwd() / "missing temp")
+                    """)
+            )
+            client.expect(
+                "[1] TRUE\n", r='identical(dirname(tempdir()), Sys.getenv("TMP"))'
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=True))
+def test_initializes_r_with_a_supported_spaced_tempdir(binary: Path) -> Transcript:
+    environment, _ = r_test_environment()
+    with TemporaryDirectory(prefix="private temp ") as directory:
+        workspace = Path(directory).resolve()
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "r.resolution=disabled",
+                "-c",
+                "python=" + json.dumps(sys.executable),
+                "-c",
+                "sandbox.tempdir.managed.parent=" + json.dumps(str(workspace)),
+            ),
+            environment,
+            workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "[1] TRUE\n", r='identical(dirname(tempdir()), Sys.getenv("TMPDIR"))'
             )
             return client.finish()
 

@@ -134,7 +134,9 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
     }
     // R declarations and selection callbacks genuinely require R. Only an
     // unresolved compatibility selection enters this path.
-    crate::worker::ensure_r()?;
+    if !crate::worker::ensure_r()?.ready_or_report() {
+        return Ok(false);
+    }
     if crate::worker::bootstrapping() {
         // A bare R library can genuinely lack the Python selection adapter.
         // Its advertised Python field is not an installed runtime capability;

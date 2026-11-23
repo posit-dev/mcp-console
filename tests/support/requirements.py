@@ -7,6 +7,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TypeVar
@@ -180,6 +181,38 @@ def case_insensitive_paths() -> Requirement:
             probe.with_name("LOWERCASE").is_dir(),
             "requires a case-insensitive temporary filesystem",
         )
+
+
+@cache
+def posix_r_spaced_tempdir_probe() -> subprocess.CompletedProcess[bytes] | None:
+    if not POSIX.available or not R.available:
+        return None
+    from support.r import r_test_environment
+
+    try:
+        environment, rscript = r_test_environment()
+        with TemporaryDirectory(prefix="private temp ") as directory:
+            return subprocess.run(
+                [rscript, "--vanilla", "-"],
+                input=b'stopifnot(dirname(tempdir()) == Sys.getenv("TMPDIR"))\n',
+                env=environment | {"TMPDIR": directory, "LC_ALL": "C", "LANGUAGE": "C"},
+                capture_output=True,
+                timeout=15,
+            )
+    except (OSError, subprocess.SubprocessError):
+        # Broken R installations are also fixtures for unrelated cases.
+        return None
+
+
+def posix_r_tempdir_whitespace(*, accepted: bool) -> Requirement:
+    probe = posix_r_spaced_tempdir_probe()
+    return Requirement(
+        "R tempdir",
+        probe is not None and (probe.returncode == 0) is accepted,
+        "requires R to "
+        + ("accept" if accepted else "reject")
+        + " a spaced POSIX temp path",
+    )
 
 
 def windows_short_paths() -> Requirement:

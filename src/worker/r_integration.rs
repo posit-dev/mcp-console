@@ -50,17 +50,56 @@ pub(crate) fn available() -> bool {
     R_INSTALLATION.get().is_some_and(Option::is_some)
 }
 
-pub(crate) fn ensure_initialized() -> Result<(), String> {
+pub(crate) enum RInitialization {
+    Ready,
+    TempdirWhitespace,
+}
+
+const TEMPDIR_WHITESPACE: &str = "R requires a temporary directory without whitespace. \
+    Set sandbox.tempdir.managed.parent to a suitable directory and relaunch Console, \
+    or set TMPDIR before starting R.";
+
+impl RInitialization {
+    pub(crate) fn require(self) -> Result<(), String> {
+        match self {
+            Self::Ready => Ok(()),
+            Self::TempdirWhitespace => Err(TEMPDIR_WHITESPACE.into()),
+        }
+    }
+
+    /// Optional eager initialization can defer the diagnostic until a cell needs R.
+    pub(crate) fn ready_or_report(self) -> bool {
+        if let Err(error) = self.require() {
+            if !core::bootstrapping() {
+                core::emit_output(
+                    crate::worker_protocol::ConsoleChannel::Diagnostic,
+                    format!("Error: {error}\n").as_bytes(),
+                );
+                core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "RInitializationError",
+                    error,
+                ));
+            }
+            return false;
+        }
+        true
+    }
+}
+
+pub(crate) fn ensure_initialized() -> Result<RInitialization, String> {
     if FAILED.with(Cell::get) {
         return Err("R initialization is incomplete; restart required".into());
     }
     if initialized() {
-        return Ok(());
+        return Ok(RInitialization::Ready);
     }
     let installation = R_INSTALLATION
         .get()
         .and_then(Option::as_ref)
         .ok_or("R is unavailable in this session")?;
+    if embedded_r::rejects_tempdir(&installation.home).map_err(|error| error.to_string())? {
+        return Ok(RInitialization::TempdirWhitespace);
+    }
     if STARTED.with(|started| started.replace(true)) {
         return Err("R initialization is incomplete; restart required".into());
     }
@@ -80,7 +119,7 @@ pub(crate) fn ensure_initialized() -> Result<(), String> {
         }
     });
     FAILED.with(|failed| failed.set(result.is_err()));
-    result
+    result.map(|()| RInitialization::Ready)
 }
 
 fn initialize(installation: &RInstallation) -> Result<(), String> {
@@ -107,7 +146,7 @@ fn initialize(installation: &RInstallation) -> Result<(), String> {
 }
 
 pub(crate) fn ensure_bridge() -> Result<(), String> {
-    ensure_initialized()?;
+    ensure_initialized()?.require()?;
     if crate::python::attach_bridge()? {
         Ok(())
     } else {
@@ -175,8 +214,10 @@ impl Integration {
     }
 
     pub(super) fn evaluate_r(&self, source: String) -> Result<(), String> {
-        ensure_initialized()?;
-        runtime().unwrap().evaluate(source)
+        if ensure_initialized()?.ready_or_report() {
+            runtime().unwrap().evaluate(source)?;
+        }
+        Ok(())
     }
 
     pub(super) fn prepare_r(

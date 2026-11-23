@@ -111,13 +111,15 @@ impl Coordinator {
         core::set_bootstrapping(true);
         let startup_configured = self.startup.is_some();
         let startup_complete = self.initialize_startup();
-        let complete = if startup_complete && languages.enables(Language::Python) {
+        let mut complete = if startup_complete && languages.enables(Language::Python) {
             crate::python::ensure_initialized().map_err(io::Error::other)?
         } else {
             true
         };
         if startup_complete && complete && languages.enables(Language::R) && super::r_available() {
-            super::ensure_r().map_err(io::Error::other)?;
+            complete = super::ensure_r()
+                .map_err(io::Error::other)?
+                .ready_or_report();
         }
         if !startup_configured
             && complete

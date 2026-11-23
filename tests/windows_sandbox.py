@@ -628,6 +628,64 @@ class WindowsSandbox(unittest.TestCase):
             finally:
                 session.close()
 
+    @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
+    def test_r_tempdir_with_spaces_keeps_the_worker(self):
+        with workspace() as parent:
+            session = worker_session(
+                sandbox=True,
+                defer_bootstrap=True,
+                overrides=["sandbox.tempdir.managed.parent=" + json.dumps(str(parent))],
+            )
+            try:
+                session.initialize()
+                result = session.expect(
+                    "Rscript started:",
+                    # fmt: python
+                    python=code("""
+                        import os
+                        from pathlib import Path
+                        import subprocess
+
+                        retained_pid = os.getpid()
+                        assert " " in os.environ["TMPDIR"]
+                        rscript = Path(os.environ["R_HOME"]) / "bin/Rscript.exe"
+                        probe = subprocess.run(
+                            [rscript, "--vanilla", "-"],
+                            input=b"",
+                            capture_output=True,
+                            env=dict(os.environ, LANGUAGE="C", LC_ALL="C"),
+                        )
+                        if probe.returncode:
+                            assert b"'R_TempDir' contains space" in probe.stderr, probe
+                        print("Rscript started:", probe.returncode == 0)
+                        """),
+                )
+                result_text = json.dumps(result)
+                if "Rscript started: True" in result_text:
+                    session.expect(
+                        "R initialized under TMPDIR",
+                        # fmt: r
+                        r=code("""
+                            stopifnot(identical(
+                              normalizePath(dirname(tempdir())),
+                              normalizePath(Sys.getenv("TMPDIR"))
+                            ))
+                            cat("R initialized under TMPDIR")
+                            """),
+                    )
+                else:
+                    self.assertIn("Rscript started: False", result_text)
+                    session.expect(
+                        "R requires a temporary directory without whitespace", r="42L"
+                    )
+                session.expect(
+                    "same worker",
+                    python='assert os.getpid() == retained_pid; print("same worker")',
+                )
+            finally:
+                session.close()
+
     def test_modified_companion_is_rejected_before_execution(self):
         with workspace() as root:
             native = native_console(BINARY)
