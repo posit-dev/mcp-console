@@ -13,10 +13,6 @@ result:
         [startup may have executed; explicit restart required]
   isError: true
 ---
-input:
-  method: ping
-result: {}
----
 send:
   r: 42L
 result:

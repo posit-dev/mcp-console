@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from boundaries.client_server.recording.test_boundaries import await_event
 from support.client import McpClient
 from support.checkpoints import FifoCheckpoint, fixture_fifo_writer, wait_for_path
 from support.assertions import wait_for_evaluation_output
@@ -20,7 +21,6 @@ from support.normalization import code
 from support.records import Transcript
 from support.progress import RUNNING
 from support.processes import stop_process_id
-from support.previews import live_recording_events
 from support.requirements import POSIX, R, SANDBOX, posix_r_tempdir_whitespace, requires
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
@@ -345,15 +345,9 @@ def test_exit_reading_renviron_requires_explicit_restart(
             # Opening the writer proves native R has reached its environment
             # file. Holding it open keeps startup from completing.
             with fixture_fifo_writer(environ, client=client):
-                client.request("ping")
-                (recording,) = (root / ".agents/console/sessions").iterdir()
-                (pid,) = (
-                    event["pid"]
-                    for event in live_recording_events(recording)
-                    if event["event"] == "worker_started"
-                )
+                started = await_event(client, root, "worker_started")
                 environ.unlink()
-                stop_process_id(pid)
+                stop_process_id(started["pid"])
             client.receive(pending)
             assert pending["result"]["isError"], pending
             retry = client.send(r="42L")
