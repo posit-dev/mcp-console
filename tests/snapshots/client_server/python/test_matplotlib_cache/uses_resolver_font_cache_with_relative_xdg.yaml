@@ -1,0 +1,4 @@
+---
+resolver_font_cache: shared
+restart: shared
+host_configuration: retained

@@ -530,12 +530,9 @@ impl Client {
                 sandbox_settings: &self.0.sandbox_settings,
                 startup_source: self.0.startup_source.as_ref(),
                 duckdb_extension_directory: duckdb_extension_directory.as_deref(),
-                resolver_matplotlib_cache: self
-                    .0
-                    .resolver_settings
-                    .get("environment")
-                    .and_then(|environment| environment.get("MPLCONFIGDIR"))
-                    .and_then(serde_json::Value::as_str),
+                resolver_matplotlib_cache: crate::resolver::cache::matplotlib_cache_override(
+                    &self.0.resolver_settings,
+                ),
                 python,
                 managed_r,
                 dynamic_resolution: self.0.dynamic_resolution,

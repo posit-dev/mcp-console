@@ -90,7 +90,7 @@ pub(crate) fn configure(
                         }
                     }
                 }
-                if let Some(path) = environment_path(resolver, "MPLCONFIGDIR") {
+                if let Some(path) = matplotlib_cache_override(resolver) {
                     retain_environment_path(
                         worker,
                         &path,
@@ -303,6 +303,15 @@ pub(crate) fn duckdb_extension_directory(
     Ok(home.map(|home| home.join(".duckdb/extensions")))
 }
 
+pub(crate) fn matplotlib_cache_override(settings: &SandboxSettings) -> Option<PathBuf> {
+    let path = environment_path(settings, "MPLCONFIGDIR");
+    #[cfg(target_os = "linux")]
+    let path = path.or_else(|| {
+        environment_path(settings, "XDG_CACHE_HOME").map(|base| base.join("matplotlib"))
+    });
+    path
+}
+
 #[cfg(any(unix, windows))]
 pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>, String> {
     // Cache selection uses the resolver's effective environment, including its
@@ -369,12 +378,12 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         // Keep configured cache roots relative until policy capture checks them.
         env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
             .unwrap_or_else(|| home.join(".duckdb/extensions")),
-        env("MPLCONFIGDIR").unwrap_or_else(|| {
-            if cfg!(any(target_os = "macos", windows)) {
-                home.join(".matplotlib")
+        matplotlib_cache_override(settings).unwrap_or_else(|| {
+            home.join(if cfg!(target_os = "linux") {
+                ".cache/matplotlib"
             } else {
-                xdg_cache.join("matplotlib")
-            }
+                ".matplotlib"
+            })
         }),
         env("RENV_PATHS_ROOT").unwrap_or_else(|| r_cache.join("R/renv")),
         r_cache.join("R/pkgcache"),

@@ -14,7 +14,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.records import Transcript
 from support.resolvers import matplotlib_test_environment
-from support.requirements import R, SANDBOX, requires
+from support.requirements import LINUX_SANDBOX, R, SANDBOX, requires
 from boundaries.client_server.server.test_no_r import no_r_environment
 from support.suites import run_this_suite
 
@@ -29,7 +29,14 @@ def test_uses_resolver_font_cache_without_r(binary: Path) -> Transcript:
     return uses_resolver_font_cache(binary, with_r=False)
 
 
-def uses_resolver_font_cache(binary: Path, *, with_r: bool) -> Transcript:
+@requires(LINUX_SANDBOX)
+def test_uses_resolver_font_cache_with_relative_xdg(binary: Path) -> Transcript:
+    return uses_resolver_font_cache(binary, with_r=False, relative_xdg=True)
+
+
+def uses_resolver_font_cache(
+    binary: Path, *, with_r: bool, relative_xdg: bool = False
+) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env = (
@@ -37,14 +44,17 @@ def uses_resolver_font_cache(binary: Path, *, with_r: bool) -> Transcript:
             if with_r
             else no_r_environment(root)
         )
-        env["XDG_CACHE_HOME"] = str(root / "cache")
+        env["XDG_CACHE_HOME"] = (
+            "unused/../cache" if relative_xdg else str(root / "cache")
+        )
         env.pop("MPLCONFIGDIR", None)
         # Reuse the prepared host R environment; rebuilding unrelated R packages
         # is independent of the shared font cache contract. The R-free case
-        # covers the default Console cache selection.
+        # also covers the default Console cache selection.
+        host_cache = with_r or relative_xdg
         cache = root / (
             "cache/matplotlib"
-            if with_r
+            if host_cache
             else "cache/mcp-console/dependencies/matplotlib"
         )
         if with_r:
@@ -53,11 +63,14 @@ def uses_resolver_font_cache(binary: Path, *, with_r: bool) -> Transcript:
         config = root / "matplotlibrc"
         config.write_text("lines.linewidth: 7.25\n", encoding="utf-8")
         env["MATPLOTLIBRC"] = str(config)
-        arguments = SANDBOXED.serve("-c", "cache=host") if with_r else SANDBOXED.serve()
+        arguments = (
+            SANDBOXED.serve("-c", "cache=host") if host_cache else SANDBOXED.serve()
+        )
         with McpClient(binary, arguments, env, root) as client:
             client.initialize_and_list_tools()
             wait_for_worker_ready(client, "resolver font cache readiness")
             client.expect("[prepared]", requirements={"python": ["matplotlib"]})
+            assert list(cache.glob("fontlist-v*.json"))
             for restart in (False, True):
                 if restart:
                     client.send(control="restart")
@@ -79,7 +92,8 @@ def uses_resolver_font_cache(binary: Path, *, with_r: bool) -> Transcript:
                         """),
                 )
             client.finish()
-        assert list(cache.glob("fontlist-v*.json"))
+        if relative_xdg:
+            assert not (root / "unused").exists()
     return [
         {
             "resolver_font_cache": "shared",
