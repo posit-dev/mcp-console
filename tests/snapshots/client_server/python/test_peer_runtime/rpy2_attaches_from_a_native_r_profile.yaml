@@ -1,0 +1,11 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: profile_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

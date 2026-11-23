@@ -58,6 +58,6 @@ pub(crate) fn run(_bootstrap_runtimes: bool) -> Result<(), Box<dyn std::error::E
 
 #[cfg(any(unix, windows))]
 pub(crate) use r_integration::{
-    available as r_available, ensure_bridge, ensure_initialized as ensure_r,
+    available as r_available, ensure_bridge, ensure_initialized as ensure_r, ensure_r_for_rpy2,
     initialized as r_initialized,
 };

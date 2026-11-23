@@ -488,6 +488,13 @@ pub(super) fn services_installed() -> Result<bool, String> {
         .services)
 }
 
+pub(crate) fn publish_r_session() -> Result<(), String> {
+    if initialized_selection()?.is_some() && services_installed()? {
+        api()?.with_gil(|api| api.call_unit(c"_mcp_console_services", c"publish_r_session"))?;
+    }
+    Ok(())
+}
+
 pub(super) fn install_services() -> Result<(), String> {
     let (api, installed) = {
         let slot = PYTHON_LIBRARY

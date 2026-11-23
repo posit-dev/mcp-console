@@ -17,11 +17,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.python.test_setup import deferred_selection_client
 
 from support.progress import without_elapsed
-from support.requirements import NATIVE_FIXTURES, POSIX, R, SQL, command, requires
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    R,
+    SANDBOX,
+    SQL,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.assertions import (
     assert_result_content,
     last_result_text,
     wait_for_evaluation_output,
+    wait_for_idle_output,
 )
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
@@ -256,6 +266,132 @@ def test_late_r_preserves_python_runtime(
                     records = current
     assert records is not None
     return records
+
+
+def rpy2_environment(root: Path) -> tuple[dict[str, str], Path]:
+    environment, _ = r_test_environment()
+    environment["RPY2_CFFI_MODE"] = "ABI"
+    prefix = root / "venv"
+    subprocess.run(
+        ["uv", "venv", "--python", sys.executable, prefix],
+        check=True,
+        capture_output=True,
+    )
+    executable = virtualenv_python(prefix)
+    subprocess.run(
+        ["uv", "pip", "install", "--python", executable, "numpy", "rpy2-rinterface"],
+        env=environment,
+        check=True,
+        capture_output=True,
+    )
+    environment["RETICULATE_PYTHON"] = str(executable)
+    profile = root / ".Rprofile"
+    # rpy2 also launches noninteractive Rscript children to discover R settings.
+    # Only the worker's interactive profile exercises reentrant attachment.
+    # fmt: python
+    source = code("""
+        from rpy2 import rinterface
+        from rpy2.rinterface_lib import embedded
+
+        assert embedded.is_r_externally_initialized()
+        _ = rinterface.initr()
+        profile_evalr = rinterface.evalr
+        _ = profile_evalr("profile_value <- 42L")
+        """)
+    profile.write_text(
+        f"if (interactive()) reticulate::py_run_string({json.dumps(source)})\n"
+    )
+    environment["R_PROFILE_USER"] = str(profile)
+    return environment, executable
+
+
+@requires(SANDBOX, command("uv"), posix_r_tempdir_whitespace(accepted=False))
+def test_r_attachment_waits_for_a_usable_interpreter(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        (root / "private temp").mkdir()
+        environment, executable = rpy2_environment(root)
+        arguments = SANDBOXED.serve(
+            "--writable-root",
+            str(root),
+            "-c",
+            "python=" + json.dumps(str(executable)),
+            "-c",
+            'startup={language: r, code: "startup_completed <- TRUE"}',
+            "-c",
+            "sandbox.tempdir.managed.parent=" + json.dumps(str(root / "private temp")),
+        )
+        with McpClient(
+            binary, arguments, environment, root, use_r_startup_files=True
+        ) as client:
+            client.initialize_and_list_tools()
+            diagnostic = (
+                "R requires a temporary directory without whitespace. "
+                "Set sandbox.tempdir.managed.parent to a suitable directory and relaunch Console, "
+                "or set TMPDIR before starting R"
+            )
+            wait_for_idle_output(
+                client,
+                f"Error: {diagnostic}; SQL withheld; explicit restart required\n\n[idle]",
+                "configured R startup pause",
+                completion_timeout_seconds=client.response_timeout,
+            )
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import os
+
+                    assert importlib.util.find_spec("rpy2.rinterface") is not None
+                    assert f"PID={os.getpid()}" not in os.environ.get("R_SESSION_INITIALIZED", "").split(
+                        ":"
+                    )
+                    """)
+            )
+            client.expect(
+                f"{diagnostic}.\n",
+                # fmt: python
+                python=code("""
+                    try:
+                        from rpy2 import rinterface
+                    except RuntimeError as error:
+                        print(error)
+                    else:
+                        raise AssertionError("rpy2 attached while R was paused")
+                    """),
+            )
+            client.expect(
+                # fmt: python
+                python=code("""
+                    os.environ["TMPDIR"] = os.getcwd()
+                    from rpy2 import rinterface
+                    from rpy2.rinterface_lib import embedded
+
+                    assert embedded.is_r_externally_initialized()
+                    assert rinterface.evalr is profile_evalr
+                    assert rinterface.evalr("Sys.getpid()")[0] == os.getpid()
+                    _ = rinterface.evalr("attached_value <- profile_value")
+                    """)
+            )
+            client.expect("[1] 42\n", r="attached_value")
+            return client.finish()
+
+
+@requires(R, command("uv"))
+@executions(RUNTIME)
+def test_rpy2_attaches_from_a_native_r_profile(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        environment, executable = rpy2_environment(root)
+        arguments = execution.serve("-c", "python=" + json.dumps(str(executable)))
+        with McpClient(
+            binary, arguments, environment, root, use_r_startup_files=True
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("[1] 42\n", r="profile_value")
+            return client.finish()
 
 
 @requires(R, command("uv"))

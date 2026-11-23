@@ -267,6 +267,7 @@ On Windows, R can also use a path containing whitespace if Windows supplies a wh
 Console checks the temporary directory after R processes its environment files, including `.Renviron`.
 If Console reports an unsuitable path, correct the parent or the startup file and relaunch.
 If Python is already available in the worker, you can set `TMPDIR` there and retry the R cell.
+Importing `rpy2.rinterface` from Python also retries R startup and reports the same error if the path still contains whitespace.
 The [permission field reference](CONFIGURATION.md#sandbox-settings) compares `managed`, `read_write`, and `read_only` storage.
 
 ### Host temporary directories

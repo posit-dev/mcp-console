@@ -96,6 +96,7 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
             method(c"publish_plot", publish_plot, 8),
             method(c"resolve_import_request", resolve_import_request, 8),
             method(c"attach_r", attach_r, 4),
+            method(c"ensure_r_ready", ensure_r_ready, 4),
             method(c"close_r_sql_result", close_r_sql_result, 4),
             method(c"managed_tempdir", managed_tempdir, 4),
             method(c"interrupt", interrupt, 1), // METH_VARARGS: signal number and frame
@@ -127,6 +128,9 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
     if !MODULE_INSTALLED.load(Ordering::Acquire) {
         let source = CString::new(include_str!("../services.py")).unwrap();
         unsafe { api.run_module(c"_mcp_console_services", &source)? };
+        if worker::r_available() && !worker::r_initialized() {
+            api.call_unit(c"_mcp_console_services", c"guard_rpy2_import")?;
+        }
         MODULE_INSTALLED.store(true, Ordering::Release);
         // signal.signal in install_interrupt() sets CPython's handler. Install the
         // worker's native handler afterwards so R and managed input also wake.
@@ -271,6 +275,13 @@ unsafe extern "C" fn attach_r(_: *mut PyObject, _: *mut PyObject) -> *mut PyObje
             return Err("R access is unavailable from a Python priority thread".into());
         }
         services.without_gil(crate::worker::ensure_bridge)?;
+        Ok(services.none())
+    })
+}
+
+unsafe extern "C" fn ensure_r_ready(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
+    callback(|services| {
+        services.without_gil(worker::ensure_r_for_rpy2)?;
         Ok(services.none())
     })
 }

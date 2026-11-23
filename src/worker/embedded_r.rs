@@ -412,6 +412,17 @@ pub(super) fn start_mainloop(libraries: &harp::library::RLibraries) -> Result<()
     Ok(())
 }
 
+pub(super) fn has_global_environment() -> Result<bool, Box<dyn Error>> {
+    // harp snapshots this constant only after setup_Rmainloop returns. A native
+    // .Rprofile runs inside that call, when R's actual global environment is live.
+    #[cfg(unix)]
+    let library = libloading::os::unix::Library::this();
+    #[cfg(windows)]
+    let library = libloading::os::windows::Library::open_already_loaded("R.dll")?;
+    let global = unsafe { library.get::<*const *const c_void>(b"R_GlobalEnv\0")? };
+    Ok(unsafe { !(**global).is_null() })
+}
+
 fn initialize_r_console() -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
     let library = libloading::os::unix::Library::this();

@@ -155,6 +155,7 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
         }
     }
     embedded_r::start_mainloop(libraries).map_err(|error| error.to_string())?;
+    publish_r_session()?;
     let runtime = Rc::new(embedded_r::Runtime::initialize().map_err(|error| error.to_string())?);
     RUNTIME.with(|slot| *slot.borrow_mut() = Some(runtime.clone()));
     if core::bootstrapping()
@@ -168,6 +169,27 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
     interrupt::reinstall().map_err(|error| error.to_string())?;
     crate::python::reinstall_services()?;
     Ok(RInitialization::Ready)
+}
+
+fn publish_r_session() -> Result<(), String> {
+    // rpy2 trusts this PID before accessing R objects, including via an
+    // already-live Python's cached os.environ.
+    let marker = format!("PID={}:NAME=\"reticulate\"", std::process::id());
+    embedded_r::set_environment(&[("R_SESSION_INITIALIZED", marker.as_ref())])
+        .map_err(|error| error.to_string())?;
+    crate::python::publish_r_session()
+}
+
+pub(crate) fn ensure_r_for_rpy2() -> Result<(), String> {
+    // Reticulate can import rpy2 from inside R's native startup profiles.
+    // Attach to that live R evaluation without entering startup recursively.
+    if INITIALIZING.load(Ordering::SeqCst)
+        && R_LIBRARIES.get().is_some()
+        && embedded_r::has_global_environment().map_err(|error| error.to_string())?
+    {
+        return publish_r_session();
+    }
+    ensure_initialized()?.require()
 }
 
 pub(crate) fn ensure_bridge() -> Result<(), String> {
