@@ -264,7 +264,22 @@ options(
 Explicit user devices are neither closed nor captured.
 Native R startup happens before the managed device attaches, so its plots use R's native device.
 
-Python captures open pyplot figures at cell end, including after an exception, and then closes them.
+Python displays a final-expression object as a PNG when its `_repr_png_()` method returns PNG bytes.
+For example, return a Pillow image directly:
+
+```python
+from PIL import Image
+
+Image.open("table.png")
+```
+
+No matplotlib figure is needed for this display.
+Assignment stays quiet, and successful image display updates `builtins._` to the displayed object.
+If `_repr_png_()` returns `None`, the object uses ordinary text display.
+Other return types and errors raised by the method produce a normal cell traceback.
+A custom `sys.displayhook` takes precedence over PNG display.
+
+Python also captures open pyplot figures at cell end, including after an exception, and then closes them.
 `plt.show()` captures immediately and closes figures; calling it is optional.
 `plt.pause()` captures frames while keeping figures open.
 `savefig()` does not suppress capture, but closing an unshown figure does.
