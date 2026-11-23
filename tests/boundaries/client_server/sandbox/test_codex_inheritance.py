@@ -214,6 +214,97 @@ def test_profile_fallback_selects_one_base_before_local_overrides(
 
 
 @requires(SANDBOX)
+def test_inherited_tmpdir_write_uses_the_host_temporary_directory(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        (root / "host-temp").mkdir()
+        (root / "temp-link").symlink_to("host-temp", target_is_directory=True)
+        (root / "workload-temp").mkdir()
+        # Host tools using TMPDIR literally also need an ordinary temp directory.
+        (root / "~" / "temp-link").mkdir(parents=True)
+        state = {
+            "permissionProfile": {
+                "type": "managed",
+                "file_system": {
+                    "type": "restricted",
+                    "entries": [
+                        {
+                            "path": {"type": "special", "value": {"kind": "tmpdir"}},
+                            "access": "write",
+                        }
+                    ],
+                },
+                "network": "restricted",
+            },
+        }
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "sandbox.profile=inherit_codex",
+                "-c",
+                "sandbox.tempdir=read_only",
+                "-c",
+                "cache=host",
+                "-c",
+                "sandbox.filesystem.read_write=[workload-temp]",
+                "-c",
+                "languages=[python]",
+                "-c",
+                f"python.existing={sys.executable}",
+                "-c",
+                f"environment.TMPDIR={root / 'workload-temp'}",
+            ),
+            without_r_environment(root) | {"HOME": str(root), "TMPDIR": "~/temp-link"},
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            reply = send_with_state(
+                client,
+                state,
+                # fmt: python
+                python=code("""
+                    import errno
+                    import os
+                    from pathlib import Path
+
+                    assert Path(os.environ["TMPDIR"]) == Path.cwd() / "workload-temp"
+                    _ = Path("workload-temp/result").write_text("allowed")
+                    try:
+                        _ = Path("host-temp/result").write_text("changed")
+                    except OSError as error:
+                        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                    else:
+                        raise AssertionError("host temporary directory writable through alias")
+                    print("host temporary directory read-only")
+                    """),
+            )
+            assert not reply["result"].get("isError"), reply
+            assert last_tool_text(client).endswith(
+                "host temporary directory read-only\n"
+            ), reply
+            # The symbol still selects the same host variable on a new launch.
+            (root / "temp-link").unlink()
+            (root / "temp-link").mkdir()
+            client.send(control="restart")
+            client.expect(
+                "host temporary directory writable\n",
+                # fmt: python
+                python=code("""
+                    from pathlib import Path
+
+                    _ = Path("temp-link/result").write_text("allowed")
+                    print("host temporary directory writable")
+                    """),
+            )
+            assert (root / "temp-link/result").read_text() == "allowed"
+            return finish(client, root)
+
+
+@requires(SANDBOX)
 def test_missing_metadata_silently_uses_default_read_only(
     binary: Path,
 ) -> Transcript:

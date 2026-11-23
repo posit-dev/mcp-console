@@ -857,6 +857,79 @@ class WindowsSandbox(unittest.TestCase):
                     )
 
     @requires_mxc(BINARY)
+    def test_inherited_tmpdir_checks_target_temp_and_tmp_individually(self):
+        with workspace() as root:
+            allowed, target, alias = (
+                root / name for name in ("allowed", "target", "alias")
+            )
+            allowed.mkdir()
+            target.mkdir()
+            subprocess.run(
+                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
+                check=True,
+                capture_output=True,
+            )
+            session = worker_session(
+                sandbox=True,
+                python=sys.executable,
+                overrides=(
+                    "languages=[python]",
+                    "sandbox.profile=inherit_codex",
+                    "sandbox.tempdir=read_only",
+                    "environment="
+                    + json.dumps({"Temp": str(alias), "tMp": str(allowed)}),
+                ),
+            )
+            try:
+                session.initialize()
+                state = {
+                    "permissionProfile": {
+                        "type": "managed",
+                        "network": "enabled",
+                        "file_system": {
+                            "type": "restricted",
+                            "entries": [
+                                {
+                                    "path": {
+                                        "type": "special",
+                                        "value": {"kind": "tmpdir"},
+                                    },
+                                    "access": "write",
+                                }
+                            ],
+                        },
+                    }
+                }
+                # fmt: python
+                program = code("""
+                    import os
+                    from pathlib import Path
+
+                    _ = (Path(os.environ["TMP"]) / "result").write_text("allowed")
+                    try:
+                        _ = (Path(os.environ["TEMP"]) / "result").write_text("blocked")
+                    except PermissionError:
+                        pass
+                    else:
+                        raise AssertionError("junction granted writes")
+                    print("checked both target directories")
+                    """)
+                result = session.request(
+                    "tools/call",
+                    {
+                        "name": "send",
+                        "_meta": {"codex/sandbox-state": state},
+                        "arguments": {"python": program, "timeout_ms": 60000},
+                    },
+                )
+                self.assertFalse(result.get("isError"), result)
+                self.assertIn("checked both target directories", json.dumps(result))
+                self.assertEqual((allowed / "result").read_text(), "allowed")
+                self.assertFalse((target / "result").exists())
+            finally:
+                session.close()
+
+    @requires_mxc(BINARY)
     def test_tempdir_modes(self):
         # fmt: python
         program = code(r"""

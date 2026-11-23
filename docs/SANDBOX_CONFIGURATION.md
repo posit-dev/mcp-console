@@ -346,6 +346,8 @@ Console translates the current `permissionProfile` and uses `sandboxCwd` to reso
 | Restricted or enabled network      | Apply that worker network mode unless `sandbox.network` is explicitly configured.                                                               |
 
 Symbolic project roots use the client's sandbox working directory, which may differ from Console's launch directory; inheritance does not change the worker's working directory.
+An inherited `:tmpdir` write grant uses the native launcher's `TMPDIR` on Unix and the workload's absolute `TEMP` and `TMP` paths on Windows.
+The [same symlink check](#filesystem) applies to these paths.
 Local grants and denials retain their normal precedence.
 Console's host-read baseline and temporary-storage settings still apply to restricted profiles, so inheritance does not reproduce every Codex restriction.
 

@@ -1,0 +1,69 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-client-sandbox.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import errno
+        import os
+        from pathlib import Path
+
+        assert Path(os.environ["TMPDIR"]) == Path.cwd() / "workload-temp"
+        _ = Path("workload-temp/result").write_text("allowed")
+        try:
+            _ = Path("host-temp/result").write_text("changed")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+        else:
+            raise AssertionError("host temporary directory writable through alias")
+        print("host temporary directory read-only")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries:
+              - path:
+                  type: special
+                  value:
+                    kind: tmpdir
+                access: write
+          network: restricted
+result:
+  content:
+    - type: text
+      text: |
+        Warning: ignoring symlinked writable root '<workspace>/temp-link'. Grant writes using the target path.
+        Warning: ignoring symlinked writable root '<workspace>/temp-link'. Grant writes using the target path.
+        [output produced while idle]
+        host temporary directory read-only
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    from pathlib import Path
+
+    _ = Path("temp-link/result").write_text("allowed")
+    print("host temporary directory writable")
+result:
+  content:
+    - type: text
+      text: |
+        host temporary directory writable
+  isError: false

@@ -675,17 +675,57 @@ fn capture_writable_root(
 
 /// Check write grants again after the previous generation has retired. The
 /// native runner receives ordinary entries without Console's private markers.
-pub(crate) fn revalidate_writable_roots(settings: &mut SandboxSettings) -> Result<(), String> {
+pub(crate) fn revalidate_writable_roots(
+    settings: &mut SandboxSettings,
+    tmpdirs: &[PathBuf],
+) -> Result<(), String> {
     if let Some(Value::Array(entries)) = settings
         .get_mut("filesystem")
         .and_then(|filesystem| filesystem.get_mut("entries"))
     {
         let mut checked = Vec::with_capacity(entries.len());
+        let slash_tmp = PathBuf::from("/tmp");
         for mut entry in entries.drain(..) {
             let guarded = entry
                 .as_object_mut()
                 .and_then(|entry| entry.remove(RELATIVE_WRITE_ROOT))
                 == Some(Value::Bool(true));
+            if entry["access"] == "write" && entry["path"]["type"] == "special" {
+                let paths = match entry.pointer("/path/value/kind").and_then(Value::as_str) {
+                    Some("tmpdir") => tmpdirs,
+                    Some("slash_tmp") if cfg!(unix) && slash_tmp.is_dir() => {
+                        std::slice::from_ref(&slash_tmp)
+                    }
+                    _ => &[],
+                };
+                let mut allowed = Vec::new();
+                for path in paths {
+                    let path =
+                        crate::console_paths::absolute_preserving_parents(Path::new("."), path)
+                            .map_err(|error| {
+                                format!(
+                                    "cannot resolve temporary write grant '{}': {error}",
+                                    path.display()
+                                )
+                            })?;
+                    if !ignore_symlinked_write_root(&path)? {
+                        allowed.push(path);
+                    }
+                }
+                // Keep the native symbol unless it would also grant a symlink.
+                // Windows TEMP and TMP may select different directories.
+                if allowed.len() != paths.len() {
+                    for path in allowed {
+                        let mut grant = entry.clone();
+                        let path = path
+                            .to_str()
+                            .ok_or("temporary write grant is not valid UTF-8")?;
+                        grant["path"] = json!({"type": "path", "path": path});
+                        checked.push(grant);
+                    }
+                    continue;
+                }
+            }
             if entry["access"] == "write"
                 && let Some(path) = entry.pointer("/path/path").and_then(Value::as_str)
             {
