@@ -7,7 +7,9 @@ For command-line examples, see [Run commands in a sandbox](SANDBOX_COMMAND.md).
 
 ## Which permissions to configure
 
-`sandbox` controls evaluated code and standalone commands; `resolver.sandbox` independently controls runtime inspection and package preparation.
+`sandbox` controls evaluated code and standalone commands.
+`resolver.sandbox` independently controls package preparation.
+When Console inspects an explicitly selected R or Python interpreter before starting the worker, it uses the worker policy on Unix and the resolver policy on Windows.
 Examples below use `sandbox`; the same fields apply to `resolver.sandbox`, except `inherit_codex`.
 Worker defaults allow host reads, including readable secrets, and private temporary writes, with workspace writes and direct networking restricted.
 Preparation also permits cache writes and approved downloads; see [Package settings](PACKAGE_CONFIGURATION.md).
@@ -248,11 +250,13 @@ With the configuration above, each sandbox launch gets a fresh writable director
 The parent must already exist and be writable by the account running Console.
 The sandbox grants the workload write access to the new child directory.
 Other filesystem grants still apply.
+On Unix, choose a parent owned by a trusted account.
+If untrusted accounts can write there, set the sticky bit, as on `/tmp`, so they cannot rename or delete the runner's directories.
 On Windows the new directory inherits permissions from its parent.
 The parent's inheritable access control entries must limit reads and writes to accounts you trust with the workload's files.
 Plain `tempdir: managed` uses the runner's system temporary directory as the parent.
 
-Set `resolver.sandbox.tempdir` separately to choose a parent for runtime inspection and package preparation.
+Set `resolver.sandbox.tempdir` separately to choose a parent for package preparation.
 Keep that parent outside directories the worker can write to, including a writable workspace.
 Otherwise a worker running as the same user can modify the resolver's temporary files during package preparation.
 See the [package preparation trust boundary](PACKAGE_CONFIGURATION.md#trust-boundary).
@@ -260,8 +264,9 @@ See the [package preparation trust boundary](PACKAGE_CONFIGURATION.md#trust-boun
 For R workers and R package preparation, choose a parent whose full path contains no whitespace.
 R 4.3 and later require this on Unix.
 On Windows, R can also use a path containing whitespace if Windows supplies a whitespace-free short name for it.
-Console checks the worker's temporary directory before starting embedded R.
-If a `.Renviron` file changes it during R startup, that path must also satisfy R's requirements.
+Console checks the temporary directory after R processes its environment files, including `.Renviron`.
+If Console reports an unsuitable path, correct the parent or the startup file and relaunch.
+If Python is already available in the worker, you can set `TMPDIR` there and retry the R cell.
 The [permission field reference](CONFIGURATION.md#sandbox-settings) compares `managed`, `read_write`, and `read_only` storage.
 
 ### Host temporary directories
