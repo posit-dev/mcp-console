@@ -10,7 +10,11 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.assertions import last_result_text, last_tool_text
+from support.assertions import (
+    last_result_text,
+    last_tool_text,
+    wait_for_evaluation_output,
+)
 from support.client import McpClient
 from support.normalization import code
 from support.python import isolated_python
@@ -265,6 +269,7 @@ def test_inherited_tmpdir_write_uses_the_host_temporary_directory(
             reply = send_with_state(
                 client,
                 state,
+                timeout_ms=0,
                 # fmt: python
                 python=code("""
                     import errno
@@ -282,10 +287,13 @@ def test_inherited_tmpdir_write_uses_the_host_temporary_directory(
                     print("host temporary directory read-only")
                     """),
             )
-            assert not reply["result"].get("isError"), reply
-            assert last_tool_text(client).endswith(
-                "host temporary directory read-only\n"
-            ), reply
+            wait_for_evaluation_output(
+                client,
+                lambda output: output.endswith("host temporary directory read-only\n"),
+                "inherited temporary directory permission check",
+                completion_timeout_seconds=client.response_timeout,
+                received=reply,
+            )
             # The symbol still selects the same host variable on a new launch.
             (root / "temp-link").unlink()
             (root / "temp-link").mkdir()

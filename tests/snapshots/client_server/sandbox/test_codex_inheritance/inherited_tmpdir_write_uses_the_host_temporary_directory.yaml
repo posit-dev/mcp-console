@@ -6,7 +6,7 @@ input:
   params:
     name: send
     arguments:
-      timeout_ms: 60000
+      timeout_ms: 0
       python: |
         import errno
         import os

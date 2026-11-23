@@ -225,6 +225,19 @@ result:
             additionalProperties: false
 ---
 send:
+  timeout_ms: 600000
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
+        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
+
+        [idle]
+  isError: false
+---
+send:
   python: |
     import errno
     from pathlib import Path
@@ -244,9 +257,6 @@ result:
   content:
     - type: text
       text: |
-        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
-        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
-        [output produced while idle]
         relative grant used
   isError: false
 ---

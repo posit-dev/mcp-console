@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.assertions import wait_for_idle_output
 from support.client import McpClient
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
@@ -359,8 +360,15 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                 f"Warning: ignoring symlinked writable root '{project / '../pending'}'. "
                 "Grant writes using the target path.\n"
             )
+            wait_for_idle_output(
+                client,
+                warning * 2 + "\n[idle]",
+                "writable root warnings before the first cell",
+                completion_timeout_seconds=client.response_timeout,
+                timeout_ms=int(client.response_timeout * 1_000),
+            )
             client.expect(
-                warning * 2 + "[output produced while idle]\nrelative grant used\n",
+                "relative grant used\n",
                 # fmt: python
                 python=code("""
                     import errno
