@@ -649,7 +649,14 @@ class WindowsSandbox(unittest.TestCase):
 
                         retained_pid = os.getpid()
                         assert " " in os.environ["TMPDIR"]
-                        rscript = Path(os.environ["R_HOME"]) / "bin/Rscript.exe"
+                        selected = Path(os.environ["TMPDIR"]) / "selected temp"
+                        selected.mkdir()
+                        (selected / "selected-by-python").touch()
+                        os.environ["TMPDIR"] = str(selected)
+                        r_bin = Path(os.environ["R_HOME"]) / "bin"
+                        rscript = r_bin / "Rscript.exe"
+                        if not rscript.is_file():
+                            rscript = r_bin / "x64/Rscript.exe"
                         probe = subprocess.run(
                             [rscript, "--vanilla", "-"],
                             input=b"",
@@ -662,23 +669,31 @@ class WindowsSandbox(unittest.TestCase):
                         """),
                 )
                 result_text = json.dumps(result)
-                if "Rscript started: True" in result_text:
-                    session.expect(
-                        "R initialized under TMPDIR",
-                        # fmt: r
-                        r=code("""
-                            stopifnot(identical(
-                              normalizePath(dirname(tempdir())),
-                              normalizePath(Sys.getenv("TMPDIR"))
-                            ))
-                            cat("R initialized under TMPDIR")
-                            """),
-                    )
-                else:
-                    self.assertIn("Rscript started: False", result_text)
+                if "Rscript started: False" in result_text:
                     session.expect(
                         "R requires a temporary directory without whitespace", r="42L"
                     )
+                    # A relative spelling of the same writable directory works
+                    # even on volumes where Windows does not supply short names.
+                    session.expect(
+                        "TMPDIR changed",
+                        # fmt: python
+                        python=code("""
+                            os.chdir(selected)
+                            os.environ["TMPDIR"] = "."
+                            print("TMPDIR changed")
+                            """),
+                    )
+                else:
+                    self.assertIn("Rscript started: True", result_text)
+                session.expect(
+                    "R used the directory selected by Python",
+                    # fmt: r
+                    r=code("""
+                        stopifnot(file.exists(file.path(dirname(tempdir()), "selected-by-python")))
+                        cat("R used the directory selected by Python")
+                        """),
+                )
                 session.expect(
                     "same worker",
                     python='assert os.getpid() == retained_pid; print("same worker")',

@@ -1,5 +1,6 @@
 """R owns startup discovery, ordering, and retry inside each worker."""
 
+import json
 import os
 import subprocess
 import sys
@@ -18,7 +19,7 @@ from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
 from support.progress import RUNNING
-from support.requirements import POSIX, R, SANDBOX, requires
+from support.requirements import POSIX, R, SANDBOX, posix_r_tempdir_whitespace, requires
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
 
@@ -70,6 +71,95 @@ def writable_arguments(execution: Execution, root: Path) -> tuple[str, ...]:
     return startup_arguments(
         execution, *(("--writable-root", str(root)) if execution == SANDBOXED else ())
     )
+
+
+def tempdir_startup_client(
+    binary: Path, root: Path, *, spaced_parent: bool, languages: list[str]
+) -> McpClient:
+    environment, _ = r_test_environment()
+    spaced = root / "private temp"
+    plain = root / "private"
+    spaced.mkdir()
+    plain.mkdir()
+    repaired = root / "repaired"
+    repaired.mkdir()
+    parent, override = (spaced, plain) if spaced_parent else (plain, spaced)
+    environ = root / ".Renviron"
+    environ.write_text(f'TMPDIR="{override}"\n')
+    environment.update(TMPDIR=str(root), R_ENVIRON_USER=str(environ))
+    config = root / ".agents/console/config.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "r": {"resolution": "disabled"},
+                "python": sys.executable,
+                "languages": languages,
+                "sandbox": {"tempdir": {"managed": {"parent": str(parent)}}},
+            }
+        )
+    )
+    return McpClient(
+        binary,
+        ("serve", "--writable-root", str(root)),
+        environment,
+        root,
+        use_r_startup_files=True,
+    )
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=False))
+def test_renviron_can_select_a_usable_tempdir(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        with tempdir_startup_client(
+            binary, root, spaced_parent=True, languages=["r"]
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "[1] TRUE\n",
+                r='identical(dirname(tempdir()), file.path(getwd(), "private"))',
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=False))
+def test_recovers_from_renviron_tempdir_without_rereading_it(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        with tempdir_startup_client(
+            binary, root, spaced_parent=False, languages=["r", "python", "sql"]
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(python="answer = 42")
+            output = client.expect(None, r="1L")["content"][0]["text"]
+            assert "R requires a temporary directory without whitespace" in output, (
+                output
+            )
+            client.expect(
+                '[input requested: "Python input> "]\n[waiting for stdin]',
+                python='input("Python input> ")',
+            )
+            interrupted = client.send(control="interrupt", timeout_ms=10_000)
+            assert "KeyboardInterrupt" in interrupted["content"][0]["text"], interrupted
+            client.expect(
+                "42\n",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+                    print(answer)
+                    """),
+            )
+            client.expect(
+                "[1] TRUE\n",
+                r='identical(dirname(tempdir()), file.path(getwd(), "repaired"))',
+            )
+            return client.finish()
 
 
 @requires(R)

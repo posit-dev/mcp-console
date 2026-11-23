@@ -1,0 +1,66 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  python: answer = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: input("Python input> ")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Python input> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 10000
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: identical(dirname(tempdir()), file.path(getwd(), "repaired"))
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

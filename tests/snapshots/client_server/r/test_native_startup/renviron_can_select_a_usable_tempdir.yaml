@@ -1,0 +1,11 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.r-only-writable.yaml
+---
+send:
+  r: identical(dirname(tempdir()), file.path(getwd(), "private"))
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

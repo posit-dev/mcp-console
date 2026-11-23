@@ -52,7 +52,7 @@ pub(super) extern "C-unwind" fn process_events() {
     super::super::priority::run_r();
 }
 
-pub(super) fn user_home() -> Result<CString, Box<dyn Error>> {
+fn user_home() -> Result<CString, Box<dyn Error>> {
     let user_home = ["R_USER", "HOME"]
         .into_iter()
         .filter_map(std::env::var_os)
@@ -63,7 +63,7 @@ pub(super) fn user_home() -> Result<CString, Box<dyn Error>> {
     Ok(CString::new(user_home.to_string_lossy().as_bytes())?)
 }
 
-pub(super) fn initialize_r(
+pub(super) fn read_startup_environment(
     r_home: &std::path::Path,
     arguments: &mut [*mut c_char],
 ) -> Result<(), Box<dyn Error>> {
@@ -125,6 +125,10 @@ pub(super) fn initialize_r(
         libr::graphapp::GA_initapp(0, std::ptr::null_mut());
         libr::readconsolecfg();
     }
+    Ok(())
+}
+
+pub(super) fn start_mainloop() -> Result<(), Box<dyn Error>> {
     unsafe {
         libr::setup_Rmainloop();
     }

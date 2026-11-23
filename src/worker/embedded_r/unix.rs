@@ -55,7 +55,7 @@ unsafe extern "C-unwind" {
     fn mcp_r_priority_events();
 }
 
-pub(super) fn initialize_r(
+pub(super) fn read_startup_environment(
     _r_home: &Path,
     arguments: &mut [*mut c_char],
 ) -> Result<(), Box<dyn Error>> {
@@ -70,6 +70,10 @@ pub(super) fn initialize_r(
         libr::set(libr::ptr_R_ShowMessage, Some(r_show_message));
         libr::set(libr::ptr_R_Busy, Some(r_busy));
     }
+    Ok(())
+}
+
+pub(super) fn start_mainloop() -> Result<(), Box<dyn Error>> {
     // setup_Rmainloop installs R's signal handlers before profiles run. Its
     // event callback observes pending interrupts before R consumes them and
     // restores Console's SIGINT wakeup while retaining R's fatal diagnostics.

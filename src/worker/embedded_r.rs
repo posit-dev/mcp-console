@@ -265,14 +265,19 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
 }
 
 pub(super) fn rejects_tempdir(_r_home: &std::path::Path) -> Result<bool, Box<dyn Error>> {
+    type GetEnv = unsafe extern "C" fn(*const c_char) -> *mut c_char;
     unsafe extern "C" {
-        fn mcp_r_tempdir_has_whitespace(fallback: *const c_char) -> c_int;
+        fn mcp_r_tempdir_has_whitespace(environment: GetEnv) -> c_int;
     }
     #[cfg(unix)]
-    let fallback = c"/tmp";
+    let environment = libc::getenv;
+    // R and CPython share the system UCRT. Console's static CRT retains its
+    // own environment, which misses changes made in .Renviron or Python.
     #[cfg(windows)]
-    let fallback = windows::user_home()?;
-    if unsafe { mcp_r_tempdir_has_whitespace(fallback.as_ptr()) } == 0 {
+    let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
+    #[cfg(windows)]
+    let environment = unsafe { *runtime.get::<GetEnv>(b"getenv\0")? };
+    if unsafe { mcp_r_tempdir_has_whitespace(environment) } == 0 {
         return Ok(false);
     }
     // R 4.3 extended its Windows whitespace restriction to Unix. The base
@@ -291,10 +296,10 @@ pub(super) fn rejects_tempdir(_r_home: &std::path::Path) -> Result<bool, Box<dyn
     Ok(true)
 }
 
-pub(super) fn initialize_r(
+pub(super) fn read_startup_environment(
     installation: &crate::local_runtime::RInstallation,
     vanilla: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<harp::library::RLibraries, Box<dyn Error>> {
     let r_home = &installation.home;
     // Let the selected R launcher choose its configured default architecture
     // when users start subprocesses through commandArgs()[1].
@@ -332,8 +337,18 @@ pub(super) fn initialize_r(
     installation.configure_environment();
     REPL_EVALUATING.store(true, Ordering::SeqCst);
     initialize_r_console()?;
-    native::initialize_r(r_home, &mut argument_pointers)?;
+    native::read_startup_environment(r_home, &mut argument_pointers)?;
+    Ok(libraries)
+}
 
+pub(super) fn start_mainloop(libraries: &harp::library::RLibraries) -> Result<(), Box<dyn Error>> {
+    super::interrupt::attach_r(super::interrupt::State {
+        signal: mcp_r_record_interrupt,
+        requested: interrupt_pending,
+        pending: console_interrupt_pending,
+        acknowledge: acknowledge_console_interrupt,
+    })?;
+    native::start_mainloop()?;
     libraries.initialize_post_setup_r();
     unsafe {
         harp::CONSOLE_THREAD_ID = Some(thread::current().id());
@@ -359,12 +374,6 @@ fn initialize_r_console() -> Result<(), Box<dyn Error>> {
     unsafe {
         mcp_r_console_configure(r_read_console, check_interrupt, libr::R_interrupts_pending);
     }
-    super::interrupt::attach_r(super::interrupt::State {
-        signal: mcp_r_record_interrupt,
-        requested: interrupt_pending,
-        pending: console_interrupt_pending,
-        acknowledge: acknowledge_console_interrupt,
-    })?;
     Ok(())
 }
 

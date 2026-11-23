@@ -159,7 +159,8 @@ def test_r_tempdir_whitespace_preserves_the_worker(binary: Path) -> Transcript:
         reference is not None and b"'R_TempDir' contains space" in reference.stderr
     ), reference
     environment, _ = r_test_environment()
-    with TemporaryDirectory() as directory:
+    # The recovery alias needs a whitespace-free path even when TMPDIR has spaces.
+    with TemporaryDirectory(dir="/tmp") as directory:
         workspace = Path(directory).resolve()
         parent = workspace / "private temp"
         parent.mkdir()
