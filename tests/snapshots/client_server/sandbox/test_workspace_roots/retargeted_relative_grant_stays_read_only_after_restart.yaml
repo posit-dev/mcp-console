@@ -65,10 +65,11 @@ result:
 
         Evaluated code can read host files subject to configured restrictions
         and cannot directly access the network. Writable locations: private
-        `TMPDIR`, workspace, `"<writable-root>"`, `"<fixture>/output"`; subject
-        to more specific read/deny rules. Package preparation may execute
-        installation or build code with separate filesystem and network
-        permissions; use only trusted dependencies.
+        `TMPDIR`, workspace, `"<writable-root>"`, `"<fixture>/output"`,
+        `"<fixture>/home/project/../pending"`; subject to more specific
+        read/deny rules. Package preparation may execute installation or build
+        code with separate filesystem and network permissions; use only trusted
+        dependencies.
       inputSchema:
         $schema: https://json-schema.org/draft/2020-12/schema
         additionalProperties: false
@@ -224,17 +225,27 @@ result:
 ---
 send:
   python: |
+    import errno
     from pathlib import Path
 
     grant = Path("grant")
     initial = grant / "initial"
     _ = initial.write_text("allowed")
     initial.unlink()
+    try:
+        _ = Path("../pending/probe").write_text("blocked")
+    except OSError as error:
+        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+    else:
+        raise AssertionError("initial symlink granted writes to home")
     print("relative grant used")
 result:
   content:
     - type: text
       text: |
+        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
+        Warning: ignoring symlinked writable root '<fixture>/home/project/../pending'. Grant writes using the target path.
+        [output produced while idle]
         relative grant used
   isError: false
 ---
@@ -267,6 +278,7 @@ send:
     assert probe.read_text() == "unchanged"
     output = Path(os.environ["HOME"]).parent / "output"
     _ = (output / "result").write_text("allowed")
+    _ = Path("../pending/result").write_text("restored")
     print("home remains read-only after restart")
 result:
   content:

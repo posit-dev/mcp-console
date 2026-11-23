@@ -321,6 +321,8 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
         project = home / "project"
         grant = project / "grant"
         grant.mkdir(parents=True)
+        pending = home / "pending"
+        pending.symlink_to(home, target_is_directory=True)
         output = root / "output"
         output.mkdir()
         (home / "probe").write_text("unchanged")
@@ -333,7 +335,9 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     "cache": "host",
                     "sandbox": {
                         "profile": "workspace",
-                        "filesystem": {"read_write": ["grant", str(output)]},
+                        "filesystem": {
+                            "read_write": ["grant", str(output), "../pending"]
+                        },
                     },
                 }
             )
@@ -348,16 +352,27 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
             client.initialize_and_list_tools()
             description = client.transcript[-1]["result"]["tools"][0]["description"]
             assert json.dumps(str(grant)) in description, description
+            warning = (
+                f"Warning: ignoring symlinked writable root '{project / '../pending'}'. "
+                "Grant writes using the target path.\n"
+            )
             client.expect(
-                "relative grant used\n",
+                warning * 2 + "[output produced while idle]\nrelative grant used\n",
                 # fmt: python
                 python=code("""
+                    import errno
                     from pathlib import Path
 
                     grant = Path("grant")
                     initial = grant / "initial"
                     _ = initial.write_text("allowed")
                     initial.unlink()
+                    try:
+                        _ = Path("../pending/probe").write_text("blocked")
+                    except OSError as error:
+                        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                    else:
+                        raise AssertionError("initial symlink granted writes to home")
                     print("relative grant used")
                     """),
             )
@@ -367,6 +382,8 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
             grant.symlink_to(home, target_is_directory=True)
             output.rename(root / "original-output")
             output.symlink_to(project, target_is_directory=True)
+            pending.unlink()
+            pending.mkdir()
             client.send(control="restart")
             result = client.send(
                 # fmt: python
@@ -385,6 +402,7 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     assert probe.read_text() == "unchanged"
                     output = Path(os.environ["HOME"]).parent / "output"
                     _ = (output / "result").write_text("allowed")
+                    _ = Path("../pending/result").write_text("restored")
                     print("home remains read-only after restart")
                     """),
             )
@@ -396,6 +414,7 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
             transcript, stderr = client.finish_with_standard_error()
         assert (home / "probe").read_text() == "unchanged"
         assert (project / "result").read_text() == "allowed"
+        assert (pending / "result").read_text() == "restored"
         if stderr:
             transcript.append({"stderr": stderr})
         return json.loads(

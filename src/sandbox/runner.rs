@@ -22,8 +22,7 @@ fn inherited_temporary_directories(
         .and_then(|fs| fs["entries"].as_array());
     if !entries.is_some_and(|entries| {
         entries.iter().any(|entry| {
-            entry["access"] == "write"
-                && entry.pointer("/path/value/kind").and_then(Value::as_str) == Some("tmpdir")
+            entry.pointer("/path/value/kind").and_then(Value::as_str) == Some("tmpdir")
         })
     }) {
         return Ok(Vec::new());
@@ -52,7 +51,7 @@ fn inherited_temporary_directories(
             && let Ok(suffix) = path.strip_prefix("~")
         {
             if removed("HOME") {
-                return Err("cannot inspect a home-relative inherited temporary write grant after removing HOME from the native launch environment".into());
+                return Err("cannot inspect a home-relative inherited temporary directory after removing HOME from the native launch environment".into());
             }
             if let Some(home) = std::env::home_dir().filter(|home| !home.as_os_str().is_empty()) {
                 return Ok(vec![home.join(suffix)]);

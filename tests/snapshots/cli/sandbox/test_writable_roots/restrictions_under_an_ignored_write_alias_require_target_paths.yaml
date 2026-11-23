@@ -1,0 +1,14 @@
+---
+access: read_only
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/shortcut/child' beneath
+  ignored writable root '<host>/shortcut'. Specify the restriction using
+  the target path.
+---
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/shortcut/child' beneath
+  ignored writable root '<host>/shortcut'. Specify the restriction using
+  the target path.

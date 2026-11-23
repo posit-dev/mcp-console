@@ -97,6 +97,54 @@ def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transc
         ]
 
 
+@requires(SANDBOX)
+def test_restrictions_under_an_ignored_write_alias_require_target_paths(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        host = Path(directory).resolve()
+        target = host / "output"
+        target.mkdir()
+        (target / "child").mkdir()
+        (host / "shortcut").symlink_to(target, target_is_directory=True)
+        transcript = []
+        for access in ("read_only", "deny"):
+            config = {
+                "sandbox": {
+                    "filesystem": {
+                        "read_write": ["output", "shortcut"],
+                        access: ["shortcut/child"],
+                    }
+                }
+            }
+            result = subprocess.run(
+                [
+                    binary,
+                    "sandbox",
+                    "--config-env",
+                    "POLICY",
+                    "--",
+                    "/bin/echo",
+                    "started",
+                ],
+                env=dict(os.environ, POLICY=json.dumps(config)),
+                cwd=host,
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 1, result
+            assert result.stdout == "", result
+            assert result.stderr == (
+                "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
+                f"cannot enforce restriction '{host / 'shortcut/child'}' beneath ignored "
+                f"writable root '{host / 'shortcut'}'. Specify the restriction using the target path.\n"
+            ), result
+            transcript.append(
+                {"access": access, "stderr": result.stderr.replace(str(host), "<host>")}
+            )
+        return transcript
+
+
 @requires(MACOS_TMP_CASE_ALIAS)
 def test_system_tmp_alias_accepts_equivalent_spelling(binary: Path) -> Transcript:
     with TemporaryDirectory(dir="/tmp") as directory:

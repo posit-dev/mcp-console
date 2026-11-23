@@ -657,11 +657,13 @@ fn capture_writable_root(
 ) -> Result<Option<WritableRoot>, String> {
     let path = crate::console_paths::expand_home(&path)?;
     let root = resolve_writable_root(path.clone(), workspace)?;
-    if context == PolicyContext::Launch && ignore_symlinked_write_root(Path::new(&root))? {
-        return Ok(None);
-    }
     let guarded = context == PolicyContext::Launch && !path.is_absolute();
-    if guarded && is_broad_write_root(Path::new(&root))? {
+    // A symlink can become an ordinary directory before a later launch.
+    // Keep the declared path and its relative-grant marker for that generation.
+    if guarded
+        && !has_untrusted_symlink(Path::new(&root))?
+        && is_broad_write_root(Path::new(&root))?
+    {
         eprintln!(
             "Warning: refusing relative writable root '{}'; use an absolute path to grant writes to the home directory or filesystem root",
             path.display()
@@ -686,30 +688,53 @@ pub(crate) fn revalidate_writable_roots(
     {
         let mut checked = Vec::with_capacity(entries.len());
         let slash_tmp = PathBuf::from("/tmp");
+        let tmpdirs = tmpdirs
+            .iter()
+            .map(|path| {
+                crate::console_paths::absolute_preserving_parents(Path::new("."), path).map_err(
+                    |error| {
+                        format!(
+                            "cannot resolve temporary directory '{}': {error}",
+                            path.display()
+                        )
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let temporary_paths = |entry: &Value| -> &[PathBuf] {
+            match entry.pointer("/path/value/kind").and_then(Value::as_str) {
+                Some("tmpdir") => &tmpdirs,
+                Some("slash_tmp") if cfg!(unix) && slash_tmp.is_dir() => {
+                    std::slice::from_ref(&slash_tmp)
+                }
+                _ => &[],
+            }
+        };
+        let mut restrictions = Vec::new();
+        for entry in entries
+            .iter()
+            .filter(|entry| matches!(entry["access"].as_str(), Some("read" | "deny")))
+        {
+            if let Some(path) = entry.pointer("/path/path").and_then(Value::as_str) {
+                restrictions.push(normalize_permission_path(Path::new(path)));
+            } else {
+                restrictions.extend(
+                    temporary_paths(entry)
+                        .iter()
+                        .map(|path| normalize_permission_path(path)),
+                );
+            }
+        }
         for mut entry in entries.drain(..) {
             let guarded = entry
                 .as_object_mut()
                 .and_then(|entry| entry.remove(RELATIVE_WRITE_ROOT))
                 == Some(Value::Bool(true));
             if entry["access"] == "write" && entry["path"]["type"] == "special" {
-                let paths = match entry.pointer("/path/value/kind").and_then(Value::as_str) {
-                    Some("tmpdir") => tmpdirs,
-                    Some("slash_tmp") if cfg!(unix) && slash_tmp.is_dir() => {
-                        std::slice::from_ref(&slash_tmp)
-                    }
-                    _ => &[],
-                };
+                let paths = temporary_paths(&entry);
                 let mut allowed = Vec::new();
                 for path in paths {
-                    let path =
-                        crate::console_paths::absolute_preserving_parents(Path::new("."), path)
-                            .map_err(|error| {
-                                format!(
-                                    "cannot resolve temporary write grant '{}': {error}",
-                                    path.display()
-                                )
-                            })?;
-                    if !ignore_symlinked_write_root(&path)? {
+                    if !ignore_symlinked_write_root(path, &restrictions)? {
                         allowed.push(path);
                     }
                 }
@@ -730,7 +755,7 @@ pub(crate) fn revalidate_writable_roots(
             if entry["access"] == "write"
                 && let Some(path) = entry.pointer("/path/path").and_then(Value::as_str)
             {
-                if ignore_symlinked_write_root(Path::new(path))? {
+                if ignore_symlinked_write_root(Path::new(path), &restrictions)? {
                     continue;
                 }
                 if guarded && is_broad_write_root(Path::new(path))? {
@@ -747,17 +772,27 @@ pub(crate) fn revalidate_writable_roots(
     Ok(())
 }
 
-/// Drop a grant when any component is a link. Native rules then govern access
-/// through that link. The native runner still owns binding ordinary paths.
-fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
-    let ignored = has_untrusted_symlink(path)?;
-    if ignored {
-        eprintln!(
-            "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
-            path.display()
-        );
+fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<bool, String> {
+    if !has_untrusted_symlink(path)? {
+        return Ok(false);
     }
-    Ok(ignored)
+    // Native runners attach narrower exceptions to writable roots by name.
+    // Dropping a root must not detach an exception named through its alias.
+    let root = normalize_permission_path(path);
+    if let Some(restriction) = restrictions.iter().find(|child| child.starts_with(&root))
+        && (root == path || has_untrusted_symlink(&root)?)
+    {
+        return Err(format!(
+            "cannot enforce restriction '{}' beneath ignored writable root '{}'. Specify the restriction using the target path.",
+            restriction.display(),
+            path.display()
+        ));
+    }
+    eprintln!(
+        "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
+        path.display()
+    );
+    Ok(true)
 }
 
 pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {

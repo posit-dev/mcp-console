@@ -98,11 +98,15 @@ This includes `.` when Console starts from one of those directories and parent p
 To grant writes there explicitly, supply an absolute path.
 Console checks absent paths too and repeats the check before each native launch.
 
-If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant.
+If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant for the current launch.
 It checks each component as written, including a directory followed by `..`.
+The server retains the declared path.
+If the link becomes an ordinary directory, a restarted worker can use the grant.
 Code can still use the link with the target's existing permissions.
 For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
 Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
+If a `read_only` or `deny` exception is named through the ignored root, Console rejects the launch.
+Name the exception using the target path, for example `output/locked`.
 The same rule applies to directory junctions on Windows.
 On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.
 Console also checks write grants for host temporary directories and dependency caches.
