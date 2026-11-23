@@ -1,0 +1,4 @@
+---
+stdout: |
+  private child writable, parent read-only
+stderr: ""

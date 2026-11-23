@@ -805,7 +805,10 @@ class WindowsSandbox(unittest.TestCase):
 
             temporary = Path(os.environ["TMPDIR"])
             mode = os.environ["EXPECTED_MODE"]
-            assert (temporary == Path(os.environ["EXPECTED_TEMP"])) is (mode != "managed")
+            managed = mode in ("managed", "managed_parent")
+            assert (temporary == Path(os.environ["EXPECTED_TEMP"])) is (not managed)
+            if managed:
+                assert temporary == Path(os.environ["TEMP"]) == Path(os.environ["TMP"])
             try:
                 _ = (temporary / "probe").write_text("temporary")
             except OSError as error:
@@ -818,16 +821,21 @@ class WindowsSandbox(unittest.TestCase):
                 assert mode != "read_only"
             print(json.dumps({"temporary": str(temporary)}))
             """)
-        for mode in ("managed", "read_write", "read_only"):
+        for mode in ("managed", "managed_parent", "read_write", "read_only"):
             with self.subTest(mode=mode), workspace() as root:
                 temporary = root / "host-temp"
                 temporary.mkdir()
+                selection = mode
+                if mode == "managed_parent":
+                    parent = root / "private temp"
+                    parent.mkdir()
+                    selection = {"managed": {"parent": str(parent)}}
                 config = root / ".agents/console/config.yaml"
                 config.parent.mkdir(parents=True)
                 config.write_text(
                     json.dumps(
                         {
-                            "sandbox": {"tempdir": mode},
+                            "sandbox": {"tempdir": selection},
                             "environment": {"TmpDir": str(temporary)},
                         }
                     )
@@ -848,8 +856,11 @@ class WindowsSandbox(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 selected = Path(json.loads(result.stdout)["temporary"])
                 self.assertTrue(temporary.is_dir())
-                if mode == "managed":
+                if mode in ("managed", "managed_parent"):
                     self.assertFalse(selected.exists())
+                if mode == "managed_parent":
+                    self.assertIn(parent, selected.parents)
+                    self.assertEqual(list(parent.iterdir()), [])
 
     @requires_mxc(BINARY)
     def test_read_write_supplies_tempdir_when_child_has_no_selection(self):

@@ -277,8 +277,10 @@ impl WorkerRuntime {
         command.env(
             crate::settings::MANAGED_TEMPDIR_ENVIRONMENT,
             if !no_sandbox
-                && crate::settings::Tempdir::from_settings(sandbox_settings)
-                    == crate::settings::Tempdir::Managed
+                && matches!(
+                    crate::settings::Tempdir::from_settings(sandbox_settings),
+                    crate::settings::Tempdir::Managed(_)
+                )
             {
                 "1"
             } else {

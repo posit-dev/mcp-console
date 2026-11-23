@@ -238,11 +238,18 @@ Limited mode therefore does not restrict every granted channel to GET/HEAD/OPTIO
 
 ```yaml
 sandbox:
-  profile: workspace
-  tempdir: managed
+  tempdir:
+    managed:
+      parent: /absolute/path/to/pa-temp
 ```
 
 `sandbox.tempdir` and `resolver.sandbox.tempdir` select automatic temporary-storage grants.
+With the configuration above, each sandbox launch gets a fresh writable directory under `pa-temp`.
+The parent must already exist and be writable by the runner.
+Selecting it grants the workload write access only to the private child.
+Other filesystem grants still apply.
+Plain `tempdir: managed` uses the runner's system temporary directory as the parent.
+Set `resolver.sandbox.tempdir` separately to choose a parent for package preparation.
 The [permission field reference](CONFIGURATION.md#sandbox-settings) compares `managed`, `read_write`, and `read_only` storage.
 
 ### Host temporary directories

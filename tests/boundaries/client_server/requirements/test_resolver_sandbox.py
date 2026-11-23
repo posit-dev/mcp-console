@@ -699,6 +699,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                 raise AssertionError("resolver reached a disallowed download host")
             approved = os.environ.get("RESOLVER_TEST_APPROVED")
             if approved:
+                assert protected in Path(os.environ["TMPDIR"]).parents
                 Path(approved).joinpath("created").write_text("custom grant")
                 try:
                     Path(os.environ["IR_CACHE_DIR"]).joinpath("denied").write_text("excluded cache")
@@ -751,6 +752,8 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             env["RESOLVER_TEST_ALLOWED_URL"] = f"http://127.0.0.1:{origin.server_port}/"
             approved = root / "approved"
             approved.mkdir()
+            worker_temp = root / "worker temp"
+            worker_temp.mkdir()
             excluded = root / "excluded-cache"
             excluded.mkdir()
             env["IR_CACHE_DIR"] = str(excluded)
@@ -758,9 +761,13 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             config.write_text(
                 json.dumps(
                     {
+                        "sandbox": {
+                            "tempdir": {"managed": {"parent": str(worker_temp)}}
+                        },
                         "resolver": {
                             "environment": {"RESOLVER_TEST_APPROVED": str(approved)},
                             "sandbox": {
+                                "tempdir": {"managed": {"parent": str(protected)}},
                                 "filesystem": {
                                     "read_only": ["/"],
                                     "read_write": ["uv-cache", "approved"],
@@ -777,7 +784,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                                     }
                                 },
                             },
-                        }
+                        },
                     }
                 )
             )
@@ -797,16 +804,23 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                 client.send(control="restart")
                 client.send(python="import six; print(six.__name__)")
                 assert last_tool_text(client).endswith("six\n"), last_tool_text(client)
+                client.expect(
+                    lambda output: worker_temp in Path(output.strip()).parents,
+                    python="import tempfile; print(tempfile.gettempdir())",
+                )
             client.finish()
         assert not (protected / "denied").exists()
         result = json.loads((cache / "probe.json").read_text())
         if tailored:
+            assert list(protected.iterdir()) == [protected / "readable"]
+            assert list(worker_temp.iterdir()) == []
             assert (approved / "created").read_text() == "custom grant"
             assert not (excluded / "denied").exists()
             result.update(
                 custom_write=True,
                 replaced_cache_grants=True,
                 custom_download_host=True,
+                worker_and_resolver_temp_cleaned=True,
                 captured_policy=True,
             )
         return [result]

@@ -40,6 +40,17 @@ stderr: >
   `unmanaged`, expected one of `managed`, `read_write`, `read_only`; see
   docs/CONFIGURATION.md for the public format
 ---
+path: sandbox.tempdir.managed.parent
+stderr: >
+  configuration with CLI overrides: sandbox.tempdir.managed.parent must be
+  an absolute path
+---
+path: resolver.sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: resolver: sandbox: tempdir:
+  read_write: invalid type: map, expected unit; see docs/CONFIGURATION.md
+  for the public format
+---
 path: sandbox.network
 stderr: >
   configuration with CLI overrides: sandbox: network: expected enabled,

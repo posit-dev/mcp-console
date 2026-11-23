@@ -70,6 +70,8 @@ INVALID_CONFIGURATIONS = [
     ("sandbox.tempdir", True),
     ("sandbox.tempdir", None),
     ("sandbox.tempdir", "unmanaged"),
+    ("sandbox.tempdir.managed.parent", "relative"),
+    ("resolver.sandbox.tempdir", {"read_write": {"parent": "invalid"}}),
     ("sandbox.network", 1),
     ("sandbox.network", [True]),
     ("sandbox.network", [None]),

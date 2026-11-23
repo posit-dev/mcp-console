@@ -279,6 +279,38 @@ def test_network_shorthands_merge_before_null_omission(binary: Path) -> Transcri
     return records
 
 
+def test_managed_tempdir_parents_round_trip(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        worker = {"managed": {"parent": str(root / "worker temp")}}
+        resolver = {"managed": {"parent": str(root / "resolver temp")}}
+        document = {
+            "sandbox": {"tempdir": worker},
+            "resolver": {"sandbox": {"tempdir": resolver}},
+        }
+        config = root / "selected.json"
+        for arguments in ((), ("--full",)):
+            config.write_text(json.dumps(document), encoding="utf-8")
+            result = resolve(
+                binary,
+                root,
+                "--config-file",
+                str(config),
+                "--format",
+                "json",
+                *arguments,
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            document = json.loads(result.stdout)
+            assert document["sandbox"]["tempdir"] == worker
+            assert document["resolver"]["sandbox"]["tempdir"] == resolver
+    return [
+        {
+            "worker_and_resolver": "distinct parents preserved in pruned and full configuration"
+        }
+    ]
+
+
 def test_cache_directory_round_trips_without_creating_storage(
     binary: Path,
 ) -> Transcript:
