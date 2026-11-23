@@ -17,7 +17,10 @@ use crate::process_io::Io;
 use crate::resolver::{ResolverControl, ResolverControlOutcome, ResolverStopHandle};
 
 #[derive(Clone)]
-pub(crate) struct Preparation(Arc<Connection>);
+pub(crate) struct Preparation {
+    connection: Arc<Connection>,
+    pub(crate) discovery: Arc<Discovery>,
+}
 
 struct Connection {
     events: mpsc::Sender<Event>,
@@ -239,7 +242,7 @@ impl Preparation {
                 );
         }
         command.arg("resolve").env_remove("RETICULATE_PYTHON");
-        let (preparation, _) = Self::open_with(
+        let preparation = Self::open_with(
             command,
             Arc::default(),
             Input::Open {
@@ -260,7 +263,7 @@ impl Preparation {
 
     pub(crate) fn check_ready(&self) -> Result<(), String> {
         if let Some(error) = &*self
-            .0
+            .connection
             .blocked
             .lock()
             .map_err(|_| "preparation session lock")?
@@ -278,7 +281,7 @@ impl Preparation {
         installation: Option<crate::local_runtime::RInstallation>,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<(Self, Discovery), String> {
+    ) -> Result<Self, String> {
         let mut command = if !no_sandbox {
             // Preparation and the retained worker must agree on whether Python
             // is managed, including with an isolated resolver environment.
@@ -314,7 +317,7 @@ impl Preparation {
         open: Input,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<(Self, Discovery), String> {
+    ) -> Result<Self, String> {
         // The trusted-warmup hint belongs to the controller, not the resolver
         // or any installation/build subprocess it starts.
         command.env_remove(crate::warmup::PREPARATION_ENVIRONMENT);
@@ -519,19 +522,19 @@ impl Preparation {
             owner_retired.store(result.is_ok(), Ordering::SeqCst);
             result
         });
-        let connection = Self(Arc::new(Connection {
+        let connection = Arc::new(Connection {
             events: events.clone(),
             sequence: AtomicU64::new(1),
             owner: Mutex::new(Some(owner)),
             unconfirmed,
             blocked,
             retired,
-        }));
+        });
         let handle = ResolverStopHandle::new(Control {
             id: 0,
             events,
             state,
-            retired: connection.0.retired.clone(),
+            retired: connection.retired.clone(),
         });
         if let Err(error) = on_started(handle.clone()) {
             let _ = handle.stop();
@@ -547,7 +550,10 @@ impl Preparation {
                     .map_err(|error| format!("invalid local resolver capability result: {error}"))
             });
         match discovery {
-            Ok(discovery) => Ok((connection, discovery)),
+            Ok(discovery) => Ok(Self {
+                connection,
+                discovery: Arc::new(discovery),
+            }),
             Err(error) => {
                 // Startup has no Client to own shutdown after discovery fails.
                 // Join preparation cleanup before the MCP process can exit.
@@ -565,7 +571,7 @@ impl Preparation {
         on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<T, String> {
         self.check_ready()?;
-        let id = self.0.sequence.fetch_add(1, Ordering::SeqCst);
+        let id = self.connection.sequence.fetch_add(1, Ordering::SeqCst);
         let request = Input::Run {
             id,
             operation: Box::new(operation),
@@ -576,12 +582,12 @@ impl Preparation {
         let state = Arc::new(State::default());
         let handle = ResolverStopHandle::new(Control {
             id,
-            events: self.0.events.clone(),
+            events: self.connection.events.clone(),
             state: state.clone(),
-            retired: self.0.retired.clone(),
+            retired: self.connection.retired.clone(),
         });
         let (reply, response) = mpsc::channel();
-        self.0
+        self.connection
             .events
             .send(Event::Run {
                 id,
@@ -600,23 +606,32 @@ impl Preparation {
             .map_err(|_| format!("{} owner stopped", LABEL))??;
         serde_json::from_value(value).map_err(|error| {
             let error = format!("invalid local resolver result: {error}");
-            *self.0.blocked.lock().expect("preparation session lock") = Some(error.clone());
+            *self
+                .connection
+                .blocked
+                .lock()
+                .expect("preparation session lock") = Some(error.clone());
             error
         })
     }
 
     pub(crate) fn close(&self) -> Result<(), String> {
+        self.connection.close()
+    }
+}
+
+impl Connection {
+    fn close(&self) -> Result<(), String> {
         // Hold the lock through the join so every close caller waits for the
         // owner to reap its child, even after Closed and EOF arrive.
-        let mut owner = self.0.owner.lock().map_err(|_| "preparation owner lock")?;
-        let _ = self.0.events.send(Event::Close);
+        let mut owner = self.owner.lock().map_err(|_| "preparation owner lock")?;
+        let _ = self.events.send(Event::Close);
         let result = owner.take().map_or(Ok(()), |owner| {
             owner
                 .join()
                 .map_err(|_| format!("{} owner panicked", LABEL))?
         });
         let retry = self
-            .0
             .unconfirmed
             .lock()
             .map_err(|_| "preparation retirement lock")?

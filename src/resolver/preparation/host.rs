@@ -46,6 +46,8 @@ impl Context {
             .as_deref()
             .is_some_and(|python| !python.is_empty() && python != OsStr::new("managed"));
         let configured_python = configured_python.and_then(|python| python.into_string().ok());
+        let duckdb_extension_directory =
+            std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
         if !matches!(mode, Mode::R) {
             let python =
                 resolver::ManagedPythonResolverConfiguration::capture().without_r_bootstrap();
@@ -68,6 +70,7 @@ impl Context {
                     },
                     local_r_home_bytes: None,
                     local_has_uv: Some(has_uv),
+                    duckdb_extension_directory,
                 },
             ));
         }
@@ -97,6 +100,7 @@ impl Context {
             #[cfg(windows)]
             local_r_home_bytes: None,
             local_has_uv: Some(python.has_uv()),
+            duckdb_extension_directory,
         };
         Ok((
             Self {

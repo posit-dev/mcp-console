@@ -97,6 +97,7 @@ def test_opens_and_closes_with_batched_frames(binary: Path) -> Transcript:
             "MCP_CONSOLE_HOME": str(Path(temporary) / "console"),
         }
         environment.pop("RETICULATE_PYTHON", None)
+        environment.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", None)
         frames = '{"Open":{"mode":"PythonOnly"}}\n"Close"\n'
         process = subprocess.Popen(
             [binary, "resolve"],
@@ -281,6 +282,7 @@ def test_later_stage_failure_does_not_inherit_earlier_control(
             LOADER_VARIABLE: str(build_interposer(root, "preparation_stage_control")),
         }
         environment.pop("RETICULATE_UV", None)
+        environment.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", None)
         process = subprocess.Popen(
             [binary, "resolve"],
             stdin=subprocess.PIPE,

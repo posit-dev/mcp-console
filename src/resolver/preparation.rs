@@ -37,6 +37,9 @@ pub(crate) struct Discovery {
     pub local_r_home_bytes: Option<Vec<u8>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_has_uv: Option<bool>,
+    /// Effective path in the launched resolver's environment, shared by its workers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duckdb_extension_directory: Option<std::ffi::OsString>,
 }
 
 #[derive(Deserialize, Serialize)]

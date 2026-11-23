@@ -362,8 +362,7 @@ impl Client {
                     );
                     self.clear_resolver_stop_handle(generation)
                         .map_err(EnvironmentResolutionFailure::Operation)?;
-                    let (preparation, _) =
-                        opened.map_err(EnvironmentResolutionFailure::Operation)?;
+                    let preparation = opened.map_err(EnvironmentResolutionFailure::Operation)?;
                     *self
                         .0
                         .resolver_preparation

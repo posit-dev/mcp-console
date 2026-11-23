@@ -126,6 +126,7 @@ The selection rules live in [resolver cache selection](../src/resolver/cache.rs)
 `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` selects a host-mode extension directory; a relative nonempty value uses the launch directory.
 Otherwise extensions use the resolver home's `.duckdb/extensions`.
 The choice is captured before execution, and changing a cell's environment does not move it or grant additional access.
+When a worker restarts, it uses the extension directory selected by its retained resolver.
 
 `--no-sandbox` requires host caches and rejects explicit worker/resolver sandbox mappings.
 Clear inherited selections when opting out:

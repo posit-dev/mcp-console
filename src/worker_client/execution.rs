@@ -499,6 +499,22 @@ impl Client {
             let managed_r = environment
                 .as_ref()
                 .and_then(|environment| environment.r.as_ref());
+            // Preparation may have attached during setup. The worker must use
+            // the directory selected by that resolver for this session.
+            let duckdb_extension_directory = match self
+                .0
+                .resolver_preparation
+                .lock()
+                .map_err(|_| "preparation lock poisoned".to_string())?
+                .as_ref()
+            {
+                Some(preparation) => preparation
+                    .discovery
+                    .duckdb_extension_directory
+                    .as_ref()
+                    .map(std::path::PathBuf::from),
+                None => self.0.custom_worker_duckdb_directory.clone(),
+            };
             let spec = WorkerSpec {
                 builtin: environment
                     .as_ref()
@@ -513,7 +529,7 @@ impl Client {
                 no_sandbox: self.0.no_sandbox,
                 sandbox_settings: &self.0.sandbox_settings,
                 startup_source: self.0.startup_source.as_ref(),
-                duckdb_extension_directory: self.0.duckdb_extension_directory.as_deref(),
+                duckdb_extension_directory: duckdb_extension_directory.as_deref(),
                 resolver_matplotlib_cache: self
                     .0
                     .resolver_settings

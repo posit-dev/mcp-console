@@ -343,6 +343,12 @@ def duckdb_cache(
                     client
                 ) and "missing" not in last_tool_text(client), last_tool_text(client)
                 config.write_text("resolver: {environment: {HOME: /missing}}\n")
+                assert not (root / "missing").exists()
+                if explicit:
+                    # A retained resolver keeps the directory used for preparation.
+                    nested = home / "nested"
+                    nested.mkdir()
+                    (root / "missing").symlink_to(nested, target_is_directory=True)
                 client.send(control="restart")
                 wait_for_evaluation_output(
                     client,
@@ -353,7 +359,6 @@ def duckdb_cache(
                 )
                 assert str(cache) in last_tool_text(client), last_tool_text(client)
                 client.finish()
-            assert not (root / "missing").exists()
         if r:
             # The shared ir library must survive this resolver HOME's cleanup.
             assert package_directory.is_dir(), package_directory
