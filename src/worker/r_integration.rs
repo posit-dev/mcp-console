@@ -1,6 +1,7 @@
 use super::{core, embedded_r, interrupt};
 
 use std::cell::{Cell, RefCell};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -238,16 +239,52 @@ impl Integration {
         &self,
         library: &str,
     ) -> Result<crate::r_environment::PreparationOutcome, String> {
-        if !initialized() {
-            // Library preparation must not initialize an unused interpreter.
-            unsafe {
-                std::env::set_var("R_LIBS", library);
-                std::env::set_var("MCP_CONSOLE_R_LIBRARY", library);
-            }
-            return Ok(crate::r_environment::PreparationOutcome::Prepared {
-                library: library.into(),
-            });
+        if let Some(runtime) = runtime() {
+            return runtime.prepare(library);
         }
-        runtime().unwrap().prepare(library)
+        // R may already have read .Renviron. Update its live search path
+        // without running profiles or initializing an unused interpreter.
+        Ok(match prepare_startup_library(Path::new(library)) {
+            Ok(()) => crate::r_environment::PreparationOutcome::Prepared {
+                library: library.into(),
+            },
+            Err(error) => crate::r_environment::PreparationOutcome::Failed {
+                message: error.to_string(),
+            },
+        })
     }
+}
+
+fn prepare_startup_library(library: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    const MANAGED: &str = "MCP_CONSOLE_R_LIBRARY";
+    let mut paths: Vec<_> = std::env::var_os("R_LIBS")
+        .iter()
+        .flat_map(std::env::split_paths)
+        .filter(|path| !path.as_os_str().is_empty())
+        .collect();
+    // Remove only the spelling Console supplied. A project alias for the
+    // previous directory is a separate entry.
+    let previous = std::env::var_os(MANAGED)
+        .filter(|path| !path.is_empty())
+        .and_then(|previous| paths.iter().position(|path| path.as_os_str() == previous));
+    if let Some(index) = previous {
+        paths.remove(index);
+    }
+    // As in the running R bridge, a project entry already providing this
+    // library stays at its position and remains project-owned.
+    let target = library.canonicalize()?;
+    let already_present = paths.iter().any(|path| {
+        path == library
+            || path
+                .canonicalize()
+                .is_ok_and(|candidate| candidate == target)
+    });
+    let owned = if already_present {
+        Path::new("")
+    } else {
+        paths.insert(previous.unwrap_or(0), library.to_owned());
+        library
+    };
+    let r_libs = std::env::join_paths(paths)?;
+    embedded_r::set_environment(&[("R_LIBS", &r_libs), (MANAGED, owned.as_os_str())])
 }

@@ -19,7 +19,14 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment
 from support.records import Transcript
-from support.requirements import POSIX, R, command, requires
+from support.requirements import (
+    POSIX,
+    R,
+    SANDBOX,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.resolvers import bare_runtime_environment, ir_run_records, ir_requirements
 from support.suites import run_this_suite
 
@@ -211,6 +218,96 @@ def test_replaces_library_prepared_before_r_initialization(
                       consolesecond::fixture()
                     )
                     cat("pre-initialization library replaced\n")
+                    """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_preparation_preserves_renviron_libraries_while_r_startup_is_paused(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(
+            root, ("consolefirst", "consoleproject", "consolesecond")
+        )
+        for name in ("private temp", "project-last"):
+            (root / name).mkdir()
+        (root / "resolved-r-libraries/consolefirst-consoleproject").mkdir(parents=True)
+        environ = root / ".Renviron"
+        environ.write_text(
+            f'TMPDIR="{root}/private temp"\n'
+            'R_LIBS="project-first:${MCP_CONSOLE_R_LIBRARY}:'
+            'resolved-r-libraries/consolefirst-consoleproject:project-last"\n'
+        )
+        environment.update(
+            R_ENVIRON_USER=str(environ), RETICULATE_PYTHON=sys.executable
+        )
+        with McpClient(
+            binary,
+            ("serve", "--writable-root", str(root), "-c", "cache=host"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    import subprocess
+                    from pathlib import Path
+
+                    Path("project-first").symlink_to(os.environ["MCP_CONSOLE_R_LIBRARY"])
+                    answer = 42
+                    """)
+            )
+            output = client.expect(None, r="1L")["content"][0]["text"]
+            assert "R requires a temporary directory without whitespace" in output, (
+                output
+            )
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(
+                "[done]",
+                # fmt: python
+                python=code("""
+                    paths = (
+                        subprocess.check_output(["printenv", "R_LIBS"], text=True).strip().split(os.pathsep)
+                    )
+                    assert [Path(path).name for path in paths] == [
+                        "project-first",
+                        "consolefirst",
+                        "consolefirst-consoleproject",
+                        "project-last",
+                    ], paths
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consoleproject"]})
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                "42\n", python='os.environ["TMPDIR"] = os.getcwd(); print(answer)'
+            )
+            client.expect(
+                "project libraries retained\n",
+                # fmt: r
+                r=code(r"""
+                    paths <- .libPaths()
+                    stopifnot(
+                      identical(
+                        paths[2:5],
+                        normalizePath(c(
+                          "resolved-r-libraries/consolefirst-consoleproject-consolesecond",
+                          "project-first",
+                          "resolved-r-libraries/consolefirst-consoleproject",
+                          "project-last"
+                        ))
+                      ),
+                      !"consolefirst" %in% basename(paths),
+                      consoleproject::fixture(),
+                      consolesecond::fixture()
+                    )
+                    cat("project libraries retained\n")
                     """),
             )
             return client.finish()

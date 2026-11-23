@@ -1,0 +1,108 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  python: |
+    import os
+    import subprocess
+    from pathlib import Path
+
+    Path("project-first").symlink_to(os.environ["MCP_CONSOLE_R_LIBRARY"])
+    answer = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    paths = (
+        subprocess.check_output(["printenv", "R_LIBS"], text=True).strip().split(os.pathsep)
+    )
+    assert [Path(path).name for path in paths] == [
+        "project-first",
+        "consolefirst",
+        "consolefirst-consoleproject",
+        "project-last",
+    ], paths
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consoleproject
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: os.environ["TMPDIR"] = os.getcwd(); print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    stopifnot(
+      identical(
+        paths[2:5],
+        normalizePath(c(
+          "resolved-r-libraries/consolefirst-consoleproject-consolesecond",
+          "project-first",
+          "resolved-r-libraries/consolefirst-consoleproject",
+          "project-last"
+        ))
+      ),
+      !"consolefirst" %in% basename(paths),
+      consoleproject::fixture(),
+      consolesecond::fixture()
+    )
+    cat("project libraries retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        project libraries retained
+  isError: false

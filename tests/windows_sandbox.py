@@ -653,6 +653,9 @@ class WindowsSandbox(unittest.TestCase):
                         selected.mkdir()
                         (selected / "selected-by-python").touch()
                         os.environ["TMPDIR"] = str(selected)
+                        project_library = selected / "project-library"
+                        project_library.mkdir()
+                        os.environ["R_LIBS"] = os.pathsep.join((str(project_library), os.environ["R_LIBS"]))
                         r_bin = Path(os.environ["R_HOME"]) / "bin"
                         rscript = r_bin / "Rscript.exe"
                         if not rscript.is_file():
@@ -686,6 +689,7 @@ class WindowsSandbox(unittest.TestCase):
                     )
                 else:
                     self.assertIn("Rscript started: True", result_text)
+                session.expect("[prepared]", requirements={"r": ["digest"]})
                 session.expect(
                     "installation paths changed",
                     # fmt: python
@@ -706,6 +710,15 @@ class WindowsSandbox(unittest.TestCase):
                           normalizePath(unname(Sys.getenv(paste0("EXPECTED_", names))), mustWork = TRUE)
                         ))
                         stopifnot(file.exists(file.path(dirname(tempdir()), "selected-by-python")))
+                        project <- file.path(dirname(tempdir()), "project-library")
+                        managed <- Sys.getenv("MCP_CONSOLE_R_LIBRARY")
+                        stopifnot(
+                          normalizePath(project, winslash = "/") %in% .libPaths(),
+                          identical(
+                            dirname(find.package("digest")),
+                            normalizePath(managed, winslash = "/")
+                          )
+                        )
                         cat("R used the directory selected by Python")
                         """),
                 )

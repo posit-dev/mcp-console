@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::error::Error;
-use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_void};
+use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_uchar, c_void};
 use std::io;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
@@ -344,8 +344,14 @@ pub(super) fn read_startup_environment(
 pub(super) fn configure_installation(
     installation: &crate::local_runtime::RInstallation,
 ) -> Result<(), Box<dyn Error>> {
+    set_environment(&installation.environment())
+}
+
+pub(super) fn set_environment(variables: &[(&str, &OsStr)]) -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
-    installation.configure_environment();
+    for &(name, value) in variables {
+        unsafe { std::env::set_var(name, value) };
+    }
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
@@ -354,7 +360,7 @@ pub(super) fn configure_installation(
         type WPutEnv = unsafe extern "C" fn(*const u16, *const u16) -> c_int;
         let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
         let set = unsafe { runtime.get::<WPutEnv>(b"_wputenv_s\0")? };
-        for (name, value) in installation.environment() {
+        for &(name, value) in variables {
             let key: Vec<_> = name.encode_utf16().chain([0]).collect();
             let value: Vec<_> = value.encode_wide().chain([0]).collect();
             let status = unsafe { set(key.as_ptr(), value.as_ptr()) };
