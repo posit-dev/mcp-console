@@ -24,8 +24,12 @@ from support.linux_sandbox import (
 @dataclass(frozen=True)
 class Requirement:
     name: str
-    available: bool
+    condition: bool | Callable[[], bool]
     reason: str
+
+    @property
+    def available(self) -> bool:
+        return self.condition() if callable(self.condition) else self.condition
 
 
 # Keep implementation availability here until the corresponding runtime lands.
@@ -212,7 +216,7 @@ def _posix_r_accepts_spaced_tempdir() -> bool | None:
 def posix_r_tempdir_whitespace(*, accepted: bool) -> Requirement:
     return Requirement(
         "R tempdir",
-        _posix_r_accepts_spaced_tempdir() is accepted,
+        lambda: _posix_r_accepts_spaced_tempdir() is accepted,
         "requires R to "
         + ("accept" if accepted else "reject")
         + " a spaced POSIX temp path",

@@ -1091,7 +1091,7 @@ runner: different
                             f"{missing}: {missing} is missing from PATH", line
                         )
 
-    def test_r_tempdir_cases_skip_unrelated_rscript_failures(self) -> None:
+    def test_r_tempdir_probe_runs_only_for_selected_cases(self) -> None:
         shutil.copytree(
             ROOT / "tests/support",
             self.root / "tests/support",
@@ -1104,14 +1104,31 @@ runner: different
         shutil.copy2(RUNNER.parent / f"{suite}.py", destination)
         rscript = self.root / "bin/Rscript"
         rscript.parent.mkdir()
-        rscript.write_text("#!/bin/sh\necho 'cannot load libR' >&2\nexit 2\n")
+        rscript.write_text(
+            '#!/bin/sh\necho called >> "$R_HOME/probes"\necho "cannot load libR" >&2\nexit 2\n'
+        )
         rscript.chmod(0o755)
         selectors = [
             f"{suite}::r_tempdir_whitespace_preserves_the_worker",
             f"{suite}::initializes_r_with_a_supported_spaced_tempdir",
         ]
+        # The selected Python fixture shares a module with an R-dependent case.
+        with self.suite.open("a") as stream:
+            stream.write(
+                "\nfrom boundaries.client_server.sandbox.test_environment import "
+                "test_r_tempdir_whitespace_preserves_the_worker\n"
+            )
+        unrelated = "client_server/server/test_tools::selected"
+        probes = self.root / "probes"
         with patch.dict(os.environ, R_HOME=str(self.root)):
+            for arguments in (("--list", unrelated), (unrelated,)):
+                with self.subTest(arguments=arguments):
+                    result = self.run_runner(*arguments)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertFalse(probes.exists(), arguments)
+            self.assertTrue((self.root / "selected.marker").is_file())
             result = self.run_runner(*selectors)
+        self.assertEqual(probes.read_text().splitlines(), ["called"])
         self.assertEqual(result.returncode, 0, result.stderr)
         for selector in selectors:
             self.assertIn(f"{selector}: skipped; R tempdir:", result.stdout)
