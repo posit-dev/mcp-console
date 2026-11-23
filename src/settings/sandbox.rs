@@ -940,7 +940,7 @@ fn any_untrusted_link(
 }
 
 #[cfg(target_os = "macos")]
-fn is_macos_system_alias(path: &Path, metadata: &std::fs::Metadata) -> bool {
+pub(crate) fn is_macos_system_alias(path: &Path, metadata: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt as _;
 
     // Require the system link itself, in the physical root directory. A hard

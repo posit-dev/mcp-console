@@ -4,6 +4,8 @@ use crate::settings::{Cache, SandboxSettings, environment_path};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+mod directory;
+
 /// Private resolver setting consumed before passing permissions to the native runner.
 pub(super) const MANAGED_DIRECTORY: &str = "_console_managed_cache_directory";
 
@@ -23,7 +25,7 @@ pub(crate) fn configure(
     // reuse them in a local session that removes native enforcement.
     // Host-side companion staging uses a separate sandbox cache. Grant only
     // dependency storage, never the shared Console cache parent.
-    let grant = match selection {
+    let mut grant = match selection {
         Cache::Host => return Ok(()),
         Cache::Managed | Cache::Directory(_) if no_sandbox => {
             return Err(
@@ -32,8 +34,10 @@ pub(crate) fn configure(
         }
         Cache::Managed => console_root(resolver)?,
         Cache::Directory(path) => path,
-    }
-    .join("dependencies");
+    };
+    // Joining a name normally folds existing '..' in verbatim Windows paths.
+    grant.push("");
+    grant.as_mut_os_string().push("dependencies");
     let root = prepare_directory(&grant)?;
     let explicit_python = python.map_or_else(
         || {
@@ -96,22 +100,24 @@ pub(crate) fn configure(
     Ok(())
 }
 
-/// Keep the declared spelling for grant inspection. Win32 filesystem calls
-/// require parent traversals in verbatim paths to be resolved by the caller.
+/// Inspect the grant as written, then provision only the selected cache.
 pub(super) fn prepare_directory(grant: &Path) -> Result<PathBuf, String> {
     grant.to_str().ok_or("Console cache paths must be UTF-8")?;
-    #[cfg(windows)]
     let directory = crate::console_paths::normalize_permission_path(grant);
-    #[cfg(not(windows))]
-    let directory = grant.to_owned();
-    if !crate::settings::has_untrusted_symlink(grant)? {
-        std::fs::create_dir_all(&directory).map_err(|error| {
-            format!(
-                "cannot create resolver cache '{}': {error}",
-                directory.display()
-            )
-        })?;
+    if crate::settings::has_untrusted_symlink(grant)? {
+        // Package tools can still use an independently granted target. Unix
+        // resolves '..' after a link; Win32 requires a lexical verbatim path.
+        #[cfg(unix)]
+        return Ok(grant.to_owned());
+        #[cfg(windows)]
+        return Ok(directory);
     }
+    directory::create(&directory).map_err(|error| {
+        format!(
+            "cannot create resolver cache '{}': {error}",
+            directory.display()
+        )
+    })?;
     Ok(directory)
 }
 

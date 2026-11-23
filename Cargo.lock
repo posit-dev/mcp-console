@@ -855,6 +855,7 @@ dependencies = [
  "pep508_rs",
  "rmcp",
  "rust-embed",
+ "rustix",
  "same-file",
  "saphyr",
  "semver",

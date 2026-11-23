@@ -688,6 +688,8 @@ def cache_locations(
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
                 elif source in ("path", "path_cli", "path_isolated"):
                     settings["cache"] = {"directory": str(console_base)}
+                    if source == "path":
+                        settings["cache"]["directory"] = "unused/../custom cache"
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
             elif source == "empty":
                 env["MCP_CONSOLE_CACHE_DIR"] = ""
@@ -811,6 +813,8 @@ def cache_locations(
                 client.initialize_and_list_tools()
                 if not host:
                     assert console_root.is_dir(), console_root
+                    if source == "path":
+                        assert not (root / "unused").exists()
                 for restart in (False, True):
                     if restart:
                         config.write_text(

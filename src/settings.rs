@@ -10,6 +10,8 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
+#[cfg(target_os = "macos")]
+pub(crate) use sandbox::is_macos_system_alias;
 pub(crate) use sandbox::{
     PolicyContext, Profile, ProfileSelection, Tempdir, apply_workspace_profile,
     materialize_settings as materialize_sandbox, resolve_writable_root, revalidate_writable_roots,
