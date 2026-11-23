@@ -115,13 +115,13 @@ impl Runtime {
         Ok(())
     }
 
-    pub(super) fn initialize() -> Result<Self, Box<dyn Error>> {
+    pub(super) fn initialize(project_patterns: &[PathBuf]) -> Result<Self, Box<dyn Error>> {
         harp::parse_eval_base(include_str!("embedded_r/documentation.R"))?;
         Ok(Self {
             parser: parse::Parser::initialize()?,
             priority: priority::Evaluator::initialize()?,
             graphics: crate::r_graphics::Bridge::initialize()?,
-            environment: crate::r_environment::Bridge::initialize()?,
+            environment: crate::r_environment::Bridge::initialize(project_patterns)?,
         })
     }
 
@@ -358,12 +358,51 @@ fn user_home() -> Option<PathBuf> {
     std::env::home_dir()
 }
 
-/// Resolve a directory entry from R_LIBS before R builds its library path.
-pub(super) fn canonical_library_directory(path: &Path) -> Option<PathBuf> {
-    match path.strip_prefix("~") {
-        Ok(relative) => user_home()?.join(relative).canonicalize().ok(),
-        Err(_) => path.canonicalize().ok(),
+pub(super) fn expand_library_home(path: &Path) -> std::borrow::Cow<'_, Path> {
+    if let Ok(relative) = path.strip_prefix("~")
+        && let Some(home) = user_home()
+    {
+        return home.join(relative).into();
     }
+    path.into()
+}
+
+pub(super) fn anchor_library_pattern(path: &Path) -> io::Result<PathBuf> {
+    let (directory, pattern) = if let Ok(relative) = path.strip_prefix("~")
+        && let Some(home) = user_home()
+    {
+        (home, relative)
+    } else if path.is_absolute()
+        || path.has_root()
+        || matches!(
+            path.components().next(),
+            Some(std::path::Component::Prefix(_))
+        )
+    {
+        return std::path::absolute(path);
+    } else {
+        (std::env::current_dir()?, path)
+    };
+    // Native glob sees only the original pattern. Quote the literal prefix
+    // without converting Unix directory names through UTF-8.
+    let mut bytes = Vec::new();
+    for &byte in directory.as_os_str().as_encoded_bytes() {
+        match byte {
+            b'[' => bytes.extend_from_slice(b"[[]"),
+            b'*' => bytes.extend_from_slice(b"[*]"),
+            b'?' => bytes.extend_from_slice(b"[?]"),
+            b'\\' if cfg!(windows) => bytes.push(b'/'),
+            b'\\' => bytes.extend_from_slice(b"\\\\"),
+            _ => bytes.push(byte),
+        }
+    }
+    if !bytes.ends_with(b"/") {
+        bytes.push(b'/');
+    }
+    bytes.extend_from_slice(pattern.as_os_str().as_encoded_bytes());
+    // SAFETY: Both inputs use this platform's OsStr encoding. Only ASCII was
+    // substituted or inserted at character boundaries.
+    Ok(unsafe { std::ffi::OsString::from_encoded_bytes_unchecked(bytes) }.into())
 }
 
 pub(super) fn set_environment(variables: &[(&str, &OsStr)]) -> Result<(), Box<dyn Error>> {

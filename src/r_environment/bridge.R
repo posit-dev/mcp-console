@@ -35,6 +35,20 @@ base::local(
     original_load_namespace <- base::loadNamespace
     original_with_restarts <- base::withRestarts
 
+    recognize_project_library <- function(pattern) {
+      matches <- base::Sys.glob(pattern)
+      if (
+        managed %in%
+          base::normalizePath(
+            matches[base::dir.exists(matches)],
+            winslash = "/"
+          )
+      ) {
+        managed <<- ""
+      }
+      managed
+    }
+
     is_plain_package_name <- function(package) {
       base::is.character(package) &&
         base::length(package) == 1L &&

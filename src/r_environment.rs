@@ -48,8 +48,13 @@ pub(crate) enum PreparationOutcome {
 }
 
 impl Bridge {
-    pub(crate) fn initialize() -> Result<Self, String> {
-        crate::r_bridge::Bridge::initialize(R_ENVIRONMENT_BRIDGE_SOURCE, "R environment").map(Self)
+    pub(crate) fn initialize(project_patterns: &[std::path::PathBuf]) -> Result<Self, String> {
+        let bridge =
+            crate::r_bridge::Bridge::initialize(R_ENVIRONMENT_BRIDGE_SOURCE, "R environment")?;
+        for pattern in project_patterns {
+            bridge.call1_path(c"recognize_project_library", pattern)?;
+        }
+        Ok(Self(bridge))
     }
 
     pub(crate) fn prepare(&self, library: &std::path::Path) -> Result<PreparationOutcome, String> {

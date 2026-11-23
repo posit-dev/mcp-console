@@ -154,9 +154,11 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
             prepare_startup_library(&project.resolved, paths).map_err(|error| error.to_string())?;
         }
     }
+    let patterns = startup_project_patterns().map_err(|error| error.to_string())?;
     embedded_r::start_mainloop(libraries).map_err(|error| error.to_string())?;
     publish_r_session()?;
-    let runtime = Rc::new(embedded_r::Runtime::initialize().map_err(|error| error.to_string())?);
+    let runtime =
+        Rc::new(embedded_r::Runtime::initialize(&patterns).map_err(|error| error.to_string())?);
     RUNTIME.with(|slot| *slot.borrow_mut() = Some(runtime.clone()));
     if core::bootstrapping()
         || core::cell_language()
@@ -305,11 +307,38 @@ fn startup_library_paths() -> Vec<PathBuf> {
         .collect()
 }
 
+fn is_library_pattern(path: &Path) -> bool {
+    path.as_os_str()
+        .as_encoded_bytes()
+        .iter()
+        .any(|ch| matches!(ch, b'*' | b'?' | b'[') || (cfg!(unix) && *ch == b'\\'))
+}
+
+// Profiles can change the working directory. Capture project patterns where
+// R will expand them to initialize .libPaths().
+fn startup_project_patterns() -> std::io::Result<Vec<PathBuf>> {
+    let paths = startup_library_paths();
+    let Some((fallback, project)) = paths.split_last() else {
+        return Ok(Vec::new());
+    };
+    if Some(fallback.as_os_str()) != std::env::var_os("MCP_CONSOLE_R_LIBRARY").as_deref() {
+        return Ok(Vec::new());
+    }
+    project
+        .iter()
+        .filter(|path| is_library_pattern(path))
+        .map(|path| embedded_r::anchor_library_pattern(path))
+        .collect()
+}
+
 fn prepare_startup_library(
     library: &Path,
     mut paths: Vec<PathBuf>,
 ) -> Result<Option<ProjectLibrary>, Box<dyn std::error::Error>> {
     const MANAGED: &str = "MCP_CONSOLE_R_LIBRARY";
+    if is_library_pattern(library) {
+        return Err("resolved R library path contains wildcard characters; use a library directory without glob syntax when preparing packages before R starts".into());
+    }
     // Remove only the spelling Console supplied. A project alias for the
     // previous directory is a separate entry.
     let previous = std::env::var_os(MANAGED)
@@ -323,7 +352,14 @@ fn prepare_startup_library(
     let target = library.canonicalize()?;
     let project = paths
         .iter()
-        .find(|path| embedded_r::canonical_library_directory(path).as_ref() == Some(&target))
+        .find(|path| {
+            !is_library_pattern(path)
+                && embedded_r::expand_library_home(path)
+                    .canonicalize()
+                    .ok()
+                    .as_ref()
+                    == Some(&target)
+        })
         .map(|entry| ProjectLibrary {
             entry: entry.clone(),
             resolved: library.to_owned(),
@@ -331,7 +367,14 @@ fn prepare_startup_library(
     let owned = if project.is_some() {
         Path::new("")
     } else {
-        paths.insert(previous.unwrap_or(0), library.to_owned());
+        // R expands wildcards during native startup. Give project matches
+        // their original precedence and supply the candidate as a fallback.
+        let position = if paths.iter().any(|path| is_library_pattern(path)) {
+            paths.len()
+        } else {
+            previous.unwrap_or(0)
+        };
+        paths.insert(position, library.to_owned());
         library
     };
     let r_libs = std::env::join_paths(paths)?;

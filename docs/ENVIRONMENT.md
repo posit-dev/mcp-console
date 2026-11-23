@@ -161,6 +161,9 @@ R interprets `R_ENVIRON`, `R_ENVIRON_USER`, `R_PROFILE`, `R_PROFILE_USER`, `R_LI
 
 Managed preparation prepends its library to captured `R_LIBS`; native startup or user code can alter `.libPaths()` afterward.
 When requirements change before R finishes starting, Console replaces its previous directory in the current `R_LIBS`, preserving the order of project libraries added by `.Renviron`.
+If `R_LIBS` contains wildcard patterns, R searches the project's entries first and Console adds the prepared library at the end when needed.
+Directories supplied by a pattern remain in the search path across later requirements changes.
+Before R finishes starting, the managed library directory supplied by the resolver must have a path without glob syntax (`*`, `?`, `[`, or, on Unix, a backslash).
 If the project already lists the prepared directory by an absolute path, a relative path, or a path beginning with `~/`, it keeps that entry in place across later requirements changes.
 If Python changes directories before R starts, R resolves the project's relative entries in the new directory and the prepared library remains available at its absolute path.
 Console supplies `R_HOME`, `R_SHARE_DIR`, `R_INCLUDE_DIR`, and `R_DOC_DIR` from the selected installation rather than retaining mismatched resource paths.
