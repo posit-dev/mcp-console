@@ -142,6 +142,79 @@ class WindowsMxc(unittest.TestCase):
             self.assertNotIn("USER CODE RAN", output)
 
     @requires_mxc(BINARY)
+    def test_filesystem_limits_cover_directory_junctions(self):
+        # fmt: python
+        program = code("""
+            import os
+            from pathlib import Path
+
+            assert "TEST_LIMITS" not in os.environ
+            Path("public.txt").write_text("permitted")
+            for directory in ("Protected", "Alias"):
+                secret = Path(directory, "nested", "secret.txt")
+                for mode in ("r", "w"):
+                    try:
+                        secret.open(mode).close()
+                    except (PermissionError, FileNotFoundError):
+                        pass
+                    else:
+                        raise AssertionError((secret, mode))
+            """)
+        with workspace() as root:
+            protected = root / "Protected"
+            (protected / "nested").mkdir(parents=True)
+            secret = protected / "nested/secret.txt"
+            secret.write_text("private")
+            subprocess.run(
+                [
+                    os.environ["COMSPEC"],
+                    "/d",
+                    "/c",
+                    "mklink",
+                    "/j",
+                    "Alias",
+                    "Protected",
+                ],
+                cwd=root,
+                capture_output=True,
+                check=True,
+            )
+            self.assertEqual((root / "ALIAS/nested/secret.txt").read_text(), "private")
+            result = subprocess.run(
+                [
+                    BINARY,
+                    "sandbox",
+                    "--no-config",
+                    "--limits-env",
+                    "Test_Limits",
+                    "-c",
+                    "sandbox.profile=workspace",
+                    "--writable-root",
+                    "Protected/nested",
+                    "-c",
+                    'environment={test_limits: "ordinary value"}',
+                    "--",
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    program,
+                ],
+                cwd=root,
+                env=os.environ
+                | {
+                    "MCP_CONSOLE_HOME": str(root / "home"),
+                    "TEST_LIMITS": json.dumps({"filesystem": {"deny": ["./aLIas"]}}),
+                },
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / "public.txt").read_text(), "permitted")
+            self.assertEqual(secret.read_text(), "private")
+
+    @requires_mxc(BINARY)
     def test_proxy_launch(self):
         binary = installed_console(native_console(BINARY))
         companions = list(binary.parent.parent.rglob("mcp-console-sandbox.exe"))
