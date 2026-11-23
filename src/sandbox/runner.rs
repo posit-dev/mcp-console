@@ -117,6 +117,8 @@ pub(super) fn run(
             lifecycle["sigterm"] = "retire".into();
         }
         settings.insert("lifecycle".into(), lifecycle);
+        // The native runner binds these roots by name. Their directory entries
+        // must stay stable from this check through native sandbox setup.
         crate::settings::revalidate_writable_roots(&mut settings)?;
         runner.env(CONFIGURATION, Value::Object(settings).to_string());
     } else if runner_config_env != Some(CONFIGURATION) {

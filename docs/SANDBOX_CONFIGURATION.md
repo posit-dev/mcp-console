@@ -106,6 +106,10 @@ The same rule applies to directory junctions on Windows.
 On macOS, the standard `/tmp`, `/var`, and `/etc` aliases retain their system meaning.
 Console also checks write grants for host temporary directories and dependency caches.
 
+Console passes checked paths to the native runner by name.
+On Linux the runner resolves each path again when it sets up the writable mount.
+Choose a location where untrusted processes cannot replace the granted path or any parent directory between the check and mount setup, including during worker restarts.
+
 Narrower native rules take precedence.
 At equal paths, deny wins over write, then read.
 List order does not decide access.
