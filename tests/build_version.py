@@ -32,8 +32,8 @@ class BuildVersionTests(unittest.TestCase):
                 destination = source / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, destination)
-            for name in ("src/r_graphics.c", "src/r_repl.c", "src/worker/interrupt.c"):
-                destination = source / name
+            for native_source in (ROOT / "src").rglob("*.c"):
+                destination = source / native_source.relative_to(ROOT)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.touch()
             (source / "src/main.rs").write_text(
