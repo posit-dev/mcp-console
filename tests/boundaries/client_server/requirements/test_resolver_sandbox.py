@@ -584,22 +584,54 @@ def test_ignores_relative_uv_xdg_directories(binary: Path) -> Transcript:
 
 
 @requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        env, _ = r_test_environment()
+        env.update(r_library_cache_environment(env))
+        env.pop("R_USER_CACHE_DIR", None)
+        env.update(XDG_CACHE_HOME="unused/../rcache", MCP_CONSOLE_LANGUAGES="r")
+        arguments = ("serve", "-c", "cache=host", "-c", "sandbox.tempdir=read_write")
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    cache <- tools::R_user_dir("reticulate", "cache")
+                    stopifnot(
+                      Sys.getenv("XDG_CACHE_HOME") == "unused/../rcache",
+                      dir.exists(cache),
+                      normalizePath(cache) == normalizePath("rcache/R/reticulate")
+                    )
+                    """),
+            )
+            client.finish()
+        assert not (root / "unused").exists()
+        return [
+            {
+                "r_cache_found": "rcache/R/reticulate",
+                "xdg_cache_home": "unused/../rcache",
+            }
+        ]
+
+
+@requires(SANDBOX, R, command("ir"))
 def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transcript:
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env, _ = r_test_environment()
         env.update(r_library_cache_environment(env))
-        env.update(XDG_CACHE_HOME=str(root / "cache"), RETICULATE_UV="managed")
-        for name in (
-            "RETICULATE_PYTHON",
-            "R_USER_CACHE_DIR",
-            "UV_CACHE_DIR",
-            "UV_TOOL_DIR",
-            "UV_PYTHON_INSTALL_DIR",
-        ):
+        env.update(
+            XDG_CACHE_HOME="unused/../cache",
+            RETICULATE_UV="managed",
+            UV_CACHE_DIR=str(root / "uv-cache"),
+            UV_TOOL_DIR=str(root / "uv-tools"),
+            UV_PYTHON_INSTALL_DIR=str(root / "uv-python"),
+        )
+        for name in ("RETICULATE_PYTHON", "R_USER_CACHE_DIR"):
             env.pop(name, None)
         # Cold shell installation on macOS needs the host policy's Darwin temp
-        # grant. The redirected XDG cache keeps this fixture's artifacts private.
+        # grant. Both reticulate and uv use private fixture caches.
         with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -607,8 +639,17 @@ def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transc
                 requirements={"python": ["six"]},
                 python="import six; print('managed uv prepared')",
             )
+            client.expect(
+                "TRUE\n",
+                # fmt: r
+                r=code(r"""
+                    private <- file.path(Sys.getenv("TMPDIR"), "cache", "R", "reticulate")
+                    cat(tools::R_user_dir("reticulate", "cache") == private, "\n", sep = "")
+                    """),
+            )
             client.finish()
         cache = root / "cache"
+        assert not (root / "unused").exists()
         assert (cache / "R/reticulate/uv/bin/uv").is_file()
         assert not (cache / "reticulate").exists()
     return [{"reticulate_managed_uv": "R/reticulate", "cache_write_granted": True}]

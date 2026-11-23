@@ -58,9 +58,28 @@ pub(crate) fn configure(
             // Only adjust a worker environment value when it uses the same
             // host cache selected for preparation.
             if !no_sandbox {
+                let r_cache = environment_path(resolver, "R_USER_CACHE_DIR")
+                    .or_else(|| environment_path(resolver, "XDG_CACHE_HOME"));
+                if let Some(path) =
+                    r_cache.filter(|path| path.is_relative() && has_parent_traversal(path))
+                {
+                    // R uses relative XDG bases verbatim; uv ignores them. Give
+                    // R its own variable so each tool keeps its cache selection.
+                    if environment_path(resolver, "R_USER_CACHE_DIR").is_none() {
+                        set_cache_variable(resolver, "R_USER_CACHE_DIR", &path)?;
+                    }
+                    // Managed workers redirect XDG_CACHE_HOME to private scratch.
+                    if crate::settings::Tempdir::from_settings(worker)
+                        != crate::settings::Tempdir::Managed
+                        && environment_path(worker, "R_USER_CACHE_DIR").is_none()
+                        && environment_path(worker, "XDG_CACHE_HOME").as_ref() == Some(&path)
+                    {
+                        set_cache_variable(worker, "R_USER_CACHE_DIR", &path)?;
+                    }
+                }
                 for &(name, _) in CACHE_ENVIRONMENT {
                     if let Some(path) = environment_path(resolver, name) {
-                        // Relative XDG bases are ignored by the package tools.
+                        // Leave relative XDG values alone for tools such as uv.
                         if matches!(name, "XDG_CACHE_HOME" | "XDG_DATA_HOME") && path.is_relative()
                         {
                             continue;
@@ -124,6 +143,11 @@ struct EnvironmentPath {
     variables: Vec<(String, String)>,
 }
 
+fn has_parent_traversal(path: &Path) -> bool {
+    path.components()
+        .any(|part| part == std::path::Component::ParentDir)
+}
+
 /// Keep the shared root of managed cache variables so a link in a tool's own
 /// cache subtree cannot change how its environment resolves a parent traversal.
 fn retain_environment_path(
@@ -131,10 +155,7 @@ fn retain_environment_path(
     path: &Path,
     variables: &[(&str, &str)],
 ) -> Result<(), String> {
-    if path
-        .components()
-        .any(|part| part == std::path::Component::ParentDir)
-    {
+    if has_parent_traversal(path) {
         let path = path.to_str().ok_or("Console cache paths must be UTF-8")?;
         settings
             .entry(CACHE_ENVIRONMENT_PATHS)
@@ -197,10 +218,7 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
 }
 
 pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
-    if !path
-        .components()
-        .any(|part| part == std::path::Component::ParentDir)
-    {
+    if !has_parent_traversal(path) {
         return Ok(path.to_owned());
     }
     let absolute = crate::console_paths::absolute_preserving_parents(Path::new("."), path)
