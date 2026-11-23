@@ -56,7 +56,7 @@ pub(crate) enum SqlProvider {
 
 pub(crate) use platform::configure_worker_environment as configure_native_worker_environment;
 
-pub(crate) use library::publish_r_session;
+pub(crate) use library::{publish_r_session, refresh_r_installation};
 pub(crate) use reticulate::configure_worker_environment as configure_r_environment;
 
 thread_local! {

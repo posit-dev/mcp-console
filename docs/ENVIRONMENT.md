@@ -167,7 +167,7 @@ Before R finishes starting, the managed library directory supplied by the resolv
 If the project already lists the prepared directory by an absolute path, a relative path, or a path beginning with `~/`, it keeps that entry in place across later requirements changes.
 If Python changes directories before R starts, R resolves the project's relative entries in the new directory and the prepared library remains available at its absolute path.
 Console supplies `R_HOME`, `R_SHARE_DIR`, `R_INCLUDE_DIR`, and `R_DOC_DIR` from the selected installation rather than retaining mismatched resource paths.
-If R startup pauses while you correct the temporary directory, Console restores those four paths before R resumes.
+If R startup pauses while you correct the temporary directory, Console restores those four paths in the native environment and in Python before rpy2 attaches.
 On Windows, embedded R home uses nonempty `R_USER`, then `HOME`, then the native profile fallback.
 
 Discovery and preparation suppress profile/environment files.

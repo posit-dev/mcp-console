@@ -363,11 +363,19 @@ def test_r_attachment_waits_for_a_usable_interpreter(binary: Path) -> Transcript
             client.expect(
                 # fmt: python
                 python=code("""
+                    paths = {
+                        key: os.environ[key]
+                        for key in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                    }
+                    for key in paths:
+                        os.environ[key] = os.path.join(os.getcwd(), "missing-r", key)
                     os.environ["TMPDIR"] = os.getcwd()
                     from rpy2 import rinterface
-                    from rpy2.rinterface_lib import embedded
+                    from rpy2.rinterface_lib import embedded, openrlib
 
                     assert embedded.is_r_externally_initialized()
+                    assert {key: os.environ[key] for key in paths} == paths
+                    assert openrlib.R_HOME == paths["R_HOME"]
                     assert rinterface.evalr is profile_evalr
                     assert rinterface.evalr("Sys.getpid()")[0] == os.getpid()
                     _ = rinterface.evalr("attached_value <- profile_value")
