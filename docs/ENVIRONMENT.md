@@ -147,6 +147,9 @@ The principal host-cache overrides are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, 
 Without overrides, uv uses its XDG or home cache/data locations; R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
 R accepts a relative `XDG_CACHE_HOME`.
 With a value such as `unused/../rcache`, R can use the provisioned `rcache` directory while uv continues to use its platform default.
+Console resolves a home-relative R cache path containing `..` against the same launch home used for its filesystem grant.
+For a list in `RENV_PATHS_CACHE`, the default resolver policy grants each nonempty directory separately.
+The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
 Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
 

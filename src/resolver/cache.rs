@@ -9,6 +9,8 @@ mod directory;
 /// Private resolver setting consumed before passing permissions to the native runner.
 pub(super) const MANAGED_DIRECTORY: &str = "_console_managed_cache_directory";
 const CACHE_ENVIRONMENT_PATHS: &str = "_console_cache_environment_paths";
+const HOST_RENV_CACHE_LIST: &str = "_console_host_renv_cache_list";
+const RENV_CACHE: &str = "RENV_PATHS_CACHE";
 
 const CACHE_ENVIRONMENT: &[(&str, &str)] = &[
     ("XDG_CACHE_HOME", ""),
@@ -23,7 +25,7 @@ const CACHE_ENVIRONMENT: &[(&str, &str)] = &[
     ("R_USER_CACHE_DIR", ""),
     ("R_USER_DATA_DIR", "data"),
     ("RENV_PATHS_ROOT", "renv"),
-    ("RENV_PATHS_CACHE", "renv/cache"),
+    (RENV_CACHE, "renv/cache"),
     ("RENV_PATHS_SOURCE", "renv/source"),
     ("RENV_PATHS_BINARY", "renv/binary"),
     ("PKG_CACHE_DIR", "R/pkgcache"),
@@ -84,9 +86,9 @@ pub(crate) fn configure(
                         {
                             continue;
                         }
-                        retain_environment_path(resolver, &path, &[(name, "")])?;
+                        retain_host_path(resolver, name, &path)?;
                         if environment_path(worker, name).as_ref() == Some(&path) {
-                            retain_environment_path(worker, &path, &[(name, "")])?;
+                            retain_host_path(worker, name, &path)?;
                         }
                     }
                 }
@@ -148,6 +150,26 @@ fn has_parent_traversal(path: &Path) -> bool {
         .any(|part| part == std::path::Component::ParentDir)
 }
 
+// renv accepts semicolons everywhere and also colons on Unix.
+fn renv_separator(c: char) -> bool {
+    c == ';' || (cfg!(unix) && c == ':')
+}
+
+fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
+    if name == RENV_CACHE
+        && let Some(list) = path.to_str().filter(|s| s.contains(renv_separator))
+    {
+        if list
+            .split(renv_separator)
+            .any(|entry| has_parent_traversal(Path::new(entry)))
+        {
+            settings.insert(HOST_RENV_CACHE_LIST.into(), list.into());
+        }
+        return Ok(());
+    }
+    retain_environment_path(settings, path, &[(name, "")])
+}
+
 /// Keep the shared root of managed cache variables so a link in a tool's own
 /// cache subtree cannot change how its environment resolves a parent traversal.
 fn retain_environment_path(
@@ -196,6 +218,22 @@ fn set_cache_variable(
 /// The retained cache spelling also supplies filesystem grants. Only rewrite
 /// the environment for this launch, after its filesystem policy is captured.
 pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), String> {
+    if let Some(Value::String(list)) = settings.remove(HOST_RENV_CACHE_LIST)
+        && environment_path(settings, RENV_CACHE).as_deref() == Some(Path::new(&list))
+    {
+        let mut resolved = String::new();
+        for entry in list.split_inclusive(renv_separator) {
+            let path = entry.trim_end_matches(renv_separator);
+            let directory = tool_directory(Path::new(path))?;
+            resolved.push_str(
+                directory
+                    .to_str()
+                    .ok_or("Console cache paths must be UTF-8")?,
+            );
+            resolved.push_str(&entry[path.len()..]);
+        }
+        set_cache_variable(settings, RENV_CACHE, Path::new(&resolved))?;
+    }
     let Some(paths) = settings.remove(CACHE_ENVIRONMENT_PATHS) else {
         return Ok(());
     };
@@ -221,7 +259,9 @@ pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
     if !has_parent_traversal(path) {
         return Ok(path.to_owned());
     }
-    let absolute = crate::console_paths::absolute_preserving_parents(Path::new("."), path)
+    // Use the same launch home as the declared filesystem grant.
+    let expanded = crate::console_paths::expand_permission_home(path)?;
+    let absolute = crate::console_paths::absolute_preserving_parents(Path::new("."), &expanded)
         .map_err(|error| {
             format!(
                 "cannot resolve cache directory '{}': {error}",
@@ -235,7 +275,7 @@ pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
         && crate::settings::has_untrusted_symlink(prefix)?
     {
         // Unix follows a symlink before evaluating a subsequent '..'.
-        return Ok(path.to_owned());
+        return Ok(expanded);
     }
     Ok(crate::console_paths::normalize_permission_path(&absolute))
 }
@@ -399,9 +439,16 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
             home.join("Library/Application Support/uv"),
         ]);
     }
+    if let Some(list) = env(RENV_CACHE) {
+        let list = list.to_str().ok_or("resolver policy paths must be UTF-8")?;
+        caches.extend(
+            list.split(renv_separator)
+                .filter(|entry| !entry.is_empty())
+                .map(PathBuf::from),
+        );
+    }
     for name in [
         "IR_LIBRARY_ROOT",
-        "RENV_PATHS_CACHE",
         "RENV_PATHS_SOURCE",
         "RENV_PATHS_BINARY",
         "R_PKG_CACHE_DIR",

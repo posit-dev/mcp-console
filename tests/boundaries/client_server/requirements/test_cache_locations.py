@@ -343,6 +343,79 @@ def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcri
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))
+def test_preserves_renv_cache_list(binary: Path) -> Transcript:
+    for explicit in (False, True):
+        with TemporaryDirectory(dir=Path.home()) as directory:
+            root = Path(directory).resolve()
+            tools = root / "bin"
+            tools.mkdir()
+            python, _ = isolated_python(root)
+            env = environment(tools)
+            env.update(
+                RENV_PATHS_CACHE=f"{root / 'shared'};;stage/../local{os.pathsep}{root / 'last'}",
+                EXPECTED_CACHE=f"{root / 'shared'};;{root / 'local'}{os.pathsep}{root / 'last'}",
+            )
+            probing_uv(
+                root,
+                python,
+                # fmt: python
+                code("""
+                    import errno
+                    import os
+                    from pathlib import Path
+
+                    assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"]
+                    if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
+                        Path("local/prepared").touch()
+                        try:
+                            Path("beside-caches").touch()
+                        except OSError as error:
+                            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                        else:
+                            raise AssertionError("empty cache entry granted workspace writes")
+                    """),
+            )
+            config = {
+                "cache": "host",
+                "languages": ["python"],
+                "python": {"managed": {"packages": []}},
+            }
+            if explicit:
+                (root / "local").mkdir()
+                config["resolver"] = {
+                    "sandbox": {
+                        "filesystem": {"read_only": ["/"], "read_write": ["local"]}
+                    }
+                }
+            path = root / "config.json"
+            path.write_text(json.dumps(config))
+            with McpClient(
+                binary, ("serve", "--config-file", str(path)), env, root
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect(
+                    # fmt: python
+                    python=code("""
+                        import os
+                        from pathlib import Path
+
+                        assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"]
+                        assert Path("local/prepared").exists()
+                        """),
+                )
+                client.finish()
+            assert (root / "shared").is_dir() == (not explicit)
+            assert (root / "last").is_dir() == (not explicit)
+            assert not (root / "stage").exists()
+    return [
+        {
+            "renv_cache_order": ["shared", "local", "last"],
+            "explicit_grants_respected": True,
+        }
+    ]
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_cache_opt_out(binary: Path) -> Transcript:
     return cache_locations(
         binary, host=True, sources=("direct", "config", "cli", "parent_traversal")

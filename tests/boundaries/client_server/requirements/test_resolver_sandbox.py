@@ -621,20 +621,69 @@ def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
 
 
 @requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_resolves_home_before_parents(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        (root / "existing").mkdir()
+        env, _ = r_test_environment()
+        env.update(r_library_cache_environment(env))
+        env.update(
+            R_USER_CACHE_DIR=f"~/{root.name}/existing/../rcache",
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        arguments = (
+            "serve",
+            "-c",
+            "cache=host",
+            "-c",
+            "resolver.environment=" + json.dumps({"HOME": str(root / "resolver-home")}),
+        )
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    actual <- tools::R_user_dir("reticulate", "cache")
+                    expected <- normalizePath("rcache/R/reticulate", mustWork = TRUE)
+                    stopifnot(normalizePath(actual, mustWork = TRUE) == expected)
+                    """),
+            )
+            client.finish()
+        assert not (root / "~").exists()
+        return [{"r_cache_found": "~/.../rcache/R/reticulate"}]
+
+
+@requires(SANDBOX, R, command("ir"))
 def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transcript:
+    return bootstrap_reticulate_uv(binary, relative_xdg=False)
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_bootstraps_reticulate_uv_with_relative_xdg_cache(binary: Path) -> Transcript:
+    return bootstrap_reticulate_uv(binary, relative_xdg=True)
+
+
+def bootstrap_reticulate_uv(binary: Path, *, relative_xdg: bool) -> Transcript:
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env, _ = r_test_environment()
         env.update(r_library_cache_environment(env))
-        env.update(
-            XDG_CACHE_HOME="unused/../cache",
-            RETICULATE_UV="managed",
-            UV_CACHE_DIR=str(root / "uv-cache"),
-            UV_TOOL_DIR=str(root / "uv-tools"),
-            UV_PYTHON_INSTALL_DIR=str(root / "uv-python"),
-        )
-        for name in ("RETICULATE_PYTHON", "R_USER_CACHE_DIR"):
+        env.update(XDG_CACHE_HOME=str(root / "cache"), RETICULATE_UV="managed")
+        for name in (
+            "RETICULATE_PYTHON",
+            "R_USER_CACHE_DIR",
+            "UV_CACHE_DIR",
+            "UV_TOOL_DIR",
+            "UV_PYTHON_INSTALL_DIR",
+        ):
             env.pop(name, None)
+        if relative_xdg:
+            env.update(
+                XDG_CACHE_HOME="unused/../cache",
+                UV_CACHE_DIR=str(root / "uv-cache"),
+                UV_TOOL_DIR=str(root / "uv-tools"),
+                UV_PYTHON_INSTALL_DIR=str(root / "uv-python"),
+            )
         # Cold shell installation on macOS needs the host policy's Darwin temp
         # grant. Both reticulate and uv use private fixture caches.
         with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
