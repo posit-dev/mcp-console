@@ -22,7 +22,10 @@ static int writable_directory(const char *path) {
 
 static int contains_whitespace(const char *path) {
     for (; *path; ++path) {
-        if (isspace((unsigned char)*path)) return 1;
+        /* R passes a plain char. On signed-char targets, treating negative
+           bytes as unsigned can misclassify UTF-8 continuation bytes. */
+        int byte = *path;
+        if (byte >= 0 && isspace(byte)) return 1;
     }
     return 0;
 }

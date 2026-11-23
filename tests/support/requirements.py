@@ -184,7 +184,7 @@ def case_insensitive_paths() -> Requirement:
 
 
 @cache
-def posix_r_spaced_tempdir_probe() -> subprocess.CompletedProcess[bytes] | None:
+def _posix_r_accepts_spaced_tempdir() -> bool | None:
     if not POSIX.available or not R.available:
         return None
     from support.r import r_test_environment
@@ -192,7 +192,7 @@ def posix_r_spaced_tempdir_probe() -> subprocess.CompletedProcess[bytes] | None:
     try:
         environment, rscript = r_test_environment()
         with TemporaryDirectory(prefix="private temp ") as directory:
-            return subprocess.run(
+            result = subprocess.run(
                 [rscript, "--vanilla", "-"],
                 input=b'stopifnot(dirname(tempdir()) == Sys.getenv("TMPDIR"))\n',
                 env=environment | {"TMPDIR": directory, "LC_ALL": "C", "LANGUAGE": "C"},
@@ -202,13 +202,17 @@ def posix_r_spaced_tempdir_probe() -> subprocess.CompletedProcess[bytes] | None:
     except (OSError, subprocess.SubprocessError):
         # Broken R installations are also fixtures for unrelated cases.
         return None
+    if result.returncode == 0:
+        return True
+    if b"'R_TempDir' contains space" in result.stderr:
+        return False
+    return None
 
 
 def posix_r_tempdir_whitespace(*, accepted: bool) -> Requirement:
-    probe = posix_r_spaced_tempdir_probe()
     return Requirement(
         "R tempdir",
-        probe is not None and (probe.returncode == 0) is accepted,
+        _posix_r_accepts_spaced_tempdir() is accepted,
         "requires R to "
         + ("accept" if accepted else "reject")
         + " a spaced POSIX temp path",

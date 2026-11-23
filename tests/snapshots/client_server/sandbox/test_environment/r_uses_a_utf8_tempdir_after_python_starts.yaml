@@ -1,0 +1,28 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.yaml
+---
+send:
+  python: |
+    import os
+    import subprocess
+    from pathlib import Path
+
+    parent = Path(os.environ["TMPDIR"])
+    assert parent.is_relative_to(Path.cwd())
+    rscript = Path(os.environ["R_HOME"]) / "bin" / "Rscript"
+    check = 'stopifnot(identical(dirname(tempdir()), Sys.getenv("TMPDIR")))'
+    _ = subprocess.run([rscript, "--vanilla", "-"], input=check, text=True, check=True)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: identical(dirname(tempdir()), Sys.getenv("TMPDIR"))
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

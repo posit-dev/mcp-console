@@ -10,12 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.assertions import last_tool_text
 from support.client import McpClient
 from support.normalization import code
-from support.r import r_test_environment
+from support.r import UTF8_LOCALE, r_test_environment
 from support.records import Transcript
 from support.requirements import (
+    R,
     SANDBOX,
     SQL,
-    posix_r_spaced_tempdir_probe,
     posix_r_tempdir_whitespace,
     requires,
 )
@@ -152,12 +152,51 @@ def test_preserves_caller_selected_python_over_project_environment(
             return client.finish()
 
 
+@requires(SANDBOX, R)
+def test_r_uses_a_utf8_tempdir_after_python_starts(binary: Path) -> Transcript:
+    environment, _ = r_test_environment()
+    environment["LC_ALL"] = UTF8_LOCALE
+    # The last byte of 你 is 0xA0, which Darwin classifies as whitespace when
+    # passed to isspace as an unsigned byte under a UTF-8 locale.
+    with TemporaryDirectory(prefix="private-你-", dir="/tmp") as directory:
+        workspace = Path(directory).resolve()
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "r.resolution=disabled",
+                "-c",
+                "python=" + json.dumps(sys.executable),
+                "-c",
+                "sandbox.tempdir.managed.parent=" + json.dumps(str(workspace)),
+            ),
+            environment,
+            workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    import subprocess
+                    from pathlib import Path
+
+                    parent = Path(os.environ["TMPDIR"])
+                    assert parent.is_relative_to(Path.cwd())
+                    rscript = Path(os.environ["R_HOME"]) / "bin" / "Rscript"
+                    check = 'stopifnot(identical(dirname(tempdir()), Sys.getenv("TMPDIR")))'
+                    _ = subprocess.run([rscript, "--vanilla", "-"], input=check, text=True, check=True)
+                    """)
+            )
+            client.expect(
+                "[1] TRUE\n", r='identical(dirname(tempdir()), Sys.getenv("TMPDIR"))'
+            )
+            return client.finish()
+
+
 @requires(SANDBOX, SQL, posix_r_tempdir_whitespace(accepted=False))
 def test_r_tempdir_whitespace_preserves_the_worker(binary: Path) -> Transcript:
-    reference = posix_r_spaced_tempdir_probe()
-    assert (
-        reference is not None and b"'R_TempDir' contains space" in reference.stderr
-    ), reference
     environment, _ = r_test_environment()
     # The recovery alias needs a whitespace-free path even when TMPDIR has spaces.
     with TemporaryDirectory(dir="/tmp") as directory:

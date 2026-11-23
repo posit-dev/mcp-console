@@ -1091,6 +1091,31 @@ runner: different
                             f"{missing}: {missing} is missing from PATH", line
                         )
 
+    def test_r_tempdir_cases_skip_unrelated_rscript_failures(self) -> None:
+        shutil.copytree(
+            ROOT / "tests/support",
+            self.root / "tests/support",
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
+        suite = "client_server/sandbox/test_environment"
+        destination = self.boundaries / f"{suite}.py"
+        destination.parent.mkdir(parents=True)
+        shutil.copy2(RUNNER.parent / f"{suite}.py", destination)
+        rscript = self.root / "bin/Rscript"
+        rscript.parent.mkdir()
+        rscript.write_text("#!/bin/sh\necho 'cannot load libR' >&2\nexit 2\n")
+        rscript.chmod(0o755)
+        selectors = [
+            f"{suite}::r_tempdir_whitespace_preserves_the_worker",
+            f"{suite}::initializes_r_with_a_supported_spaced_tempdir",
+        ]
+        with patch.dict(os.environ, R_HOME=str(self.root)):
+            result = self.run_runner(*selectors)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for selector in selectors:
+            self.assertIn(f"{selector}: skipped; R tempdir:", result.stdout)
+
     def test_repository_sklearn_case_skips_one_effective_cpu(self) -> None:
         shutil.copytree(
             ROOT / "tests" / "support",
