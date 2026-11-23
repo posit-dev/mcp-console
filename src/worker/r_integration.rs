@@ -120,6 +120,7 @@ pub(crate) fn ensure_initialized() -> Result<RInitialization, String> {
 fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
     // R's argument processing reads .Renviron. Retain that setup so a refused
     // temp directory can be corrected without replaying native startup.
+    let resuming = R_LIBRARIES.get().is_some();
     let libraries = R_LIBRARIES
         .get_or_init(|| {
             // R can mutate the environment after Python has started native threads.
@@ -133,6 +134,10 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
         .map_err(Clone::clone)?;
     if embedded_r::rejects_tempdir(&installation.home).map_err(|error| error.to_string())? {
         return Ok(RInitialization::TempdirWhitespace);
+    }
+    if resuming {
+        // Python could change the installation paths while correcting TMPDIR.
+        embedded_r::configure_installation(installation).map_err(|error| error.to_string())?;
     }
     // Native profiles and .First can run once R enters its main loop.
     core::send_worker_message(&crate::worker_protocol::WorkerMessage::RInitialization {

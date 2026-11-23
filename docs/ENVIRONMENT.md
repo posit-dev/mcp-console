@@ -161,6 +161,7 @@ R interprets `R_ENVIRON`, `R_ENVIRON_USER`, `R_PROFILE`, `R_PROFILE_USER`, `R_LI
 
 Managed preparation prepends its library to captured `R_LIBS`; native startup or user code can alter `.libPaths()` afterward.
 Console supplies `R_HOME`, `R_SHARE_DIR`, `R_INCLUDE_DIR`, and `R_DOC_DIR` from the selected installation rather than retaining mismatched resource paths.
+If R startup pauses while you correct the temporary directory, Console restores those four paths before R resumes.
 On Windows, embedded R home uses nonempty `R_USER`, then `HOME`, then the native profile fallback.
 
 Discovery and preparation suppress profile/environment files.

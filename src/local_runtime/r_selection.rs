@@ -245,13 +245,7 @@ impl RInstallation {
     }
     pub(crate) fn configure(&self, command: &mut std::process::Command) -> Result<(), String> {
         self.validate()?;
-        command.env("R_HOME", &self.home).env("RHOME", &self.home);
-        for (name, value) in ["R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"]
-            .into_iter()
-            .zip(&self.resources)
-        {
-            command.env(name, value);
-        }
+        command.envs(self.environment()).env("RHOME", &self.home);
         Ok(())
     }
 }

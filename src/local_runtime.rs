@@ -1,6 +1,6 @@
 //! Captured runtime selection, retained for every worker generation.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 mod r_selection;
@@ -277,12 +277,18 @@ pub(crate) struct RInstallation {
 }
 
 impl RInstallation {
+    pub(crate) fn environment(&self) -> [(&'static str, &OsStr); 4] {
+        let [share, include, doc] = &self.resources;
+        [
+            ("R_HOME", self.home.as_os_str()),
+            ("R_SHARE_DIR", share),
+            ("R_INCLUDE_DIR", include),
+            ("R_DOC_DIR", doc),
+        ]
+    }
+
     pub(crate) fn configure_environment(&self) {
-        unsafe { std::env::set_var("R_HOME", &self.home) };
-        for (name, value) in ["R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"]
-            .into_iter()
-            .zip(&self.resources)
-        {
+        for (name, value) in self.environment() {
             unsafe { std::env::set_var(name, value) };
         }
     }

@@ -334,11 +334,36 @@ pub(super) fn read_startup_environment(
 
     // Python cells and startup hooks can mutate these paths before late R
     // initialization. Restore the captured installation immediately before R starts.
-    installation.configure_environment();
+    configure_installation(installation)?;
     REPL_EVALUATING.store(true, Ordering::SeqCst);
     initialize_r_console()?;
     native::read_startup_environment(r_home, &mut argument_pointers)?;
     Ok(libraries)
+}
+
+pub(super) fn configure_installation(
+    installation: &crate::local_runtime::RInstallation,
+) -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    installation.configure_environment();
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        // R may already share an initialized UCRT environment with CPython.
+        // _wputenv_s updates that environment and the process environment.
+        type WPutEnv = unsafe extern "C" fn(*const u16, *const u16) -> c_int;
+        let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
+        let set = unsafe { runtime.get::<WPutEnv>(b"_wputenv_s\0")? };
+        for (name, value) in installation.environment() {
+            let key: Vec<_> = name.encode_utf16().chain([0]).collect();
+            let value: Vec<_> = value.encode_wide().chain([0]).collect();
+            let status = unsafe { set(key.as_ptr(), value.as_ptr()) };
+            if status != 0 {
+                return Err(format!("cannot set {name} for R (UCRT error {status})").into());
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn start_mainloop(libraries: &harp::library::RLibraries) -> Result<(), Box<dyn Error>> {

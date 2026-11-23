@@ -152,13 +152,29 @@ def test_recovers_from_renviron_tempdir_without_rereading_it(
                     from pathlib import Path
 
                     os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+                    for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
+                        os.environ["EXPECTED_" + name] = os.environ[name]
+                        os.environ[name] = str(Path.cwd() / "wrong installation")
                     print(answer)
                     """),
             )
             client.expect(
-                "[1] TRUE\n",
-                r='identical(dirname(tempdir()), file.path(getwd(), "repaired"))',
+                "R resumed with the selected installation\n",
+                # fmt: r
+                r=code(r"""
+                    names <- c("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                    stopifnot(
+                      identical(dirname(tempdir()), file.path(getwd(), "repaired")),
+                      identical(
+                        unname(Sys.getenv(names)),
+                        unname(Sys.getenv(paste0("EXPECTED_", names)))
+                      ),
+                      identical(R.home("share"), Sys.getenv("R_SHARE_DIR"))
+                    )
+                    cat("R resumed with the selected installation\n")
+                    """),
             )
+            client.expect("42\n", python="print(answer)")
             return client.finish()
 
 

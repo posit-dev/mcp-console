@@ -687,9 +687,24 @@ class WindowsSandbox(unittest.TestCase):
                 else:
                     self.assertIn("Rscript started: True", result_text)
                 session.expect(
+                    "installation paths changed",
+                    # fmt: python
+                    python=code("""
+                        for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
+                            os.environ["EXPECTED_" + name] = os.environ[name]
+                            os.environ[name] = str(selected / "wrong installation")
+                        print("installation paths changed")
+                        """),
+                )
+                session.expect(
                     "R used the directory selected by Python",
                     # fmt: r
                     r=code("""
+                        names <- c("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                        stopifnot(identical(
+                          normalizePath(unname(Sys.getenv(names)), mustWork = TRUE),
+                          normalizePath(unname(Sys.getenv(paste0("EXPECTED_", names))), mustWork = TRUE)
+                        ))
                         stopifnot(file.exists(file.path(dirname(tempdir()), "selected-by-python")))
                         cat("R used the directory selected by Python")
                         """),
