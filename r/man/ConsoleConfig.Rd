@@ -44,9 +44,11 @@ and \code{"inherit_codex"} (client permissions). Filesystem entries are
 \code{read_only}, \code{read_write}, and \code{deny} path vectors. Temporary storage is
 \code{"managed"} (the default), \code{"read_write"}, or \code{"read_only"}.
 Set \code{tempdir = list(managed = list(parent = "/path/to/temp"))} to choose
-a parent for workers' private temporary directories. Supply an absolute
-path. The same setting under the resolver's \code{sandbox} controls package
-preparation.}
+a parent for workers' private temporary directories. The path must be
+absolute after expansion of a leading \code{~}. The same setting under the
+resolver's \code{sandbox} controls package preparation. See
+\href{https://posit-dev.github.io/mcp-console/sandbox_configuration/#temporary-storage}{temporary storage}
+for R path and directory permission requirements.}
 
 \item{languages}{A character vector selecting \code{"r"}, \code{"python"}, and/or
 \code{"sql"}. By default all three are visible to the model.}

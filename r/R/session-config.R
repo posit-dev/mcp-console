@@ -248,9 +248,11 @@ SessionsConfig <- S7::new_class(
 #'   `read_only`, `read_write`, and `deny` path vectors. Temporary storage is
 #'   `"managed"` (the default), `"read_write"`, or `"read_only"`.
 #'   Set `tempdir = list(managed = list(parent = "/path/to/temp"))` to choose
-#'   a parent for workers' private temporary directories. Supply an absolute
-#'   path. The same setting under the resolver's `sandbox` controls package
-#'   preparation.
+#'   a parent for workers' private temporary directories. The path must be
+#'   absolute after expansion of a leading `~`. The same setting under the
+#'   resolver's `sandbox` controls package preparation. See
+#'   [temporary storage](https://posit-dev.github.io/mcp-console/sandbox_configuration/#temporary-storage)
+#'   for R path and directory permission requirements.
 #' @param languages A character vector selecting `"r"`, `"python"`, and/or
 #'   `"sql"`. By default all three are visible to the model.
 #' @param cache `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`

@@ -245,11 +245,23 @@ sandbox:
 
 `sandbox.tempdir` and `resolver.sandbox.tempdir` select automatic temporary-storage grants.
 With the configuration above, each sandbox launch gets a fresh writable directory under `pa-temp`.
-The parent must already exist and be writable by the runner.
-Selecting it grants the workload write access only to the private child.
+The parent must already exist and be writable by the account running Console.
+The sandbox grants the workload write access to the new child directory.
 Other filesystem grants still apply.
+On Windows the new directory inherits permissions from its parent.
+The parent's inheritable access control entries must limit reads and writes to accounts you trust with the workload's files.
 Plain `tempdir: managed` uses the runner's system temporary directory as the parent.
-Set `resolver.sandbox.tempdir` separately to choose a parent for package preparation.
+
+Set `resolver.sandbox.tempdir` separately to choose a parent for runtime inspection and package preparation.
+Keep that parent outside directories the worker can write to, including a writable workspace.
+Otherwise a worker running as the same user can modify the resolver's temporary files during package preparation.
+See the [package preparation trust boundary](PACKAGE_CONFIGURATION.md#trust-boundary).
+
+For R workers and R package preparation, choose a parent whose full path contains no whitespace.
+R 4.3 and later require this on Unix.
+On Windows, R can also use a path containing whitespace if Windows supplies a whitespace-free short name for it.
+Console checks the worker's temporary directory before starting embedded R.
+If a `.Renviron` file changes it during R startup, that path must also satisfy R's requirements.
 The [permission field reference](CONFIGURATION.md#sandbox-settings) compares `managed`, `read_write`, and `read_only` storage.
 
 ### Host temporary directories
