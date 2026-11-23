@@ -67,8 +67,8 @@ def test_worker_reports_closed_output_pipe_without_r_sigpipe_handler(
                     for line in read_lines(output, 4, "cell start and R initialization")
                 ] == [
                     {"kind": "cell_started"},
-                    {"kind": "r_initialization", "complete": False},
-                    {"kind": "r_initialization", "complete": True},
+                    {"kind": "r_initialization", "state": "entered"},
+                    {"kind": "r_initialization", "state": "complete"},
                     {"kind": "completed"},
                 ]
                 commands.write(

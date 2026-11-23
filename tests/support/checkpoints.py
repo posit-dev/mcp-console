@@ -3,9 +3,9 @@ import os
 import select
 import time
 from pathlib import Path
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import CancelledError
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from typing import Self
 
 from support.client import McpClient
@@ -151,17 +151,16 @@ def wait_for_worker_file(root: Path, name: str, client: McpClient) -> Path:
     )
 
 
-def release_fixture_checkpoint(
+@contextmanager
+def fixture_fifo_writer(
     path: Path,
     *,
-    token: bytes = b"1",
     timeout: float = 10,
     client: McpClient | None = None,
-) -> None:
+) -> Iterator[int]:
     """Wait for the fixture's reader, without opening a read endpoint ourselves."""
     # Successive rendezvous need distinct FIFO paths: reopening one can reconnect
     # to the previous phase's writer and receive EOF when that writer closes.
-    assert len(token) == 1
     deadline = time.monotonic() + timeout
     while True:
         assert client is None or client.process.poll() is None, checkpoint_evidence(
@@ -178,9 +177,21 @@ def release_fixture_checkpoint(
             raise TimeoutError(checkpoint_evidence(f"FIFO reader: {path}", client))
         time.sleep(min(0.01, remaining))
     try:
-        assert os.write(descriptor, token) == 1
+        yield descriptor
     finally:
         os.close(descriptor)
+
+
+def release_fixture_checkpoint(
+    path: Path,
+    *,
+    token: bytes = b"1",
+    timeout: float = 10,
+    client: McpClient | None = None,
+) -> None:
+    assert len(token) == 1
+    with fixture_fifo_writer(path, timeout=timeout, client=client) as descriptor:
+        assert os.write(descriptor, token) == 1
 
 
 def release_partial_sideband(

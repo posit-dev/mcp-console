@@ -12,13 +12,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
-from support.checkpoints import FifoCheckpoint, wait_for_path
+from support.checkpoints import FifoCheckpoint, fixture_fifo_writer, wait_for_path
 from support.assertions import wait_for_evaluation_output
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
 from support.progress import RUNNING
+from support.processes import stop_process_id
+from support.previews import live_recording_events
 from support.requirements import POSIX, R, SANDBOX, posix_r_tempdir_whitespace, requires
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
@@ -317,6 +319,50 @@ def test_vanilla_override_survives_restart(
             config.write_text("r:\n  vanilla: false\n")
             client.send(control="restart")
             client.expect("vanilla startup complete\n", r=check)
+            return client.finish()
+
+
+@requires(POSIX, R)
+@executions(DIRECT)
+def test_exit_reading_renviron_requires_explicit_restart(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = r_test_environment()
+        environ = root / ".Renviron"
+        os.mkfifo(environ)
+        environment["R_ENVIRON_USER"] = str(environ)
+        with McpClient(
+            binary,
+            execution.serve("-c", "languages=[r]", "-c", "r.resolution=disabled"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            pending = client.start_send(r="1L")
+            # Opening the writer proves native R has reached its environment
+            # file. Holding it open keeps startup from completing.
+            with fixture_fifo_writer(environ, client=client):
+                client.request("ping")
+                (recording,) = (root / ".agents/console/sessions").iterdir()
+                (pid,) = (
+                    event["pid"]
+                    for event in live_recording_events(recording)
+                    if event["event"] == "worker_started"
+                )
+                environ.unlink()
+                stop_process_id(pid)
+            client.receive(pending)
+            assert pending["result"]["isError"], pending
+            retry = client.send(r="42L")
+            assert (
+                "startup may have executed; explicit restart required"
+                in retry["content"][0]["text"]
+            ), retry
+            client.send(control="restart")
+            client.expect("[1] 42\n", r="42L")
             return client.finish()
 
 

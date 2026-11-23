@@ -78,7 +78,8 @@ Cancelling a wait does not cancel shared startup.
 Changed requirements wait for built-in R bootstrap before replacing an unused worker, because native R initialization cannot safely be retried in place.
 
 Initial discovery or preparation failure permits an explicit restart, or a later code call to a named session, only after all relevant owners confirm cleanup.
-Once configured startup or native R initialization may have run, another attempt requires explicit restart.
+Once configured startup may have run, another attempt requires explicit restart.
+The same rule applies during native R initialization until the worker confirms a recoverable pause or successful completion.
 A later successful stage cannot erase earlier missing cleanup evidence.
 
 ### Worker

@@ -36,11 +36,11 @@ worker:
 ---
 worker:
   kind: r_initialization
-  complete: false
+  state: entered
 ---
 worker:
   kind: r_initialization
-  complete: true
+  state: complete
 ---
 stdout: |
   thread stdout

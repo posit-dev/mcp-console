@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::local_runtime::RInstallation;
+use crate::worker_protocol::{RInitializationState, WorkerMessage};
 
 static R_INSTALLATION: OnceLock<Option<RInstallation>> = OnceLock::new();
 static R_SETTINGS: OnceLock<crate::settings::R> = OnceLock::new();
@@ -106,11 +107,11 @@ pub(crate) fn ensure_initialized() -> Result<RInitialization, String> {
         if INTERRUPTED.load(Ordering::SeqCst) {
             return Err("R initialization interrupted; explicit restart required".into());
         }
-        if matches!(outcome, RInitialization::Ready) {
-            core::send_worker_message(&crate::worker_protocol::WorkerMessage::RInitialization {
-                complete: true,
-            })?;
-        }
+        let state = match outcome {
+            RInitialization::Ready => RInitializationState::Complete,
+            RInitialization::TempdirWhitespace => RInitializationState::Paused,
+        };
+        core::send_worker_message(&WorkerMessage::RInitialization { state })?;
         Ok(outcome)
     });
     FAILED.with(|failed| failed.set(result.is_err()));
@@ -118,6 +119,9 @@ pub(crate) fn ensure_initialized() -> Result<RInitialization, String> {
 }
 
 fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
+    core::send_worker_message(&WorkerMessage::RInitialization {
+        state: RInitializationState::Entered,
+    })?;
     // R's argument processing reads .Renviron. Retain that setup so a refused
     // temp directory can be corrected without replaying native startup.
     let resuming = R_LIBRARIES.get().is_some();
@@ -139,10 +143,6 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
         // Python could change the installation paths while correcting TMPDIR.
         embedded_r::configure_installation(installation).map_err(|error| error.to_string())?;
     }
-    // Native profiles and .First can run once R enters its main loop.
-    core::send_worker_message(&crate::worker_protocol::WorkerMessage::RInitialization {
-        complete: false,
-    })?;
     embedded_r::start_mainloop(libraries).map_err(|error| error.to_string())?;
     let runtime = Rc::new(embedded_r::Runtime::initialize().map_err(|error| error.to_string())?);
     RUNTIME.with(|slot| *slot.borrow_mut() = Some(runtime.clone()));

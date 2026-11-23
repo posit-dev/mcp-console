@@ -51,7 +51,10 @@ Bootstrap uses the interpreter thread and can emit output, input, and resolver r
 `runtime_initialized` ends built-in bootstrap and reports interruption.
 Interrupt admission, receipt handling, and enqueueing a pending cell share an ordering point: a pre-dispatch interrupt must withhold that cell even if bootstrap already sampled its interrupt flag.
 Later cells do not inherit the withholding.
-`r_initialization` reports native R entry/completion; incomplete R initialization requires explicit restart.
+`r_initialization` reports `state: entered` before the worker begins native R setup or resumes a prior attempt.
+If the worker exits during setup, another attempt requires explicit restart.
+After checking for interruption, the worker reports `paused` when the temporary directory needs correction or `complete` when initialization succeeds.
+Either receipt clears the native R restart restriction for that generation.
 Test workers need not emit built-in bootstrap events.
 
 `cell_started` confirms evaluator entry, after foreground ownership is established.

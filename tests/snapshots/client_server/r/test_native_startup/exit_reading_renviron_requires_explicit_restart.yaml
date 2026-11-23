@@ -1,0 +1,45 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [startup may have executed; explicit restart required]
+  isError: true
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: 42L
+result:
+  content:
+    - type: text
+      text: "[startup may have executed; explicit restart required]"
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

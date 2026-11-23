@@ -27,11 +27,11 @@ worker:
 ---
 worker:
   kind: r_initialization
-  complete: false
+  state: entered
 ---
 worker:
   kind: r_initialization
-  complete: true
+  state: complete
 ---
 stdout: <4194304 bytes>
 stderr: <4194304 bytes>
