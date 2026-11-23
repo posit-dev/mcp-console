@@ -85,7 +85,6 @@ pub(crate) enum Operation {
         extensions: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         defaults: Vec<String>,
-        extension_directory: std::path::PathBuf,
     },
     PythonDuckdbAvailable {
         python: ManagedPython,

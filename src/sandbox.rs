@@ -139,7 +139,9 @@ pub fn run(
     let settings = if runner_config_env.is_some() {
         crate::settings::SandboxSettings::default()
     } else if let Some(name) = settings_env {
-        crate::settings::from_environment(name)?
+        let mut settings = crate::settings::from_environment(name)?;
+        crate::resolver::cache::resolve_environment(&mut settings)?;
+        settings
     } else {
         capture_settings(writable_roots, config_env, overrides)?
     };

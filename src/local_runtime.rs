@@ -185,8 +185,7 @@ impl Selection {
         if !crate::resolver::execution::python_duckdb_available(resolver, managed, on_started)? {
             return Ok(None);
         }
-        let directory = self
-            .duckdb_extension_directory()
+        self.duckdb_extension_directory()
             .ok_or("DuckDB extension preparation requires an absolute HOME at server startup")?;
         let extensions = DEFAULT_DUCKDB_EXTENSIONS
             .iter()
@@ -197,7 +196,6 @@ impl Selection {
             managed,
             &extensions,
             &extensions,
-            directory,
             on_started,
         )?;
         Ok(Some(extensions.into_iter().collect()))

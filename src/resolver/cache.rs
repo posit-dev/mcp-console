@@ -8,6 +8,34 @@ mod directory;
 
 /// Private resolver setting consumed before passing permissions to the native runner.
 pub(super) const MANAGED_DIRECTORY: &str = "_console_managed_cache_directory";
+const CACHE_ENVIRONMENT_PATHS: &str = "_console_cache_environment_paths";
+
+const CACHE_ENVIRONMENT: &[(&str, &str)] = &[
+    ("XDG_CACHE_HOME", ""),
+    ("XDG_DATA_HOME", "data"),
+    ("UV_CACHE_DIR", "uv/cache"),
+    ("UV_PYTHON_INSTALL_DIR", "uv/python"),
+    ("UV_PYTHON_BIN_DIR", "uv/bin"),
+    ("UV_TOOL_DIR", "uv/tools"),
+    ("UV_TOOL_BIN_DIR", "uv/bin"),
+    ("IR_CACHE_DIR", "ir"),
+    ("IR_LIBRARY_ROOT", "ir/libraries"),
+    ("R_USER_CACHE_DIR", ""),
+    ("R_USER_DATA_DIR", "data"),
+    ("RENV_PATHS_ROOT", "renv"),
+    ("RENV_PATHS_CACHE", "renv/cache"),
+    ("RENV_PATHS_SOURCE", "renv/source"),
+    ("RENV_PATHS_BINARY", "renv/binary"),
+    ("PKG_CACHE_DIR", "R/pkgcache"),
+    ("R_PKG_CACHE_DIR", ""),
+    (
+        crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY,
+        "duckdb/extensions",
+    ),
+    ("MPLCONFIGDIR", "matplotlib"),
+    ("PYTHONPYCACHEPREFIX", "python/bytecode"),
+    ("PYTHONUSERBASE", "python/user"),
+];
 
 pub(crate) fn configure(
     selection: Option<Cache>,
@@ -26,7 +54,33 @@ pub(crate) fn configure(
     // Host-side companion staging uses a separate sandbox cache. Grant only
     // dependency storage, never the shared Console cache parent.
     let mut grant = match selection {
-        Cache::Host => return Ok(()),
+        Cache::Host => {
+            // Only adjust a worker environment value when it uses the same
+            // host cache selected for preparation.
+            if !no_sandbox {
+                for &(name, _) in CACHE_ENVIRONMENT {
+                    if let Some(path) = environment_path(resolver, name) {
+                        // Relative XDG bases are ignored by the package tools.
+                        if matches!(name, "XDG_CACHE_HOME" | "XDG_DATA_HOME") && path.is_relative()
+                        {
+                            continue;
+                        }
+                        retain_environment_path(resolver, &path, &[(name, "")])?;
+                        if environment_path(worker, name).as_ref() == Some(&path) {
+                            retain_environment_path(worker, &path, &[(name, "")])?;
+                        }
+                    }
+                }
+                if let Some(path) = environment_path(resolver, "MPLCONFIGDIR") {
+                    retain_environment_path(
+                        worker,
+                        &path,
+                        &[("MCP_CONSOLE_MATPLOTLIB_CACHE", "")],
+                    )?;
+                }
+            }
+            return Ok(());
+        }
         Cache::Managed | Cache::Directory(_) if no_sandbox => {
             return Err(
                 "Console caches require sandboxing; use cache: host with --no-sandbox".into(),
@@ -38,7 +92,7 @@ pub(crate) fn configure(
     // Joining a name normally folds existing '..' in verbatim Windows paths.
     grant.push("");
     grant.as_mut_os_string().push("dependencies");
-    let root = prepare_directory(&grant)?;
+    prepare_directory(&grant)?;
     let explicit_python = python.map_or_else(
         || {
             std::env::var_os("RETICULATE_PYTHON")
@@ -46,79 +100,141 @@ pub(crate) fn configure(
         },
         |python| python.executable.is_some(),
     );
-    let path = |relative: &str| -> Result<Value, String> {
-        root.join(relative)
-            .to_str()
-            .map(|path| Value::String(path.into()))
-            .ok_or_else(|| "Console cache paths must be UTF-8".into())
-    };
-    let environment = [
-        ("XDG_CACHE_HOME", ""),
-        ("XDG_DATA_HOME", "data"),
-        ("UV_CACHE_DIR", "uv/cache"),
-        ("UV_PYTHON_INSTALL_DIR", "uv/python"),
-        ("UV_PYTHON_BIN_DIR", "uv/bin"),
-        ("UV_TOOL_DIR", "uv/tools"),
-        ("UV_TOOL_BIN_DIR", "uv/bin"),
-        ("IR_CACHE_DIR", "ir"),
-        ("IR_LIBRARY_ROOT", "ir/libraries"),
-        ("R_USER_CACHE_DIR", ""),
-        ("R_USER_DATA_DIR", "data"),
-        ("RENV_PATHS_ROOT", "renv"),
-        ("RENV_PATHS_CACHE", "renv/cache"),
-        ("RENV_PATHS_SOURCE", "renv/source"),
-        ("RENV_PATHS_BINARY", "renv/binary"),
-        ("PKG_CACHE_DIR", "R/pkgcache"),
-        ("R_PKG_CACHE_DIR", ""),
-        (
-            crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY,
-            "duckdb/extensions",
-        ),
-        ("MPLCONFIGDIR", "matplotlib"),
-        ("PYTHONPYCACHEPREFIX", "python/bytecode"),
-        ("PYTHONUSERBASE", "python/user"),
-    ]
-    .into_iter()
-    // Explicit Python keeps its preinstalled user-site packages without adding
-    // resolver write grants for their host locations.
-    .filter(|(name, _)| *name != "PYTHONUSERBASE" || !explicit_python)
-    .map(|(name, relative)| Ok((name.to_owned(), path(relative)?)))
-    .collect::<Result<SandboxSettings, String>>()?;
-    for settings in [&mut *resolver, worker] {
-        let values = settings.entry("environment").or_insert_with(|| json!({}));
-        if let Value::Object(values) = values {
-            // Preserve malformed native values for the runner's validation.
-            for (name, path) in &environment {
-                if values.get(name).is_none_or(Value::is_string) {
-                    values.insert(name.clone(), path.clone());
-                }
-            }
+    // Explicit Python keeps its preinstalled user-site packages.
+    let mut variables: Vec<_> = CACHE_ENVIRONMENT
+        .iter()
+        .copied()
+        .filter(|(name, _)| *name != "PYTHONUSERBASE" || !explicit_python)
+        .collect();
+    for settings in [&mut *resolver, &mut *worker] {
+        for &(name, relative) in &variables {
+            set_cache_variable(settings, name, &grant.join(relative))?;
         }
     }
-    // Retain the original spelling so each resolver can check it before creating storage.
+    retain_environment_path(resolver, &grant, &variables)?;
+    variables.push(("MCP_CONSOLE_MATPLOTLIB_CACHE", "matplotlib"));
+    retain_environment_path(worker, &grant, &variables)?;
     resolver.insert(MANAGED_DIRECTORY.into(), json!(grant));
     Ok(())
 }
 
-/// Inspect the grant as written, then provision only the selected cache.
-pub(super) fn prepare_directory(grant: &Path) -> Result<PathBuf, String> {
-    grant.to_str().ok_or("Console cache paths must be UTF-8")?;
-    let directory = crate::console_paths::normalize_permission_path(grant);
-    if crate::settings::has_untrusted_symlink(grant)? {
-        // Package tools can still use an independently granted target. Unix
-        // resolves '..' after a link; Win32 requires a lexical verbatim path.
-        #[cfg(unix)]
-        return Ok(grant.to_owned());
-        #[cfg(windows)]
-        return Ok(directory);
+#[derive(serde::Deserialize)]
+struct EnvironmentPath {
+    directory: PathBuf,
+    variables: Vec<(String, String)>,
+}
+
+/// Keep the shared root of managed cache variables so a link in a tool's own
+/// cache subtree cannot change how its environment resolves a parent traversal.
+fn retain_environment_path(
+    settings: &mut SandboxSettings,
+    path: &Path,
+    variables: &[(&str, &str)],
+) -> Result<(), String> {
+    if path
+        .components()
+        .any(|part| part == std::path::Component::ParentDir)
+    {
+        let path = path.to_str().ok_or("Console cache paths must be UTF-8")?;
+        settings
+            .entry(CACHE_ENVIRONMENT_PATHS)
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .expect("captured cache environment paths")
+            .push(json!({"directory": path, "variables": variables}));
     }
+    Ok(())
+}
+
+fn set_cache_variable(
+    settings: &mut SandboxSettings,
+    name: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let value = path.to_str().ok_or("Console cache paths must be UTF-8")?;
+    if let Some(environment) = settings
+        .entry("environment")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+    {
+        #[cfg(windows)]
+        let existing = environment
+            .keys()
+            .find(|key| key.eq_ignore_ascii_case(name))
+            .cloned();
+        #[cfg(windows)]
+        let name = existing.as_deref().unwrap_or(name);
+        // Preserve malformed values for validation by the native runner.
+        if environment.get(name).is_none_or(Value::is_string) {
+            environment.insert(name.to_owned(), value.into());
+        }
+    }
+    Ok(())
+}
+
+/// The retained cache spelling also supplies filesystem grants. Only rewrite
+/// the environment for this launch, after its filesystem policy is captured.
+pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), String> {
+    let Some(paths) = settings.remove(CACHE_ENVIRONMENT_PATHS) else {
+        return Ok(());
+    };
+    for path in
+        serde_json::from_value::<Vec<EnvironmentPath>>(paths).map_err(|error| error.to_string())?
+    {
+        let root = tool_directory(&path.directory)?;
+        for (name, relative) in path.variables {
+            // A runtime selection may explicitly replace or remove one of the
+            // environment variables before launch. Preserve that selection.
+            if root != path.directory
+                && environment_path(settings, &name).as_ref()
+                    == Some(&path.directory.join(&relative))
+            {
+                set_cache_variable(settings, &name, &root.join(relative))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
+    if !path
+        .components()
+        .any(|part| part == std::path::Component::ParentDir)
+    {
+        return Ok(path.to_owned());
+    }
+    let absolute = crate::console_paths::absolute_preserving_parents(Path::new("."), path)
+        .map_err(|error| {
+            format!(
+                "cannot resolve cache directory '{}': {error}",
+                path.display()
+            )
+        })?;
+    #[cfg(unix)]
+    if let Some(prefix) = absolute
+        .ancestors()
+        .find(|prefix| prefix.components().next_back() == Some(std::path::Component::ParentDir))
+        && crate::settings::has_untrusted_symlink(prefix)?
+    {
+        // Unix follows a symlink before evaluating a subsequent '..'.
+        return Ok(path.to_owned());
+    }
+    Ok(crate::console_paths::normalize_permission_path(&absolute))
+}
+
+/// Provision only the selected directory and keep its declaration for revalidation.
+pub(super) fn prepare_directory(grant: &Path) -> Result<(), String> {
+    grant.to_str().ok_or("Console cache paths must be UTF-8")?;
+    if crate::settings::has_untrusted_symlink(grant)? {
+        return Ok(());
+    }
+    let directory = crate::console_paths::normalize_permission_path(grant);
     directory::create(&directory).map_err(|error| {
         format!(
             "cannot create resolver cache '{}': {error}",
             directory.display()
         )
-    })?;
-    Ok(directory)
+    })
 }
 
 fn console_root(settings: &SandboxSettings) -> Result<PathBuf, String> {

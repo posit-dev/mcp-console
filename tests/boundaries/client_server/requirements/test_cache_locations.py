@@ -275,12 +275,16 @@ def replaced_cache_directory(binary: Path, *, explicit_entries: bool) -> Transcr
                 from pathlib import Path
 
                 directory = Path(os.environ["XDG_CACHE_HOME"])
-                if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ and not directory.parent.is_symlink():
+                if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ and not Path("cache").is_symlink():
                     _ = (directory / "prepared").write_text("ready")
+                    uv = Path(os.environ["UV_CACHE_DIR"])
+                    uv.parent.mkdir(exist_ok=True)
+                    if not uv.exists():
+                        uv.symlink_to("..", target_is_directory=True)
                 """),
         )
         config = {
-            "cache": {"directory": "cache"},
+            "cache": {"directory": "cache/unused/../storage"},
             "languages": ["python"],
             "python": {"managed": {"packages": []}},
         }
@@ -289,7 +293,7 @@ def replaced_cache_directory(binary: Path, *, explicit_entries: bool) -> Transcr
                 "sandbox": {
                     "filesystem": {
                         "read_only": ["/"],
-                        "read_write": ["cache/dependencies", "other"],
+                        "read_write": ["cache/storage/dependencies", "other"],
                     }
                 }
             }
@@ -303,15 +307,31 @@ def replaced_cache_directory(binary: Path, *, explicit_entries: bool) -> Transcr
             assert result["content"][0]["text"].endswith("first session ready\n"), (
                 result
             )
-            assert not (target / "dependencies").exists()
+            assert not (target / "storage").exists()
             cache.unlink()
             cache.mkdir()
             client.expect(
                 "second session ready\n",
                 session="second",
-                python="print('second session ready')",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    directory = Path.cwd() / "cache/storage/dependencies"
+                    assert (
+                        Path(os.environ["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"])
+                        == directory / "duckdb/extensions"
+                    )
+                    assert Path(os.environ["UV_CACHE_DIR"]) == directory / "uv/cache"
+                    assert (directory / "uv/cache/prepared").read_text() == "ready"
+                    prepared = Path(os.environ["XDG_DATA_HOME"]).parent / "prepared"
+                    assert prepared.read_text() == "ready"
+                    print("second session ready")
+                    """),
             )
-            assert (cache / "dependencies/prepared").read_text() == "ready"
+            assert (cache / "storage/dependencies/prepared").read_text() == "ready"
+            assert not (cache / "unused").exists()
             assert not (root / "other").exists()
             transcript = client.finish()
     return json.loads(json.dumps(transcript).replace(str(root), "<workspace>"))
@@ -324,7 +344,9 @@ def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcri
 
 @requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_cache_opt_out(binary: Path) -> Transcript:
-    return cache_locations(binary, host=True, sources=("direct", "config", "cli"))
+    return cache_locations(
+        binary, host=True, sources=("direct", "config", "cli", "parent_traversal")
+    )
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))
@@ -694,8 +716,12 @@ def cache_locations(
             elif source == "empty":
                 env["MCP_CONSOLE_CACHE_DIR"] = ""
             console_root = console_base / "dependencies"
-            if source == "config":
+            if source in ("config", "parent_traversal"):
                 settings["cache"] = "host"
+            if source == "parent_traversal":
+                env["UV_CACHE_DIR"] = str(root / "missing/../host/UV_CACHE_DIR")
+                # XDG bases must be absolute. Preserve the meaning of a relative value.
+                env["XDG_DATA_HOME"] = "unused/../relative-data"
             if source in ("isolated", "path_isolated"):
                 settings.update(inherit_environment=False, environment=dict(env))
             if source == "xdg_without_home":
@@ -718,6 +744,8 @@ def cache_locations(
                 name: env[name] if host else str(console_root)
                 for name in CACHE_VARIABLES
             }
+            if source == "parent_traversal":
+                expected["UV_CACHE_DIR"] = str(root / "host/UV_CACHE_DIR")
             env["CACHE_TEST_EXPECTED"] = json.dumps(expected)
             if metadata:
                 metadata_root = Path(env["UV_CACHE_DIR"]) if host else console_root
@@ -843,6 +871,8 @@ def cache_locations(
                         """)
                     client.expect("cache selection retained\n", python=check)
                 client.finish()
+            if source == "parent_traversal":
+                assert not (root / "missing").exists()
             assert not (root / "host-write").exists()
             if metadata:
                 assert (metadata_root / ".git/keep").read_text() == "cache contents"

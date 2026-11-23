@@ -287,7 +287,6 @@ impl Client {
                 resolver,
                 &extensions.iter().cloned().collect::<Vec<_>>(),
                 &[],
-                environment.local_runtime.as_ref(),
             )?;
         }
         Ok((candidate, inspected))
@@ -490,14 +489,7 @@ impl Client {
             })?
             .managed_parts()
             .map_err(EnvironmentResolutionFailure::Operation)?;
-        self.resolve_python_duckdb_extensions(
-            generation,
-            selected,
-            resolver,
-            extensions,
-            defaults,
-            environment.local_runtime.as_ref(),
-        )
+        self.resolve_python_duckdb_extensions(generation, selected, resolver, extensions, defaults)
     }
 
     fn resolve_python_duckdb_extensions(
@@ -507,16 +499,7 @@ impl Client {
         resolver: &crate::resolver::execution::PythonConfiguration,
         extensions: &[String],
         defaults: &[String],
-        runtime: Option<&crate::local_runtime::Selection>,
     ) -> Result<Vec<String>, EnvironmentResolutionFailure> {
-        let extension_directory = runtime
-            .and_then(crate::local_runtime::Selection::duckdb_extension_directory)
-            .ok_or_else(|| {
-                EnvironmentResolutionFailure::Operation(
-                    "DuckDB extension preparation requires an absolute HOME at server startup"
-                        .to_string(),
-                )
-            })?;
         self.ensure_startup(generation)
             .map_err(EnvironmentResolutionFailure::Operation)?;
         let mut stop_handle = None;
@@ -525,7 +508,6 @@ impl Client {
             selected,
             extensions,
             defaults,
-            extension_directory,
             |handle| {
                 stop_handle = Some(handle.clone());
                 self.register_resolver_stop_handle(generation, handle)

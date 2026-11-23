@@ -214,6 +214,9 @@ impl Preparation {
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
+            if !no_sandbox {
+                crate::resolver::cache::resolve_environment(&mut settings)?;
+            }
             crate::settings::configure_environment(&mut command, &settings);
         } else {
             crate::settings::preserve_environment(
@@ -289,6 +292,10 @@ impl Preparation {
                 std::env::current_exe().map_err(|error| error.to_string())?,
             );
             crate::settings::configure_environment(&mut command, &settings);
+            if let Some(directory) = crate::resolver::cache::duckdb_extension_directory(&settings)?
+            {
+                command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+            }
             command
         };
         if let Some(python) = python {

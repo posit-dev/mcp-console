@@ -246,7 +246,6 @@ impl Context {
                 python,
                 extensions,
                 defaults,
-                extension_directory,
             } => {
                 if !matches!(self.mode, Mode::PythonOnly) || !self.managed_python {
                     return Err("Python-backed DuckDB preparation requires managed Python".into());
@@ -259,10 +258,12 @@ impl Context {
                         if extensions.is_empty() {
                             return Ok(());
                         }
+                        let directory = std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
+                            .ok_or("DuckDB extension preparation requires an absolute HOME at server startup")?;
                         resolver::resolve_python_duckdb_extensions(
                             &python,
                             &extensions,
-                            &extension_directory,
+                            std::path::Path::new(&directory),
                             started,
                         )
                     },

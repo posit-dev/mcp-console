@@ -326,6 +326,29 @@ class WindowsPreparation(unittest.TestCase):
         self.assertIn("Host cache profile fallback", json.dumps(result))
 
     @requires_mxc(BINARY)
+    def test_host_cache_with_verbatim_parent_traversal(self):
+        from nt import _getfinalpathname
+
+        cache = self.root / "selected uv cache"
+        spelling = Path(_getfinalpathname(self.root)) / "unused" / ".." / cache.name
+        resolver_environment = {
+            "Uv_Cache_Dir": str(spelling),
+            "HOME": str(self.root / "account"),
+            "LOCALAPPDATA": str(self.root / "local"),
+            "APPDATA": str(self.root / "roaming"),
+        }
+        session = self.session(
+            overrides=(
+                "cache=host",
+                "r=null",
+                "resolver.environment=" + json.dumps(resolver_environment),
+            )
+        )
+        session.expect("1.17.0", python="import six; print(six.__version__)")
+        self.assertTrue(list(cache.glob("probe-*.json")))
+        self.assertFalse((self.root / "unused").exists())
+
+    @requires_mxc(BINARY)
     def test_explicit_filesystem_restriction_blocks_cache_writes(self):
         session = self.session(
             overrides=(

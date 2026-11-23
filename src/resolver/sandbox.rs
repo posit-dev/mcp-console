@@ -6,10 +6,11 @@ use std::path::PathBuf;
 use std::process::Command;
 
 pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command, String> {
+    let mut settings = materialize(settings)?;
     let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
         "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
     )?;
-    let mut settings = materialize(settings)?;
+    let directory = super::cache::tool_directory(&directory)?;
     #[cfg(windows)]
     // MXC denies renv's junctions and Robocopy's restartable-copy operations.
     // Use R's copier within the same cache grants, without privileged setup.
@@ -35,6 +36,7 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
     if crate::warmup::trusted_preparation() {
         // Installation warmup populates the same caches, including platform
         // package-tool settings, without native filesystem/network enforcement.
+        super::cache::resolve_environment(&mut settings)?;
         crate::settings::configure_environment(&mut command, &settings);
     } else {
         command
