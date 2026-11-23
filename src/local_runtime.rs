@@ -240,11 +240,6 @@ impl Selection {
             } else {
                 command.env_remove("RETICULATE_PYTHON");
             }
-            if let Some(directory) = &python.duckdb_extension_directory {
-                command.env(DUCKDB_EXTENSION_DIRECTORY, directory);
-            } else {
-                command.env_remove(DUCKDB_EXTENSION_DIRECTORY);
-            }
             if !python.managed {
                 command.env_remove("MCP_CONSOLE_MANAGED_PYTHON");
             }

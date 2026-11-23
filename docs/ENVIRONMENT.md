@@ -151,6 +151,7 @@ Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`;
 Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user cache setting in host mode.
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.
 On Windows, an absent or relative `HOME` falls back to an absolute `USERPROFILE` for that directory.
+Managed workers load extensions from the directory used during preparation.
 It is captured before execution and does not itself grant filesystem access.
 
 ## R startup and libraries

@@ -317,10 +317,18 @@ impl WorkerRuntime {
         // Managed Python carries its prepared cache in the runtime selection.
         // Managed R and custom workers need the startup-captured cache;
         // a custom worker may accept its first R layer after launch.
-        if (!builtin || managed_r.is_some())
-            && let Some(directory) = duckdb_extension_directory
-        {
+        let directory = duckdb_extension_directory
+            .filter(|_| !builtin || managed_r.is_some())
+            .or_else(|| local_runtime.and_then(|runtime| runtime.duckdb_extension_directory()));
+        if let Some(directory) = directory {
+            let directory = if no_sandbox {
+                directory.to_owned()
+            } else {
+                crate::resolver::cache::tool_directory(directory)?
+            };
             command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+        } else if local_runtime.is_some_and(|runtime| runtime.python.is_some()) {
+            command.env_remove(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
         }
         command.env(
             "MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION",

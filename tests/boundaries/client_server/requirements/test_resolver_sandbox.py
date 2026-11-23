@@ -293,7 +293,9 @@ def duckdb_cache(
             if r:
                 resolver_env.update(r_library_cache_environment(env))
             if explicit:
-                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
+                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "missing/../extensions"
+                )
             config = root / ".agents/console/config.yaml"
             config.parent.mkdir(parents=True)
             settings = {"cache": "host", "resolver": {"environment": resolver_env}}
@@ -351,6 +353,7 @@ def duckdb_cache(
                 )
                 assert str(cache) in last_tool_text(client), last_tool_text(client)
                 client.finish()
+            assert not (root / "missing").exists()
         if r:
             # The shared ir library must survive this resolver HOME's cleanup.
             assert package_directory.is_dir(), package_directory

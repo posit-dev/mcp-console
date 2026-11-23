@@ -333,6 +333,7 @@ class WindowsPreparation(unittest.TestCase):
         spelling = Path(_getfinalpathname(self.root)) / "unused" / ".." / cache.name
         resolver_environment = {
             "Uv_Cache_Dir": str(spelling),
+            "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY": str(spelling),
             "HOME": str(self.root / "account"),
             "LOCALAPPDATA": str(self.root / "local"),
             "APPDATA": str(self.root / "roaming"),
@@ -344,7 +345,18 @@ class WindowsPreparation(unittest.TestCase):
                 "resolver.environment=" + json.dumps(resolver_environment),
             )
         )
-        session.expect("1.17.0", python="import six; print(six.__version__)")
+        # fmt: python
+        program = code("""
+            import os
+            from pathlib import Path
+
+            import six
+
+            extensions = Path(os.environ["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"])
+            assert (extensions / "cache-refresh").read_text() == "cache refresh"
+            print(six.__version__)
+            """)
+        session.expect("1.17.0", python=program)
         self.assertTrue(list(cache.glob("probe-*.json")))
         self.assertFalse((self.root / "unused").exists())
 
