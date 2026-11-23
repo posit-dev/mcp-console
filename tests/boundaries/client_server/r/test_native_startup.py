@@ -74,7 +74,12 @@ def writable_arguments(execution: Execution, root: Path) -> tuple[str, ...]:
 
 
 def tempdir_startup_client(
-    binary: Path, root: Path, *, spaced_parent: bool, languages: list[str]
+    binary: Path,
+    root: Path,
+    *,
+    spaced_parent: bool,
+    languages: list[str],
+    r_resolution: str = "disabled",
 ) -> McpClient:
     environment, _ = r_test_environment()
     spaced = root / "private temp"
@@ -92,7 +97,7 @@ def tempdir_startup_client(
     config.write_text(
         json.dumps(
             {
-                "r": {"resolution": "disabled"},
+                "r": {"resolution": r_resolution},
                 "python": sys.executable,
                 "languages": languages,
                 "sandbox": {"tempdir": {"managed": {"parent": str(parent)}}},

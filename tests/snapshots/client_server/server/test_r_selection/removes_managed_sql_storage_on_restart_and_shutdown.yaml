@@ -5,11 +5,13 @@ send:
   python: |
     import json
     from pathlib import Path
+    from sitecustomize import launch_tmpdir
 
     connection = _console.sql_connection()
     storage = Path(
         connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
     ).parent
+    assert storage.parent == Path(launch_tmpdir), (storage, launch_tmpdir)
     storage.mkdir(parents=True, exist_ok=True)
     (storage / "cleanup-marker").write_text("owned storage")
     secrets = Path(
@@ -41,11 +43,13 @@ send:
   python: |
     import json
     from pathlib import Path
+    from sitecustomize import launch_tmpdir
 
     connection = _console.sql_connection()
     storage = Path(
         connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
     ).parent
+    assert storage.parent == Path(launch_tmpdir), (storage, launch_tmpdir)
     storage.mkdir(parents=True, exist_ok=True)
     (storage / "cleanup-marker").write_text("owned storage")
     secrets = Path(

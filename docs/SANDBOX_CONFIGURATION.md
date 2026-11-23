@@ -287,6 +287,7 @@ R needs a writable temporary directory and can fail to initialize in that mode.
 `serve` and ordinary `sandbox` use the same policy and defaults.
 `--no-sandbox` uses normal runtime temporary-directory selection without general-purpose managed storage or temporary-environment redirection.
 Console guarantees temporary-storage cleanup only with an active sandbox and `tempdir: managed`; the native runner retires that storage after the workload exits.
+Managed DuckDB connections keep spill files and persistent secrets under the runner's directory even if a startup file or cell changes `TMPDIR`.
 In other modes, Console adds no temporary-directory cleanup guarantees.
 R runs its normal best-effort shutdown, including its session `Rtmp` cleanup.
 On Unix that cleanup uses `rm` from the workload's `PATH` and can leave files when that command is unavailable or a subtree is not writable.

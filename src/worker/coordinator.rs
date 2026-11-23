@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::io;
+use std::sync::OnceLock;
 
 #[cfg(all(test, unix))]
 use super::activity::CommandReadiness;
@@ -9,6 +10,14 @@ use super::r_integration::Integration;
 use super::{activity, bootstrap, core, interrupt};
 use crate::cell::{Cell, Language};
 use crate::worker_protocol::{ConsoleChannel, ServerMessage, WorkerMessage};
+
+// The runner owns this directory for the worker's lifetime. Runtime startup
+// hooks and cells can change TMPDIR before a managed SQL connection opens.
+static MANAGED_TEMPDIR: OnceLock<String> = OnceLock::new();
+
+pub(crate) fn managed_tempdir() -> Option<&'static str> {
+    MANAGED_TEMPDIR.get().map(String::as_str)
+}
 
 struct Coordinator {
     writer: crate::sideband::Writer,
@@ -60,17 +69,15 @@ fn run_session(bootstrap_runtimes: bool) -> Result<(), Box<dyn Error>> {
         startup_path.as_deref(),
     )?;
     let startup = crate::settings::startup::Startup::from_file(startup_path.as_deref())?;
-    let temporary =
-        if std::env::var(crate::settings::MANAGED_TEMPDIR_ENVIRONMENT).as_deref() == Ok("1") {
-            Some(
-                std::env::var_os("TMPDIR")
-                    .ok_or("managed worker launch did not supply temporary storage")?,
-            )
-        } else {
-            None
-        };
+    if std::env::var(crate::settings::MANAGED_TEMPDIR_ENVIRONMENT).as_deref() == Ok("1") {
+        let temporary = std::env::var("TMPDIR")
+            .map_err(|_| "managed worker launch did not supply a UTF-8 temporary directory")?;
+        MANAGED_TEMPDIR
+            .set(temporary)
+            .map_err(|_| "managed worker temporary directory already configured")?;
+    }
     crate::python::configure_native_worker_environment(
-        temporary.as_deref().map(std::path::Path::new),
+        managed_tempdir().map(std::path::Path::new),
     )?;
     core::initialize(reader, writer.clone())?;
     let r = Integration::new(r_installation, selection.r_settings.clone())?;

@@ -22,7 +22,7 @@ mod r_integration;
 // language dispatch; activity and bootstrap own native command waiting and
 // process setup. The R backend owns its interpreter and native R events.
 #[cfg(any(unix, windows))]
-pub(crate) use coordinator::run;
+pub(crate) use coordinator::{managed_tempdir, run};
 #[cfg(unix)]
 pub(crate) use core::mark_shutting_down;
 #[cfg(any(unix, windows))]

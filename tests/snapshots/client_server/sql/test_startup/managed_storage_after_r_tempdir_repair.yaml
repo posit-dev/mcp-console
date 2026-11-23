@@ -1,0 +1,54 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE PERSISTENT SECRET fixture (TYPE HTTP, BEARER_TOKEN 'test-only')
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          Success
+          <bool> 
+        1 true   
+  isError: false
+---
+send:
+  r: |
+    settings <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT current_setting('temp_directory') AS spill"
+    )
+    private <- Sys.glob(file.path(getwd(), "private", "*", "data"))
+    stopifnot(identical(
+      settings$spill,
+      file.path(private, "mcp-console-duckdb", "spill")
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

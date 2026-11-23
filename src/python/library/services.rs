@@ -97,6 +97,7 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
             method(c"resolve_import_request", resolve_import_request, 8),
             method(c"attach_r", attach_r, 4),
             method(c"close_r_sql_result", close_r_sql_result, 4),
+            method(c"managed_tempdir", managed_tempdir, 4),
             method(c"interrupt", interrupt, 1), // METH_VARARGS: signal number and frame
             method(c"inspect_python", inspect_python, 8),
             method(
@@ -278,6 +279,12 @@ unsafe extern "C" fn close_r_sql_result(_: *mut PyObject, _: *mut PyObject) -> *
     callback(|services| {
         services.without_gil(crate::sql::close_r_result)?;
         Ok(services.none())
+    })
+}
+
+unsafe extern "C" fn managed_tempdir(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
+    callback(|services| {
+        Ok(worker::managed_tempdir().map_or_else(|| services.none(), |path| services.string(path)))
     })
 }
 

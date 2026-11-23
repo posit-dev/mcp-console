@@ -32,6 +32,7 @@ from support.requirements import (
     POSIX,
     PROCESS_EVENTS,
     R,
+    SANDBOX,
     SQL,
     command,
     posix_r_tempdir_whitespace,
@@ -41,6 +42,7 @@ from support.r import r_test_environment
 from support.resolvers import matplotlib_test_environment
 from support.snapshots import execution_snapshots
 from support.python import isolated_python
+from boundaries.client_server.r.test_native_startup import tempdir_startup_client
 from boundaries.client_server.server.test_no_r import no_r_environment
 
 
@@ -946,6 +948,62 @@ def test_failed_startup_withholds_sql_and_preserves_partial_effects(
     return TranscriptWithCompanions(
         transcripts.pop("python-exception.yaml").transcript, transcripts
     )
+
+
+@requires(SANDBOX, SQL, posix_r_tempdir_whitespace(accepted=False))
+def test_managed_storage_after_r_tempdir_repair(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        with tempdir_startup_client(
+            binary,
+            root,
+            spaced_parent=False,
+            languages=["python", "r", "sql"],
+            r_resolution="fixed",
+        ) as client:
+            retained = root / "repaired/keep"
+            retained.write_text("caller-owned")
+            client.initialize_and_list_tools()
+            client.expect(None, sql="SELECT 1")
+            assert (
+                "R requires a temporary directory without whitespace"
+                in last_tool_text(client)
+            )
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+                    """),
+            )
+            client.expect(
+                None,
+                sql="CREATE PERSISTENT SECRET fixture (TYPE HTTP, BEARER_TOKEN 'test-only')",
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    settings <- DBI::dbGetQuery(
+                      .console$sql_connection(),
+                      "SELECT current_setting('temp_directory') AS spill"
+                    )
+                    private <- Sys.glob(file.path(getwd(), "private", "*", "data"))
+                    stopifnot(identical(
+                      settings$spill,
+                      file.path(private, "mcp-console-duckdb", "spill")
+                    ))
+                    """),
+            )
+            (private,) = (root / "private").glob("*/data")
+            (secret,) = (private / "mcp-console-duckdb/stored-secrets").iterdir()
+            assert secret.stat().st_size > 0
+            transcript = client.finish()
+        assert not secret.exists() and not private.exists()
+        assert not (root / "repaired/mcp-console-duckdb").exists()
+        assert retained.read_text() == "caller-owned"
+        return transcript
 
 
 @requires(SQL, posix_r_tempdir_whitespace(accepted=False))

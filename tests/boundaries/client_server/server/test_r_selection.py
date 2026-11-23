@@ -143,9 +143,17 @@ def test_removes_managed_sql_storage_on_restart_and_shutdown(
 ) -> list:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
-        with McpClient(
-            binary, execution.serve(), no_r_environment(root), root
-        ) as client:
+        (root / "sitecustomize.py").write_text(
+            # fmt: python
+            code("""
+                import os
+
+                launch_tmpdir = os.environ["TMPDIR"]
+                os.environ["TMPDIR"] = os.getcwd()
+                """)
+        )
+        environment = dict(no_r_environment(root), RETICULATE_PYTHONPATH=str(root))
+        with McpClient(binary, execution.serve(), environment, root) as client:
             client.initialize_and_list_tools()
             for restart in (False, True):
                 if restart:
@@ -155,11 +163,13 @@ def test_removes_managed_sql_storage_on_restart_and_shutdown(
                 python = code("""
                     import json
                     from pathlib import Path
+                    from sitecustomize import launch_tmpdir
 
                     connection = _console.sql_connection()
                     storage = Path(
                         connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
                     ).parent
+                    assert storage.parent == Path(launch_tmpdir), (storage, launch_tmpdir)
                     storage.mkdir(parents=True, exist_ok=True)
                     (storage / "cleanup-marker").write_text("owned storage")
                     secrets = Path(
