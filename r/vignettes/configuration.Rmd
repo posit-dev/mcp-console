@@ -314,6 +314,8 @@ Omitting `proxy.domains` retains context defaults.
 Supplying it selects explicit destination rules; an empty domains mapping or allow list can remove the resolver's generated repository allowlist.
 
 Use `tempdir = "managed"` for private temporary writes (the default), `"read_write"` for shared host temporary writes, or `"read_only"` for no temporary write grant.
+To choose a parent for private temporary directories, supply an absolute path with `tempdir = list(managed = list(parent = "/path/to/temp"))`.
+Set it under `sandbox` for workers or under the resolver's `sandbox` for package preparation.
 Exact proxy, socket, and platform-specific settings are in [Sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/).
 Worker and resolver permissions are independent; see [Package settings](https://posit-dev.github.io/mcp-console/package_configuration/#preparation-permissions) for package preparation.
 `ConsoleConfig(sandbox = FALSE)` disables both sandboxes and runs with host permissions.

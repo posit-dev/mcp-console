@@ -15,6 +15,14 @@ config_string_list <- function() {
   S7::new_property(NULL | S7::class_character, validator = config_strings)
 }
 
+config_path <- function() {
+  S7::new_property(S7::class_character, validator = function(value) {
+    if (length(value) != 1L || is.na(value) || !nzchar(value)) {
+      "must be one non-empty path"
+    }
+  })
+}
+
 config_choice <- function(choices) {
   force(choices)
   S7::new_property(
@@ -119,38 +127,52 @@ InheritCodexSandboxProfile <- S7::new_class(
   )
 )
 
+ManagedTempdir <- S7::new_class(
+  "ManagedTempdir",
+  parent = ConfigNode,
+  properties = list(parent = config_path())
+)
+
+sandbox_choice <- function(choices, mapping, description) {
+  error <- paste0(
+    "must be NULL, ",
+    paste(choices, collapse = ", "),
+    ", or ",
+    description
+  )
+  config_property(
+    NULL | S7::class_character | mapping,
+    validator = function(value) {
+      if (
+        is.character(value) &&
+          (length(value) != 1L || is.na(value) || !value %in% choices)
+      ) {
+        error
+      }
+    }
+  )
+}
+
 SandboxPolicy <- S7::new_class(
   "SandboxPolicy",
   parent = ConfigNode,
   properties = list(
     filesystem = config_property(NULL | SandboxFilesystem),
-    network = config_property(
-      NULL | S7::class_character | SandboxNetwork,
-      validator = function(value) {
-        if (
-          is.character(value) &&
-            (length(value) != 1L ||
-              is.na(value) ||
-              !value %in% c("restricted", "enabled"))
-        ) {
-          "must be NULL, restricted, enabled, or a network mapping"
-        }
-      }
+    network = sandbox_choice(
+      c("restricted", "enabled"),
+      SandboxNetwork,
+      "a network mapping"
     ),
-    profile = config_property(
-      NULL | S7::class_character | InheritCodexSandboxProfile,
-      validator = function(value) {
-        if (
-          is.character(value) &&
-            (length(value) != 1L ||
-              is.na(value) ||
-              !value %in% c("read_only", "workspace", "inherit_codex"))
-        ) {
-          "must be NULL, read_only, workspace, inherit_codex, or an inherit_codex mapping"
-        }
-      }
+    profile = sandbox_choice(
+      c("read_only", "workspace", "inherit_codex"),
+      InheritCodexSandboxProfile,
+      "an inherit_codex mapping"
     ),
-    tempdir = config_choice(c("managed", "read_write", "read_only"))
+    tempdir = sandbox_choice(
+      c("managed", "read_write", "read_only"),
+      ManagedTempdir,
+      "a managed mapping"
+    )
   )
 )
 
@@ -209,6 +231,11 @@ S7::method(as.list, ConfigNode) <- function(x, ...) {
 S7::method(as.list, InheritCodexSandboxProfile) <- function(x, ...) {
   S7::validate(x)
   json_object(list(inherit_codex = config_mapping(S7::props(x))))
+}
+
+S7::method(as.list, ManagedTempdir) <- function(x, ...) {
+  S7::validate(x)
+  list(managed = config_mapping(S7::props(x)))
 }
 
 config_override <- function(key, value) {
