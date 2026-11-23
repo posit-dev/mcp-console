@@ -2,6 +2,7 @@
 
 use crate::settings::SandboxSettings;
 use serde_json::{Value, json};
+use std::path::PathBuf;
 use std::process::Command;
 
 pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command, String> {
@@ -56,12 +57,17 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
 
 fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String> {
     let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
-    // Explicit entries already define the write grants, including Console caches.
+    let managed = settings
+        .remove(super::cache::MANAGED_DIRECTORY)
+        .map(|path| PathBuf::from(path.as_str().expect("captured managed cache directory")));
+    // Explicit entries replace the default permissions for both cache modes.
     let caches = if settings
         .get("filesystem")
         .is_some_and(|filesystem| filesystem.get("entries").is_some())
     {
         Vec::new()
+    } else if let Some(directory) = &managed {
+        vec![directory.clone()]
     } else {
         super::cache::writable_roots(&settings)?
     };
@@ -75,7 +81,8 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
             })];
             for path in caches {
                 // Retain relative spelling until the shared guard has checked it.
-                entries.push(super::cache::writable_cache_entry(&path)?);
+                let path = path.to_str().ok_or("resolver policy paths must be UTF-8")?;
+                entries.push(json!({"path": {"type": "path", "path": path}, "access": "write"}));
             }
             filesystem.insert("entries".into(), entries.into());
         }
@@ -85,7 +92,10 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
         &workspace,
         crate::settings::PolicyContext::Launch,
     )?;
-    if create_caches {
+    if let Some(directory) = managed {
+        // A managed cache may have been missing or symlinked at server startup.
+        super::cache::prepare_directory(&directory)?;
+    } else if create_caches {
         // Linux cannot bind absent roots. Create only the surviving cache grants.
         for entry in settings["filesystem"]["entries"]
             .as_array()

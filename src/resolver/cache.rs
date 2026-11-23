@@ -4,6 +4,9 @@ use crate::settings::{Cache, SandboxSettings, environment_path};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+/// Private resolver setting consumed before passing permissions to the native runner.
+pub(super) const MANAGED_DIRECTORY: &str = "_console_managed_cache_directory";
+
 pub(crate) fn configure(
     selection: Option<Cache>,
     no_sandbox: bool,
@@ -88,22 +91,9 @@ pub(crate) fn configure(
             }
         }
     }
-    let filesystem = resolver.entry("filesystem").or_insert_with(|| json!({}));
-    if let Value::Object(filesystem) = filesystem
-        && !filesystem.contains_key("entries")
-    {
-        let mut entries = vec![json!({
-            "path": {"type": "special", "value": {"kind": "root"}}, "access": "read"
-        })];
-        entries.push(writable_cache_entry(&grant)?);
-        filesystem.insert("entries".into(), entries.into());
-    }
+    // Retain the original spelling so each resolver can check it before creating storage.
+    resolver.insert(MANAGED_DIRECTORY.into(), json!(grant));
     Ok(())
-}
-
-pub(super) fn writable_cache_entry(root: &Path) -> Result<Value, String> {
-    let path = root.to_str().ok_or("resolver policy paths must be UTF-8")?;
-    Ok(json!({"path": {"type": "path", "path": path}, "access": "write"}))
 }
 
 /// Keep the declared spelling for grant inspection. Win32 filesystem calls

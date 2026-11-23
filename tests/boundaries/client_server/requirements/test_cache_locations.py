@@ -16,7 +16,7 @@ from support.assertions import wait_for_worker_ready
 from support.client import McpClient
 from support.checkpoints import FifoCheckpoint
 from support.normalization import code
-from support.python import write_test_wheel
+from support.python import isolated_python, write_test_wheel
 from support.records import Transcript
 from support.requirements import LINUX_SANDBOX, R, SANDBOX, command, requires
 from support.r import r_test_environment
@@ -242,6 +242,79 @@ def test_symlinked_cache_directory_does_not_create_storage(binary: Path) -> Tran
             transcript = client.finish()
         assert not (target / "dependencies").exists()
     return transcript
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
+def test_resolver_prepares_replaced_cache_directory(binary: Path) -> Transcript:
+    return replaced_cache_directory(binary, explicit_entries=False)
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
+def test_resolver_prepares_only_its_cache_with_explicit_entries(
+    binary: Path,
+) -> Transcript:
+    return replaced_cache_directory(binary, explicit_entries=True)
+
+
+def replaced_cache_directory(binary: Path, *, explicit_entries: bool) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / "target"
+        target.mkdir()
+        cache = root / "cache"
+        cache.symlink_to(target, target_is_directory=True)
+        tools = root / "bin"
+        tools.mkdir()
+        python, _ = isolated_python(root)
+        probing_uv(
+            root,
+            python,
+            # fmt: python
+            code("""
+                import os
+                from pathlib import Path
+
+                directory = Path(os.environ["XDG_CACHE_HOME"])
+                if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ and not directory.parent.is_symlink():
+                    _ = (directory / "prepared").write_text("ready")
+                """),
+        )
+        config = {
+            "cache": {"directory": "cache"},
+            "languages": ["python"],
+            "python": {"managed": {"packages": []}},
+        }
+        if explicit_entries:
+            config["resolver"] = {
+                "sandbox": {
+                    "filesystem": {
+                        "read_only": ["/"],
+                        "read_write": ["cache/dependencies", "other"],
+                    }
+                }
+            }
+        path = root / "config.json"
+        path.write_text(json.dumps(config))
+        with McpClient(
+            binary, ("serve", "--config-file", str(path)), environment(tools), root
+        ) as client:
+            client.initialize_and_list_tools()
+            result = client.expect(None, python="print('first session ready')")
+            assert result["content"][0]["text"].endswith("first session ready\n"), (
+                result
+            )
+            assert not (target / "dependencies").exists()
+            cache.unlink()
+            cache.mkdir()
+            client.expect(
+                "second session ready\n",
+                session="second",
+                python="print('second session ready')",
+            )
+            assert (cache / "dependencies/prepared").read_text() == "ready"
+            assert not (root / "other").exists()
+            transcript = client.finish()
+    return json.loads(json.dumps(transcript).replace(str(root), "<workspace>"))
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))

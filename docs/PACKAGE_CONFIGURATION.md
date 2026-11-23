@@ -97,6 +97,7 @@ A custom directory must be nonempty; a bare path string is not a cache selector.
 Leading `~` follows the [configuration path rules](CONFIGURATION.md#paths).
 
 For managed caches, an explicit directory wins over `MCP_CONSOLE_CACHE_DIR`; otherwise Console uses that variable or the platform cache directory.
+If a symlink prevents Console from creating its dependency cache, the next resolver launch checks the path again and creates the cache if it can.
 The [environment reference](ENVIRONMENT.md#cache-and-data-locations) owns the cache paths, redirected variables, and precedence.
 `MCP_CONSOLE_HOME` moves configuration and fallback recordings, not dependencies.
 Existing Python environments continue to use their installed packages.

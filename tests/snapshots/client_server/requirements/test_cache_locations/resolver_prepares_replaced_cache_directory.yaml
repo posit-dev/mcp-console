@@ -1,0 +1,23 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.yaml
+---
+send:
+  python: print('first session ready')
+result:
+  content:
+    - type: text
+      text: |
+        Warning: ignoring symlinked writable root '<workspace>/cache/dependencies'. Grant writes using the target path.
+        [output produced while idle]
+        first session ready
+  isError: false
+---
+send:
+  session: second
+  python: print('second session ready')
+result:
+  content:
+    - type: text
+      text: |
+        second session ready
+  isError: false
