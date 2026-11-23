@@ -12,7 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import MACOS_TMP_CASE_ALIAS, SANDBOX, requires
+from support.requirements import (
+    MACOS_DATA_VOLUME_TMP,
+    MACOS_TMP_CASE_ALIAS,
+    SANDBOX,
+    requires,
+)
 from support.suites import run_this_suite
 
 
@@ -210,6 +215,47 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
                     ),
                 }
             )
+        return transcript
+
+
+@requires(MACOS_DATA_VOLUME_TMP)
+def test_restrictions_match_across_data_volume_paths(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir="/private/tmp") as directory:
+        host = Path(directory)
+        mounted = Path("/System/Volumes/Data") / host.relative_to("/")
+        (host / "output").mkdir()
+        (host / "link").symlink_to("output", target_is_directory=True)
+        transcript = []
+        for grant_base, child_base in ((host, mounted), (mounted, host)):
+            for suffix in ("link", "link/pending"):
+                grant = grant_base / suffix
+                child = child_base / suffix / "locked"
+                policy = {"sandbox": {"filesystem": {"read_only": [str(child)]}}}
+                result = subprocess.run(
+                    [
+                        binary,
+                        "sandbox",
+                        "--config-env",
+                        "POLICY",
+                        "--writable-root",
+                        grant,
+                        "--",
+                        "/usr/bin/true",
+                    ],
+                    cwd=host,
+                    env=dict(os.environ, POLICY=json.dumps(policy)),
+                    capture_output=True,
+                    text=True,
+                )
+                assert result.returncode == 1 and not result.stdout, result
+                assert result.stderr == (
+                    "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
+                    f"cannot enforce restriction '{child}' beneath ignored writable root '{grant}'. "
+                    "Specify the restriction using the target path.\n"
+                ), result
+                transcript.append(
+                    {"stderr": result.stderr.replace(host.name, "<directory>")}
+                )
         return transcript
 
 

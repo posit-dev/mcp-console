@@ -911,21 +911,25 @@ fn might_be_within(root: &Path, child: &Path) -> std::io::Result<bool> {
     if child.starts_with(&root) {
         return Ok(true);
     }
-    let Some(depth) = child
-        .components()
-        .count()
-        .checked_sub(root.components().count())
-    else {
-        return Ok(false);
-    };
-    // If both names are absent, the filesystem cannot establish their identity.
-    // Require the target spelling when the nearest existing ancestors coincide.
-    for (left, right) in root.ancestors().zip(child.ancestors().skip(depth)) {
-        match (existing_entry(left)?, existing_entry(right)?) {
-            (Some(a), Some(b)) => return same_entry(left, &a, right, &b),
-            (None, None) => continue,
-            _ => return Ok(false),
+    for (missing, base) in root.ancestors().enumerate() {
+        let Some(root_entry) = existing_entry(base)? else {
+            continue;
+        };
+        // A volume can expose the same directory at different mount depths.
+        for (suffix, ancestor) in child.ancestors().enumerate() {
+            let Some(entry) = existing_entry(ancestor)? else {
+                continue;
+            };
+            if missing != 0 {
+                // A missing root could contain the child only if both lookups
+                // stopped at the same directory and the child's suffix is long enough.
+                return Ok(suffix >= missing && same_entry(base, &root_entry, ancestor, &entry)?);
+            }
+            if same_entry(base, &root_entry, ancestor, &entry)? {
+                return Ok(true);
+            }
         }
+        break;
     }
     Ok(false)
 }

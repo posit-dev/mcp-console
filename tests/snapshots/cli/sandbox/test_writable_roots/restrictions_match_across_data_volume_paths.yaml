@@ -1,0 +1,28 @@
+---
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '/System/Volumes/Data/private/tmp/<directory>/link/locked' beneath
+  ignored writable root '/private/tmp/<directory>/link'. Specify the
+  restriction using the target path.
+---
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '/System/Volumes/Data/private/tmp/<directory>/link/pending/locked'
+  beneath ignored writable root '/private/tmp/<directory>/link/pending'.
+  Specify the restriction using the target path.
+---
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '/private/tmp/<directory>/link/locked' beneath ignored writable root
+  '/System/Volumes/Data/private/tmp/<directory>/link'. Specify the
+  restriction using the target path.
+---
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '/private/tmp/<directory>/link/pending/locked' beneath ignored writable
+  root '/System/Volumes/Data/private/tmp/<directory>/link/pending'.
+  Specify the restriction using the target path.
