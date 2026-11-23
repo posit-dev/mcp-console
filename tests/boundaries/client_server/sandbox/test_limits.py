@@ -1,6 +1,7 @@
 """Mandatory filesystem limits survive ordinary worker replacement."""
 
 import json
+import os
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,12 +11,103 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.python.test_without_r import (
     environment as python_only_environment,
 )
+from boundaries.client_server.sandbox.test_codex_inheritance import send_with_state
 from support.client import McpClient
 from support.execution import SANDBOXED
 from support.normalization import code, normalize_recording
 from support.records import Transcript
 from support.requirements import PROCESS_EVENTS, SANDBOX, requires
 from support.suites import run_this_suite
+
+
+def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
+    sensitive = {
+        "filesystem": {"deny": ["private-project"]},
+        "network": {"domains": {"allow": ["private.example.invalid"]}},
+    }
+    records = []
+    with TemporaryDirectory() as directory:
+        workspace = Path(directory)
+        for profile, limits in [
+            ("workspace", sensitive),
+            ("inherit_codex", sensitive),
+            ("workspace", {"network": {"allow_local_binding": True}}),
+        ]:
+            # Discovery of a fixed profile needs no interpreter. The inherited
+            # profile checks admission of a real cell on its first send.
+            worker = (
+                [
+                    "-c",
+                    "languages=[python]",
+                    "-c",
+                    "python=" + json.dumps(sys.executable),
+                ]
+                if profile == "inherit_codex"
+                else ["--worker", "unused-worker"]
+            )
+            with McpClient(
+                binary,
+                (
+                    "serve",
+                    "--no-config",
+                    "--limits-env",
+                    "PRIVATE_POLICY",
+                    *worker,
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    f"sandbox.profile={profile}",
+                    "-c",
+                    "sandbox.network=enabled",
+                    "-c",
+                    "sandbox.tempdir=read_only",
+                ),
+                os.environ | {"PRIVATE_POLICY": json.dumps(limits)},
+                workspace,
+                recording_receipts=False,
+            ) as client:
+                client.initialize_and_list_tools()
+                description = client.transcript[-1]["result"]["tools"][0]["description"]
+                active = limits == sensitive
+                assert ("mandatory limits" in description) == active, description
+                assert ("can directly access the network" in description) == (
+                    not active
+                )
+                assert "Full access disables" not in description
+                if profile == "workspace":
+                    assert "workspace" in description
+                for private in (
+                    "private-project",
+                    "private.example.invalid",
+                    "PRIVATE_POLICY",
+                ):
+                    assert private not in description
+                records.append(
+                    {
+                        "profile": profile,
+                        "active": active,
+                        "permissions": description.rsplit("\n\n", 1)[-1],
+                    }
+                )
+                if profile == "inherit_codex":
+                    result = send_with_state(
+                        client,
+                        {"permissionProfile": {"type": "disabled"}},
+                        python="from pathlib import Path; Path('ran').touch()",
+                    )["result"]
+                    assert result["isError"], result
+                    error = result["content"][0]["text"]
+                    assert "sandbox limits require sandboxing" in error, error
+                    assert not (workspace / "ran").exists()
+                    records[-1]["full_access_error"] = error
+                    _, stderr = client.finish_with_standard_error(
+                        expected_exit_status=1
+                    )
+                    assert stderr == error + "\n", (error, stderr)
+                    records[-1]["stderr"] = stderr
+                else:
+                    client.finish()
+    return records
 
 
 # MCP recording receipts and lifecycle observation require the shared process

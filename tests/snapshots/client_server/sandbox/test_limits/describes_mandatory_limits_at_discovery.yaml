@@ -1,0 +1,37 @@
+---
+profile: workspace
+active: true
+permissions: >-
+  Evaluated code can read host files subject to configured restrictions
+  and must use a proxy that filters network destinations. Writable
+  locations: workspace; subject to more specific read/deny rules. Package
+  preparation may execute installation or build code with separate
+  filesystem and network permissions; use only trusted dependencies. The
+  launcher's mandatory limits apply to both evaluated code and package
+  preparation.
+---
+profile: inherit_codex
+active: true
+permissions: >-
+  The sandbox base comes from Codex metadata on the first send, or the
+  configured fallback (default: read_only). Missing metadata is silent;
+  malformed metadata warns on server stderr. Explicit Console permissions
+  apply to the selected base. Full access is incompatible with the
+  launcher's mandatory limits. Reconnect to change client permissions.
+  Package preparation has separate permissions subject to the same limits.
+  Use only trusted dependencies.
+full_access_error: >-
+  sandbox limits require sandboxing; --no-sandbox and inherited full
+  access are unavailable
+stderr: >
+  sandbox limits require sandboxing; --no-sandbox and inherited full
+  access are unavailable
+---
+profile: workspace
+active: false
+permissions: >-
+  Evaluated code can read host files subject to configured restrictions
+  and can directly access the network. Writable locations: workspace;
+  subject to more specific read/deny rules. Package preparation may
+  execute installation or build code with separate filesystem and network
+  permissions; use only trusted dependencies.

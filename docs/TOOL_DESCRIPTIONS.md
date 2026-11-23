@@ -70,6 +70,7 @@ Dependency declarations are not installed-package inventories.
 Preparation and worker sandbox settings govern separate boundaries.
 
 Describe selected native permissions and concrete temporary/workspace write grants, including narrower read/deny rules.
+When a launcher sets mandatory limits, describe their effect on worker and preparation permissions without listing the launcher's private paths or domains.
 A read entry grants reads as well as narrowing writes; metadata protection is a default rather than a mandatory ceiling.
 Language visibility is not a security boundary.
 
