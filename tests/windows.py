@@ -761,6 +761,27 @@ class WindowsPackaging(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "native Windows acceptance")
 class WindowsConsole(unittest.TestCase):
+    def test_cache_directory_with_verbatim_parent_traversal(self):
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = Path(_getfinalpathname(root)) / "scratch" / ".." / "cache"
+            session = Session(
+                sandbox=True,
+                python=sys.executable,
+                overrides=(
+                    "languages=[python]",
+                    "cache.directory=" + json.dumps(str(cache)),
+                ),
+            )
+            try:
+                session.initialize()
+                self.assertTrue((root / "cache/dependencies").is_dir())
+                self.assertFalse((root / "scratch").exists())
+            finally:
+                session.close()
+
     def test_collects_streamed_output_before_starting_the_next_cell(self):
         from concurrent.futures import ThreadPoolExecutor
 

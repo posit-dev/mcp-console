@@ -216,6 +216,34 @@ def test_console_cache_directory_requires_absolute_path(binary: Path) -> Transcr
     return [{"relative_console_cache_directory_rejected": True}]
 
 
+@requires(SANDBOX)
+def test_symlinked_cache_directory_does_not_create_storage(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / "target"
+        target.mkdir()
+        (root / "shortcut").symlink_to(target, target_is_directory=True)
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "--no-config",
+                "-c",
+                "cache.directory=shortcut",
+                "-c",
+                "languages=[python]",
+                "-c",
+                f"python.existing={sys.executable}",
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            transcript = client.finish()
+        assert not (target / "dependencies").exists()
+    return transcript
+
+
 @requires(SANDBOX, command("uv"), command("rustc"))
 def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("explicit_entries",))

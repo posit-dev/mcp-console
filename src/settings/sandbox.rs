@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::{Value, json};
 
 use super::SandboxSettings;
+use crate::console_paths::normalize_permission_path;
 
 // Option means omitted, not an explicit YAML null.
 pub(super) fn supplied<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -749,6 +750,17 @@ pub(crate) fn revalidate_writable_roots(
 /// Drop a grant when any component is a link. Native rules then govern access
 /// through that link. The native runner still owns binding ordinary paths.
 fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
+    let ignored = has_untrusted_symlink(path)?;
+    if ignored {
+        eprintln!(
+            "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
+            path.display()
+        );
+    }
+    Ok(ignored)
+}
+
+pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {
     let mut prefix = PathBuf::new();
     for component in path.components() {
         match component {
@@ -768,10 +780,6 @@ fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
                 if component != Component::ParentDir && is_macos_system_alias(&prefix, &metadata) {
                     continue;
                 }
-                eprintln!(
-                    "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
-                    path.display()
-                );
                 return Ok(true);
             }
             Ok(_) => {}
@@ -827,23 +835,6 @@ fn is_broad_write_root(path: &Path) -> Result<bool, String> {
         )
     })?;
     Ok(home.starts_with(root))
-}
-
-fn normalize_permission_path(path: &Path) -> PathBuf {
-    // Match the runner's lexical normalization, including absent/.. paths.
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
-                normalized.push(component.as_os_str());
-            }
-        }
-    }
-    normalized
 }
 
 /// Resolve the existing prefix while retaining absent suffixes. Comparing only

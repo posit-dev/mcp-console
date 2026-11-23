@@ -93,8 +93,7 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
         {
             if entry["access"] == "write" {
                 let path = entry["path"]["path"].as_str().expect("captured cache path");
-                std::fs::create_dir_all(path)
-                    .map_err(|error| format!("cannot create resolver cache '{path}': {error}"))?;
+                super::cache::prepare_directory(path.as_ref())?;
             }
         }
     }

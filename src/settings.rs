@@ -10,12 +10,12 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
-#[cfg(any(unix, windows))]
-pub(crate) use sandbox::capture_filesystem_paths;
 pub(crate) use sandbox::{
     PolicyContext, Profile, ProfileSelection, Tempdir, apply_workspace_profile,
     materialize_settings as materialize_sandbox, resolve_writable_root, revalidate_writable_roots,
 };
+#[cfg(any(unix, windows))]
+pub(crate) use sandbox::{capture_filesystem_paths, has_untrusted_symlink};
 pub(crate) const SANDBOX_MARKER: &str = "MCP_CONSOLE_SANDBOX";
 pub(crate) const MANAGED_TEMPDIR_ENVIRONMENT: &str = "MCP_CONSOLE_MANAGED_TEMPDIR";
 mod tool;

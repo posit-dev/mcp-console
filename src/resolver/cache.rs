@@ -2,7 +2,7 @@
 
 use crate::settings::{Cache, SandboxSettings, environment_path};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn configure(
     selection: Option<Cache>,
@@ -20,7 +20,7 @@ pub(crate) fn configure(
     // reuse them in a local session that removes native enforcement.
     // Host-side companion staging uses a separate sandbox cache. Grant only
     // dependency storage, never the shared Console cache parent.
-    let root = match selection {
+    let grant = match selection {
         Cache::Host => return Ok(()),
         Cache::Managed | Cache::Directory(_) if no_sandbox => {
             return Err(
@@ -31,6 +31,7 @@ pub(crate) fn configure(
         Cache::Directory(path) => path,
     }
     .join("dependencies");
+    let root = prepare_directory(&grant)?;
     let explicit_python = python.map_or_else(
         || {
             std::env::var_os("RETICULATE_PYTHON")
@@ -87,8 +88,6 @@ pub(crate) fn configure(
             }
         }
     }
-    std::fs::create_dir_all(&root)
-        .map_err(|error| format!("cannot create Console cache '{}': {error}", root.display()))?;
     let filesystem = resolver.entry("filesystem").or_insert_with(|| json!({}));
     if let Value::Object(filesystem) = filesystem
         && !filesystem.contains_key("entries")
@@ -96,15 +95,34 @@ pub(crate) fn configure(
         let mut entries = vec![json!({
             "path": {"type": "special", "value": {"kind": "root"}}, "access": "read"
         })];
-        entries.push(writable_cache_entry(&root)?);
+        entries.push(writable_cache_entry(&grant)?);
         filesystem.insert("entries".into(), entries.into());
     }
     Ok(())
 }
 
-pub(super) fn writable_cache_entry(root: &std::path::Path) -> Result<Value, String> {
+pub(super) fn writable_cache_entry(root: &Path) -> Result<Value, String> {
     let path = root.to_str().ok_or("resolver policy paths must be UTF-8")?;
     Ok(json!({"path": {"type": "path", "path": path}, "access": "write"}))
+}
+
+/// Keep the declared spelling for grant inspection. Win32 filesystem calls
+/// require parent traversals in verbatim paths to be resolved by the caller.
+pub(super) fn prepare_directory(grant: &Path) -> Result<PathBuf, String> {
+    grant.to_str().ok_or("Console cache paths must be UTF-8")?;
+    #[cfg(windows)]
+    let directory = crate::console_paths::normalize_permission_path(grant);
+    #[cfg(not(windows))]
+    let directory = grant.to_owned();
+    if !crate::settings::has_untrusted_symlink(grant)? {
+        std::fs::create_dir_all(&directory).map_err(|error| {
+            format!(
+                "cannot create resolver cache '{}': {error}",
+                directory.display()
+            )
+        })?;
+    }
+    Ok(directory)
 }
 
 fn console_root(settings: &SandboxSettings) -> Result<PathBuf, String> {

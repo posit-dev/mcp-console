@@ -1,8 +1,6 @@
 //! Console-owned files on the controller host.
 
-#[cfg(windows)]
-use std::path::Component;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn home_console_directory() -> Result<Option<PathBuf>, String> {
     if let Some(directory) = std::env::var_os("MCP_CONSOLE_HOME") {
@@ -61,6 +59,23 @@ pub(crate) fn absolute_preserving_parents(base: &Path, path: &Path) -> std::io::
         return Ok(root);
     }
     std::path::absolute(base.join(path))
+}
+
+/// Match the runner's lexical normalization, including absent/.. paths.
+pub(crate) fn normalize_permission_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
 }
 
 pub(crate) fn home_directory() -> Result<Option<PathBuf>, String> {
