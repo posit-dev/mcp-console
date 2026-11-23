@@ -161,7 +161,8 @@ R interprets `R_ENVIRON`, `R_ENVIRON_USER`, `R_PROFILE`, `R_PROFILE_USER`, `R_LI
 
 Managed preparation prepends its library to captured `R_LIBS`; native startup or user code can alter `.libPaths()` afterward.
 When requirements change before R finishes starting, Console replaces its previous directory in the current `R_LIBS`, preserving the order of project libraries added by `.Renviron`.
-If the project already includes the new library, it keeps that entry across later requirements changes.
+If the project already lists the prepared directory by an absolute path, a relative path, or a path beginning with `~/`, it keeps that entry in place across later requirements changes.
+If Python changes directories before R starts, R resolves the project's relative entries in the new directory and the prepared library remains available at its absolute path.
 Console supplies `R_HOME`, `R_SHARE_DIR`, `R_INCLUDE_DIR`, and `R_DOC_DIR` from the selected installation rather than retaining mismatched resource paths.
 If R startup pauses while you correct the temporary directory, Console restores those four paths before R resumes.
 On Windows, embedded R home uses nonempty `R_USER`, then `HOME`, then the native profile fallback.

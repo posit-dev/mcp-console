@@ -4,6 +4,7 @@ use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_uchar, c_void};
 use std::io;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -133,7 +134,7 @@ impl Runtime {
         library: &str,
     ) -> Result<crate::r_environment::PreparationOutcome, String> {
         defer_interrupts(
-            || self.environment.prepare(std::path::Path::new(library)),
+            || self.environment.prepare(Path::new(library)),
             discard_interrupts,
         )
     }
@@ -264,7 +265,7 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     }
 }
 
-pub(super) fn rejects_tempdir(_r_home: &std::path::Path) -> Result<bool, Box<dyn Error>> {
+pub(super) fn rejects_tempdir(_r_home: &Path) -> Result<bool, Box<dyn Error>> {
     type GetEnv = unsafe extern "C" fn(*const c_char) -> *mut c_char;
     unsafe extern "C" {
         fn mcp_r_tempdir_has_whitespace(environment: GetEnv) -> c_int;
@@ -345,6 +346,24 @@ pub(super) fn configure_installation(
     installation: &crate::local_runtime::RInstallation,
 ) -> Result<(), Box<dyn Error>> {
     set_environment(&installation.environment())
+}
+
+fn user_home() -> Option<PathBuf> {
+    #[cfg(windows)]
+    for name in ["R_USER", "HOME"] {
+        if let Some(path) = std::env::var_os(name).filter(|path| !path.is_empty()) {
+            return Some(path.into());
+        }
+    }
+    std::env::home_dir()
+}
+
+/// Resolve a directory entry from R_LIBS before R builds its library path.
+pub(super) fn canonical_library_directory(path: &Path) -> Option<PathBuf> {
+    match path.strip_prefix("~") {
+        Ok(relative) => user_home()?.join(relative).canonicalize().ok(),
+        Err(_) => path.canonicalize().ok(),
+    }
 }
 
 pub(super) fn set_environment(variables: &[(&str, &OsStr)]) -> Result<(), Box<dyn Error>> {

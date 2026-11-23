@@ -1,0 +1,59 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    os.chdir("child")
+    del os.environ["TMPDIR"]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    root <- dirname(getwd())
+    candidate <- file.path(root, "resolved-r-libraries", "consolefirst")
+    project <- c(
+      file.path(root, "project-first"),
+      file.path(getwd(), "resolved-r-libraries", "consolefirst"),
+      file.path(root, "project-last")
+    )
+    paths <- .libPaths()
+    stopifnot(
+      basename(getwd()) == "child",
+      identical(dirname(find.package("consolefirst")), candidate),
+      identical(paths[paths %in% project], project),
+      consolefirst::fixture()
+    )
+    cat("prepared library available after chdir\n")
+result:
+  content:
+    - type: text
+      text: |
+        prepared library available after chdir
+  isError: false

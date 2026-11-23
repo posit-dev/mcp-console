@@ -35,8 +35,13 @@ result:
 send:
   r: |
     native_paths <- .libPaths()
+    user_paths <- strsplit(Sys.getenv("R_LIBS_USER"), .Platform$path.sep)[[1L]]
     prepared_library <- dirname(find.package("consolefirst"))
-    stopifnot(prepared_library %in% native_paths)
+    stopifnot(
+      identical(Sys.getenv("R_LIBS"), ""),
+      prepared_library %in% user_paths,
+      prepared_library %in% native_paths
+    )
 result:
   content:
     - type: text

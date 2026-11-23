@@ -52,17 +52,6 @@ pub(super) extern "C-unwind" fn process_events() {
     super::super::priority::run_r();
 }
 
-fn user_home() -> Result<CString, Box<dyn Error>> {
-    let user_home = ["R_USER", "HOME"]
-        .into_iter()
-        .filter_map(std::env::var_os)
-        .find(|value| !value.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(std::env::home_dir)
-        .ok_or_else(|| io::Error::other("cannot determine R user directory"))?;
-    Ok(CString::new(user_home.to_string_lossy().as_bytes())?)
-}
-
 pub(super) fn read_startup_environment(
     r_home: &std::path::Path,
     arguments: &mut [*mut c_char],
@@ -71,7 +60,9 @@ pub(super) fn read_startup_environment(
     static STARTUP_PATHS: OnceLock<(CString, CString)> = OnceLock::new();
 
     let r_home = CString::new(r_home.to_string_lossy().as_bytes())?;
-    let user_home = user_home()?;
+    let user_home =
+        super::user_home().ok_or_else(|| io::Error::other("cannot determine R user directory"))?;
+    let user_home = CString::new(user_home.to_string_lossy().as_bytes())?;
     // Older Windows R versions retain startup path pointers in R_SetParams.
     // R lives until worker exit, so its backing strings must do the same.
     STARTUP_PATHS

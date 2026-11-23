@@ -2,6 +2,8 @@
 
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -154,6 +156,8 @@ def test_replaces_library_prepared_before_r_initialization(
         modules = root / "modules"
         modules.mkdir()
         (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environ = root / ".Renviron"
+        environ.write_text('R_LIBS_USER="${R_LIBS}"\nR_LIBS=""\n')
         profile = root / ".Rprofile"
         profile.write_text(
             'writeLines("started", file.path(Sys.getenv("TMPDIR"), "r-started"))\n'
@@ -161,6 +165,7 @@ def test_replaces_library_prepared_before_r_initialization(
         environment.update(
             RETICULATE_PYTHON=sys.executable,
             RETICULATE_PYTHONPATH=str(modules),
+            R_ENVIRON_USER=str(environ),
             R_PROFILE_USER=str(profile),
             TMPDIR=str(root),
         )
@@ -191,8 +196,13 @@ def test_replaces_library_prepared_before_r_initialization(
                 # fmt: r
                 r=code(r"""
                     native_paths <- .libPaths()
+                    user_paths <- strsplit(Sys.getenv("R_LIBS_USER"), .Platform$path.sep)[[1L]]
                     prepared_library <- dirname(find.package("consolefirst"))
-                    stopifnot(prepared_library %in% native_paths)
+                    stopifnot(
+                      identical(Sys.getenv("R_LIBS"), ""),
+                      prepared_library %in% user_paths,
+                      prepared_library %in% native_paths
+                    )
                     """),
             )
             client.expect(
@@ -308,6 +318,137 @@ def test_preparation_preserves_renviron_libraries_while_r_startup_is_paused(
                       consolesecond::fixture()
                     )
                     cat("project libraries retained\n")
+                    """),
+            )
+            return client.finish()
+
+
+@contextmanager
+def prepared_project_library(
+    binary: Path, root: Path, project_entry: str
+) -> Iterator[McpClient]:
+    environment, _ = recording_fixture_r_environment(
+        root, ("consolefirst", "consolesecond")
+    )
+    for name in ("private temp", "project-first", "project-last"):
+        (root / name).mkdir()
+    environ = root / ".Renviron"
+    environ.write_text(
+        'TMP="${TMPDIR}"\n'
+        f'TMPDIR="{root}/private temp"\n'
+        'R_LIBS_SITE="${MCP_CONSOLE_R_LIBRARY}"\n'
+        'R_LIBS="${MCP_CONSOLE_R_LIBRARY}:'
+        f'{root}/project-first:{project_entry}:{root}/project-last"\n'
+    )
+    environment.update(R_ENVIRON_USER=str(environ), RETICULATE_PYTHON=sys.executable)
+    with McpClient(
+        binary,
+        (
+            "serve",
+            "--writable-root",
+            str(root),
+            "-c",
+            "cache=host",
+            "-c",
+            "sandbox.tempdir.managed.parent=/tmp",
+        ),
+        environment,
+        root,
+        use_r_startup_files=True,
+    ) as client:
+        client.initialize_and_list_tools()
+        output = client.expect(None, r="1L")["content"][0]["text"]
+        assert "R requires a temporary directory without whitespace" in output, output
+        client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+        yield client
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_prepared_relative_library_survives_a_directory_change(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        relative_library = "resolved-r-libraries/consolefirst"
+        (root / "child" / relative_library).mkdir(parents=True)
+        with prepared_project_library(binary, root, relative_library) as client:
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+
+                    os.chdir("child")
+                    del os.environ["TMPDIR"]
+                    """)
+            )
+            client.expect(
+                "prepared library available after chdir\n",
+                # fmt: r
+                r=code(r"""
+                    root <- dirname(getwd())
+                    candidate <- file.path(root, "resolved-r-libraries", "consolefirst")
+                    project <- c(
+                      file.path(root, "project-first"),
+                      file.path(getwd(), "resolved-r-libraries", "consolefirst"),
+                      file.path(root, "project-last")
+                    )
+                    paths <- .libPaths()
+                    stopifnot(
+                      basename(getwd()) == "child",
+                      identical(dirname(find.package("consolefirst")), candidate),
+                      identical(paths[paths %in% project], project),
+                      consolefirst::fixture()
+                    )
+                    cat("prepared library available after chdir\n")
+                    """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_home_relative_project_library_survives_native_activation(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as temporary:
+        root = Path(temporary).resolve()
+        project_library = root / "resolved-r-libraries/consolefirst"
+        project_entry = "~/" + str(project_library.relative_to(Path.home().resolve()))
+        with prepared_project_library(binary, root, project_entry) as client:
+            client.expect(python='import os; del os.environ["TMPDIR"]')
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    project <- file.path(
+                      getwd(),
+                      c(
+                        "project-first",
+                        "resolved-r-libraries/consolefirst",
+                        "project-last"
+                      )
+                    )
+                    initial <- .libPaths()
+                    stopifnot(identical(dirname(find.package("consolefirst")), project[[2L]]))
+                    """)
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                "project library retained across native activation\n",
+                # fmt: r
+                r=code(r"""
+                    replacement <- file.path(
+                      getwd(),
+                      "resolved-r-libraries/consolefirst-consolesecond"
+                    )
+                    paths <- .libPaths()
+                    stopifnot(
+                      project[[2L]] %in% paths,
+                      identical(paths[2:5], c(replacement, project)),
+                      identical(initial[2:4], project),
+                      identical(dirname(find.package("consolesecond")), replacement),
+                      consolefirst::fixture(),
+                      consolesecond::fixture()
+                    )
+                    cat("project library retained across native activation\n")
                     """),
             )
             return client.finish()
