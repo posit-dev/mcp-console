@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use std::process::Command;
 
 pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command, String> {
+    crate::settings::limits::require_enforcement(&settings, false)?;
     let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
         "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
     )?;
@@ -31,6 +32,7 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
     )?;
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let mut command = Command::new(&executable);
+    crate::settings::limits::remove_source_environment(&mut command, &settings);
     if crate::warmup::trusted_preparation() {
         // Installation warmup populates the same caches, including platform
         // package-tool settings, without native filesystem/network enforcement.

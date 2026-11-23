@@ -173,6 +173,10 @@ The launch flags below also apply to `warmup`:
 | `--writable-root PATH` | Add write access to an existing directory; may be repeated. See [filesystem rules](SANDBOX_CONFIGURATION.md#filesystem).              |
 | `--no-sandbox`         | Run with host permissions. See [host execution](SANDBOX_CONFIGURATION.md#run-without-the-sandbox) for conflicts, caches, and cleanup. |
 
+For trusted launchers, `serve --limits-env NAME` captures mandatory filesystem and network limits independently of ordinary configuration.
+The same option is available on `sandbox`; it is unavailable on `warmup`.
+See [mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) for the input shape, enforcement scope, and platform restrictions.
+
 ## Standalone sandbox
 
 ```sh

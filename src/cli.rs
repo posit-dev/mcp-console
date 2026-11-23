@@ -58,6 +58,10 @@ pub struct Cli {
     #[command(flatten)]
     pub overrides: ConfigOverrides,
 
+    /// Apply mandatory sandbox limits from a trusted YAML or JSON environment variable (serve and sandbox only)
+    #[arg(long, global = true, value_name = "NAME")]
+    pub limits_env: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }

@@ -59,6 +59,16 @@ Recurring release checks belong in [Release](../RELEASE.md).
   Verify the complete suite without requiring provider builds from source.
   This pin concerns development checks, not the versions Console can embed.
 
+- [ ] **SP-5 — Complete mandatory network limits on Windows.**
+  Selective domain filtering needs a route to the managed proxy that keeps other host services inaccessible.
+  [Mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) reject `allow_local_binding: false` on Windows. MXC regulates traffic and permits a socket to bind inside the sandbox.
+  Supporting this setting requires a per-workload mechanism that prevents binding and listening while preserving ordinary outbound connections.
+
+- [ ] **SP-6 — Add launch diagnostics and inspection for mandatory limits.**
+  Limits currently narrow ordinary grants without rejecting overlap; malformed inputs and unsupported native combinations fail before the command starts.
+  Add a structured result that distinguishes invalid limits, unsupported enforcement, native setup failure, and a started command's exit status.
+  A check-only entry point must share the launch compiler and preserve trusted input separately from ordinary configuration exports.
+
 ## Documentation and agent usability
 
 - [ ] **DX-1 — Evaluate tool-description changes with agents.**

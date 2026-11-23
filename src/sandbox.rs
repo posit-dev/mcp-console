@@ -13,6 +13,7 @@ fn capture_settings(
     roots: Vec<PathBuf>,
     config_env: Option<&str>,
     overrides: &crate::cli::ConfigOverrides,
+    limits: Option<&crate::settings::limits::Captured>,
 ) -> Result<crate::settings::SandboxSettings, String> {
     let workspace = std::env::current_dir()
         .map_err(|error| format!("cannot find launch workspace: {error}"))?;
@@ -26,6 +27,9 @@ fn capture_settings(
     } else {
         crate::settings::discover(&workspace, overrides)?
     };
+    if let Some(limits) = limits {
+        limits.apply(&mut settings);
+    }
     if let Some(name) = config_env {
         // The selected document is launch input, including when its environment
         // mapping tries to reintroduce the transport variable into the workload.
@@ -77,6 +81,7 @@ fn preflight(settings: &crate::settings::SandboxSettings) -> Result<(), String> 
         .args(["--settings-env", crate::settings::ENVIRONMENT, "--"])
         .env(crate::settings::ENVIRONMENT, payload)
         .stdin(Stdio::null());
+    crate::settings::limits::remove_source_environment(&mut command, settings);
     #[cfg(unix)]
     command.arg("/usr/bin/true");
     #[cfg(windows)]
@@ -102,6 +107,7 @@ fn preflight(settings: &crate::settings::SandboxSettings) -> Result<(), String> 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     command: &[OsString],
     exit_with_parent: Option<u32>,
@@ -110,10 +116,18 @@ pub fn run(
     settings_env: Option<&str>,
     writable_roots: Vec<PathBuf>,
     overrides: &crate::cli::ConfigOverrides,
+    limits: Option<&crate::settings::limits::Captured>,
 ) -> Result<ExitCode, String> {
     let private_selector = runner_config_env
         .map(|_| "--runner-config-env")
         .or(settings_env.map(|_| "--settings-env"));
+    if limits.is_some()
+        && let Some(selector) = private_selector
+    {
+        return Err(format!(
+            "--limits-env cannot be combined with {selector}; use the public sandbox configuration"
+        ));
+    }
     if let Some(selector) = private_selector.or(config_env.map(|_| "--config-env")) {
         let conflicting = if overrides.no_config {
             Some("--no-config")
@@ -141,7 +155,7 @@ pub fn run(
     } else if let Some(name) = settings_env {
         crate::settings::from_environment(name)?
     } else {
-        capture_settings(writable_roots, config_env, overrides)?
+        capture_settings(writable_roots, config_env, overrides, limits)?
     };
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     {

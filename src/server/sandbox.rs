@@ -93,6 +93,7 @@ impl Configuration {
             }
             Some(Policy::Permissions { .. }) | None => {}
         }
+        crate::settings::limits::require_enforcement(&self.policy, self.no_sandbox)?;
         // Choose caches after inherited full access: sandbox-produced caches
         // must never become inputs to a newly unsandboxed session.
         crate::resolver::cache::configure(

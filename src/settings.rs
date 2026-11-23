@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+pub(crate) mod limits;
 pub(crate) mod materialize;
 mod python;
 mod resolution;
@@ -39,6 +40,7 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
                 .map(|(name, value)| (name, value.as_str().expect("captured string environment"))),
         );
     }
+    limits::remove_source_environment(command, settings);
 }
 
 /// Captured native policy and Console launch metadata. The frontend consumes

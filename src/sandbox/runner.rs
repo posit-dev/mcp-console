@@ -53,6 +53,7 @@ pub(super) fn run(
     if let Some(name) = consumed_env {
         runner.env_remove(name);
     }
+    crate::settings::limits::prepare_runner(&mut runner, &mut settings);
     if runner_config_env != Some(crate::settings::ENVIRONMENT) {
         runner.env_remove(crate::settings::ENVIRONMENT);
     }

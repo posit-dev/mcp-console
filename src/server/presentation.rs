@@ -450,16 +450,40 @@ fn description_for_launch(
     no_sandbox: bool,
     uses_client_profile: bool,
 ) -> String {
+    let limits = policy.get("limits");
     if uses_client_profile {
-        return "The sandbox base comes from Codex metadata on the first send, or the configured fallback (default: read_only). Missing metadata is silent; malformed metadata warns on server stderr. Explicit Console permissions apply to the selected base. Full access disables Console's sandbox. Reconnect to change client permissions. Package preparation has separate permissions unless sandboxing is disabled; use only trusted dependencies.".into();
+        let (full_access, preparation) = if limits.is_some() {
+            (
+                "Full access is incompatible with the launcher's mandatory limits.",
+                "Package preparation has separate permissions subject to the same limits. Use only trusted dependencies.",
+            )
+        } else {
+            (
+                "Full access disables Console's sandbox.",
+                "Package preparation has separate permissions unless sandboxing is disabled; use only trusted dependencies.",
+            )
+        };
+        return format!(
+            "The sandbox base comes from Codex metadata on the first send, or the configured fallback (default: read_only). Missing metadata is silent; malformed metadata warns on server stderr. Explicit Console permissions apply to the selected base. {full_access} Reconnect to change client permissions. {preparation}"
+        );
     }
     if no_sandbox {
         return "Evaluated code runs without a sandbox, with the server's permissions, including filesystem and network access. Package preparation may execute installation or build code; use only trusted dependencies.".into();
     }
-    let network_access = if policy.contains_key("proxy") {
+    let domains = limits.and_then(|limits| limits.pointer("/network/domains"));
+    let network_access = if domains
+        .and_then(|domains| domains.get("allow"))
+        .and_then(Value::as_array)
+        .is_some_and(Vec::is_empty)
+    {
+        "cannot reach any network destinations"
+    } else if policy.contains_key("proxy") {
         "can access the network subject to the launcher's proxy settings"
     } else {
         match policy.get("network").and_then(serde_json::Value::as_str) {
+            Some("enabled") if domains.is_some() => {
+                "must use a proxy that filters network destinations"
+            }
             Some("enabled") => "can directly access the network",
             Some("restricted") => "cannot directly access the network",
             _ => unreachable!("normalized worker network choice"),
@@ -501,8 +525,13 @@ fn description_for_launch(
             writable.join(", ")
         }
     );
+    let limits_notice = if limits.is_some() {
+        " The launcher's mandatory limits apply to both evaluated code and package preparation."
+    } else {
+        ""
+    };
     format!(
-        "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}. Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies."
+        "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}. Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies.{limits_notice}"
     )
 }
 

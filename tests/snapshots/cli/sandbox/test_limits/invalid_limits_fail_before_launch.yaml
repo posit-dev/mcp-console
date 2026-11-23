@@ -1,0 +1,43 @@
+---
+case: missing variable
+exit_code: 1
+stderr: |
+  sandbox limits environment 'TEST_LIMITS' is missing or is not valid UTF-8
+---
+case: invalid YAML
+exit_code: 1
+stderr: |
+  sandbox limits environment 'TEST_LIMITS': expected one YAML or JSON mapping
+---
+case: unknown field
+exit_code: 1
+stderr: >
+  sandbox limits environment 'TEST_LIMITS': invalid fields or types;
+  expected filesystem.deny, network.domains.allow/deny, and
+  network.allow_local_binding
+---
+case: path glob
+exit_code: 1
+stderr: >
+  sandbox limits filesystem.deny[0]: expected a nonempty literal path
+  without wildcards
+---
+case: empty path
+exit_code: 1
+stderr: >
+  sandbox limits filesystem.deny[0]: expected a nonempty literal path
+  without wildcards
+---
+case: domain URL
+exit_code: 1
+stderr: >
+  sandbox limits network.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+case: binding type
+exit_code: 1
+stderr: >
+  sandbox limits environment 'TEST_LIMITS': invalid fields or types;
+  expected filesystem.deny, network.domains.allow/deny, and
+  network.allow_local_binding

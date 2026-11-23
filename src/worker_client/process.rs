@@ -341,6 +341,7 @@ impl WorkerRuntime {
                     .map_err(|error| format!("cannot encode sandbox settings: {error}"))?,
             );
         }
+        crate::settings::limits::remove_source_environment(&mut command, sandbox_settings);
         transport::configure_stdio(&mut command);
         #[cfg(unix)]
         crate::process_descriptors::close_unlisted_from_multithreaded_parent(&mut command)?;
