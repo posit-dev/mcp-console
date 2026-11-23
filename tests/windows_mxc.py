@@ -15,7 +15,7 @@ from support.normalization import code
 from support.installation import installed_console, native_console
 from support.windows_firewall import application_rules
 from support.windows_faults import mcp_startup_failure
-from support.sandbox_configuration import NATIVE_PROXY
+from support.sandbox_configuration import NATIVE_PROXY, host_tcp_ports
 from support.windows_mxc import mxc_requirement, requires_mxc
 from windows_sandbox import BINARY, workspace
 
@@ -215,12 +215,71 @@ class WindowsMxc(unittest.TestCase):
             self.assertEqual(secret.read_text(), "private")
 
     @requires_mxc(BINARY)
-    def test_network_limits_force_filtering_without_enabling_network(self):
-        from boundaries.cli.sandbox.test_limits import (
-            test_network_limits_force_filtering_without_enabling_network,
-        )
+    def test_launcher_network_limits(self):
+        # fmt: python
+        program = code("""
+            import os
+            import socket
+            import sys
 
-        test_network_limits_force_filtering_without_enabling_network(BINARY)
+            assert "TEST_LIMITS" not in os.environ
+            assert os.environ.get("CODEX_NETWORK_PROXY_ACTIVE") != "1"
+            try:
+                with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3):
+                    print("connected")
+            except OSError:
+                print("blocked")
+            """)
+        with workspace() as root, host_tcp_ports() as ports:
+            for network, limits, outcome in (
+                ("enabled", {}, "connected"),
+                ("enabled", {"domains": {"allow": []}}, "blocked"),
+                ("{proxy: {}}", {"domains": {"allow": []}}, "blocked"),
+                (
+                    "enabled",
+                    {"domains": {"deny": ["example.org"]}},
+                    "selective domain limits",
+                ),
+                (
+                    "enabled",
+                    {"allow_local_binding": False},
+                    "cannot prohibit socket binding",
+                ),
+            ):
+                with self.subTest(network=network, limits=limits):
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "sandbox",
+                            "--no-config",
+                            "--limits-env",
+                            "TEST_LIMITS",
+                            "-c",
+                            f"sandbox.network={network}",
+                            "--",
+                            sys.executable,
+                            "-I",
+                            "-c",
+                            program,
+                            str(ports[0]),
+                        ],
+                        cwd=root,
+                        env=os.environ
+                        | {
+                            "MCP_CONSOLE_HOME": str(root / "home"),
+                            "TEST_LIMITS": json.dumps({"network": limits}),
+                        },
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    if outcome in ("connected", "blocked"):
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout.strip(), outcome)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertEqual(result.stdout, "")
+                        self.assertIn(outcome, result.stderr)
 
     @requires_mxc(BINARY)
     def test_proxy_launch(self):

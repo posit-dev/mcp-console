@@ -55,7 +55,7 @@ Overlapping ordinary grants are capped rather than rejected merely for overlappi
 A domain must pass both the ordinary allowlist and the limits allowlist, and neither denylist may match it.
 An omitted or `null` limits allowlist imposes no additional cap; `allow: []` permits no destinations.
 Matching uses the existing hostname-pattern rules rather than comparing pattern strings.
-An enabled network is routed through the managed proxy when limits require filtering.
+On Linux and macOS an enabled network uses the managed proxy when limits require destination filtering.
 Restricted networking without a proxy remains restricted without a proxy.
 `allow_local_binding: false` removes permission; `true` does not grant it.
 On Linux and macOS, setting `allow_local_binding: false` prevents the workload from binding a socket or listening for connections.
@@ -85,7 +85,8 @@ Native setup errors remain launch failures, without a retry using weaker permiss
 
 On macOS, the runner applies network limits after Console's Seatbelt extension.
 On Linux and macOS the proxy checks requests for local destinations against the same domain rules, including when local binding is allowed.
-Windows rejects selective domain limits with an enabled network or managed proxy.
+On Windows, `network.domains.allow: []` disables host and external network access, including when the ordinary policy requests a managed proxy.
+Windows rejects selective domain limits with an enabled network or managed proxy before starting the workload.
 MXC's host-loopback permission also makes unrelated local services reachable.
 Windows rejects mandatory `allow_local_binding: false` before starting the workload.
 MXC controls traffic to and from listeners and has no policy for prohibiting socket binding itself.

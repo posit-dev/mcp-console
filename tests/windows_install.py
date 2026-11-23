@@ -64,7 +64,7 @@ def accept(binary: Path, native: Path, *, preinstalled_r: bool) -> None:
     cases = [
         "WindowsMxc.test_proxy_launch",
         "WindowsMxc.test_filesystem_limits_cover_directory_junctions",
-        "WindowsMxc.test_network_limits_force_filtering_without_enabling_network",
+        "WindowsMxc.test_launcher_network_limits",
         "WindowsMxc.test_startup_failures_withhold_code_at_every_public_entry_point",
         "WindowsMxc.test_complete_policy_cannot_disable_mxc",
         "WindowsSandbox.test_modified_companion_is_rejected_before_execution",
