@@ -700,6 +700,13 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             approved = os.environ.get("RESOLVER_TEST_APPROVED")
             if approved:
                 Path(approved).joinpath("created").write_text("custom grant")
+                assert "TEST_LIMITS" not in os.environ
+                try:
+                    Path(approved, "private", "record").read_text()
+                except (PermissionError, FileNotFoundError):
+                    pass
+                else:
+                    raise AssertionError("resolver read a directory denied by the launcher")
                 try:
                     Path(os.environ["IR_CACHE_DIR"]).joinpath("denied").write_text("excluded cache")
                 except OSError as error:
@@ -730,6 +737,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             RESOLVER_TEST_UV=real_uv,
         )
         config = root / ".agents/console/config.yaml"
+        arguments = ("serve", "-c", "cache=host")
         if tailored:
 
             class Origin(BaseHTTPRequestHandler):
@@ -751,6 +759,10 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             env["RESOLVER_TEST_ALLOWED_URL"] = f"http://127.0.0.1:{origin.server_port}/"
             approved = root / "approved"
             approved.mkdir()
+            (approved / "private").mkdir()
+            (approved / "private/record").write_text("private input")
+            env["TEST_LIMITS"] = "filesystem: {deny: [./approved/private]}"
+            arguments += ("--limits-env", "TEST_LIMITS")
             excluded = root / "excluded-cache"
             excluded.mkdir()
             env["IR_CACHE_DIR"] = str(excluded)
@@ -759,7 +771,10 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                 json.dumps(
                     {
                         "resolver": {
-                            "environment": {"RESOLVER_TEST_APPROVED": str(approved)},
+                            "environment": {
+                                "RESOLVER_TEST_APPROVED": str(approved),
+                                "TEST_LIMITS": "ordinary value",
+                            },
                             "sandbox": {
                                 "filesystem": {
                                     "read_only": ["/"],
@@ -781,7 +796,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                     }
                 )
             )
-        with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
+        with McpClient(binary, arguments, env, root) as client:
             client.initialize_and_list_tools()
             if tailored:
                 config.write_text(
@@ -808,5 +823,6 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                 replaced_cache_grants=True,
                 custom_download_host=True,
                 captured_policy=True,
+                launcher_deny_within_custom_grant=True,
             )
         return [result]

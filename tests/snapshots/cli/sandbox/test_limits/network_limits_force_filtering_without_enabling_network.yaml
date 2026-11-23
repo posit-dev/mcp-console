@@ -1,0 +1,16 @@
+---
+case: enabled with empty cap
+stdout: |
+  filtered denial; direct route closed
+---
+case: enabled with deny
+stdout: |
+  filtered denial; direct route closed
+---
+case: empty requested allowlist
+stdout: |
+  filtered denial; direct route closed
+---
+case: disabled stays disabled
+stdout: |
+  network remains disabled

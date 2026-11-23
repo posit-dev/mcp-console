@@ -26,7 +26,7 @@ PA_LIMITS='filesystem: {deny: ["~/client-data", "~/.ssh"]}' \
   mcp-console serve --limits-env PA_LIMITS
 ```
 
-The launcher supplies the variable in Console's initial environment.
+The launcher supplies a dedicated variable in Console's initial environment.
 Console reads it once, separately from configuration files and `-c` overrides.
 The same limits apply to evaluated code, standalone commands, and dependency-preparation subprocesses.
 Console's own configuration reads, cache-directory creation, and recording remain trusted host operations outside those child sandboxes.
@@ -69,7 +69,9 @@ Unknown fields and invalid values fail before the workload starts.
 
 The limits input is trusted launcher state.
 The integration must control the arguments and environment used to launch Console; the flag does not restrict processes started independently of that integration.
-Console removes the selected variable from child environments, including ordinary configuration entries that try to restore it.
+Console removes the source value from child environments, including ordinary configuration entries that try to restore it.
+Choose a name reserved for your integration, such as `PA_LIMITS`.
+Names such as `TMPDIR` and `HTTP_PROXY` already have runtime meanings and can be assigned by the native runner.
 Names beginning with `MCP_CONSOLE_` are reserved for Console's internal transports and cannot select the limits input.
 The launcher should supply limits separately from ordinary `--config-env` input; both flags can be used together.
 

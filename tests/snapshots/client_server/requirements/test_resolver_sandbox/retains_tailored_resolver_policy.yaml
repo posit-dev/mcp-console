@@ -7,3 +7,4 @@ custom_write: true
 replaced_cache_grants: true
 custom_download_host: true
 captured_policy: true
+launcher_deny_within_custom_grant: true
