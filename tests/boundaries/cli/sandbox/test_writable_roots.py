@@ -17,6 +17,81 @@ from support.suites import run_this_suite
 
 
 @requires(SANDBOX)
+def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        host = Path(directory).resolve()
+        output = host / "output"
+        output.mkdir()
+        (output / "locked").write_text("original")
+        (output / "secret").write_text("private")
+        (host / "other").mkdir()
+        (host / "shortcut").symlink_to("output", target_is_directory=True)
+        (host / "other-shortcut").symlink_to("other", target_is_directory=True)
+        aliases = ["shortcut", "shortcut/locked", "other-shortcut"]
+        config = {
+            "sandbox": {
+                "profile": "read_only",
+                "filesystem": {
+                    "read_write": aliases,
+                    "read_only": ["output/locked"],
+                    "deny": ["output/secret"],
+                },
+            }
+        }
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "--config-env",
+                "TEST_POLICY",
+                "--writable-root",
+                "output",
+                "--",
+                sys.executable,
+                "-c",
+                # fmt: python
+                code("""
+                    import errno
+                    from pathlib import Path
+
+                    _ = Path("shortcut/created").write_text("allowed")
+                    for operation, *args in (
+                        (Path("shortcut/locked").write_text, "blocked"),
+                        (Path("other-shortcut/created").write_text, "blocked"),
+                        (Path("shortcut/secret").read_text,),
+                    ):
+                        try:
+                            _ = operation(*args)
+                        except OSError as error:
+                            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                        else:
+                            raise AssertionError(operation)
+                    print("wrote through shortcut and preserved target restrictions")
+                    """),
+            ],
+            cwd=host,
+            env=dict(os.environ, TEST_POLICY=json.dumps(config)),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result
+        assert (output / "created").read_text() == "allowed"
+        assert (output / "locked").read_text() == "original"
+        assert not (host / "other" / "created").exists()
+        assert result.stderr == "".join(
+            f"Warning: ignoring symlinked writable root '{host / alias}'. "
+            "Grant writes using the target path.\n"
+            for alias in aliases
+        ), result
+        return [
+            {
+                "stdout": result.stdout,
+                "stderr": result.stderr.replace(str(host), "<host>"),
+            }
+        ]
+
+
+@requires(SANDBOX)
 def test_writable_roots_cover_complete_subtrees(binary: Path) -> Transcript:
     # fmt: python
     script = code(r"""

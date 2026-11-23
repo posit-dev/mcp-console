@@ -26,9 +26,6 @@ pub(super) fn run(
             "sandbox owner {pid} is not the launcher's current parent"
         ));
     }
-    if runner_config_env.is_none() {
-        crate::settings::revalidate_writable_roots(&mut settings)?;
-    }
     // Unix exec preserves the caller. Windows waits while the native runner
     // watches both this frontend and the supplied generation owner.
     let mut runner = Command::new(installation::private_runner()?);
@@ -120,6 +117,7 @@ pub(super) fn run(
             lifecycle["sigterm"] = "retire".into();
         }
         settings.insert("lifecycle".into(), lifecycle);
+        crate::settings::revalidate_writable_roots(&mut settings)?;
         runner.env(CONFIGURATION, Value::Object(settings).to_string());
     } else if runner_config_env != Some(CONFIGURATION) {
         runner.env_remove(CONFIGURATION);

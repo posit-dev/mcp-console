@@ -101,13 +101,18 @@ def test_broad_roots_require_absolute_write_grants(binary: Path) -> Transcript:
                     if writable
                     else f"Warning: refusing relative writable root '{grant}'; use an absolute path to grant writes to the home directory or filesystem root\n"
                 )
+                if name == "relative_symlink":
+                    expected = (
+                        f"Warning: ignoring symlinked writable root '{project / grant}'. "
+                        "Grant writes using the target path.\n"
+                    )
                 assert result.stderr == expected, result
                 transcript.append(
                     {
                         "scenario": name,
                         "source": "--writable-root" if cli else "filesystem.read_write",
                         "stdout": result.stdout,
-                        "stderr": result.stderr,
+                        "stderr": result.stderr.replace(str(project), "<workspace>"),
                     }
                 )
     return transcript

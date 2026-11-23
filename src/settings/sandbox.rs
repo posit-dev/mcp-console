@@ -1,5 +1,6 @@
 //! Human-facing permissions and execution-host additions after configuration layering.
 
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
@@ -655,6 +656,9 @@ fn capture_writable_root(
 ) -> Result<Option<WritableRoot>, String> {
     let path = crate::console_paths::expand_home(&path)?;
     let root = resolve_writable_root(path.clone(), workspace)?;
+    if context == PolicyContext::Launch && ignore_symlinked_write_root(Path::new(&root))? {
+        return Ok(None);
+    }
     let guarded = context == PolicyContext::Launch && !path.is_absolute();
     if guarded && is_broad_write_root(Path::new(&root))? {
         eprintln!(
@@ -669,7 +673,7 @@ fn capture_writable_root(
     }))
 }
 
-/// Check relative grants again after the previous generation has retired. The
+/// Check write grants again after the previous generation has retired. The
 /// native runner receives ordinary entries without Console's private markers.
 pub(crate) fn revalidate_writable_roots(settings: &mut SandboxSettings) -> Result<(), String> {
     if let Some(Value::Array(entries)) = settings
@@ -682,20 +686,62 @@ pub(crate) fn revalidate_writable_roots(settings: &mut SandboxSettings) -> Resul
                 .as_object_mut()
                 .and_then(|entry| entry.remove(RELATIVE_WRITE_ROOT))
                 == Some(Value::Bool(true));
-            if guarded
+            if entry["access"] == "write"
                 && let Some(path) = entry.pointer("/path/path").and_then(Value::as_str)
-                && is_broad_write_root(Path::new(path))?
             {
-                eprintln!(
-                    "Warning: refusing changed writable root '{path}'; broad writes require an explicit absolute grant"
-                );
-                continue;
+                if ignore_symlinked_write_root(Path::new(path))? {
+                    continue;
+                }
+                if guarded && is_broad_write_root(Path::new(path))? {
+                    eprintln!(
+                        "Warning: refusing changed writable root '{path}'; broad writes require an explicit absolute grant"
+                    );
+                    continue;
+                }
             }
             checked.push(entry);
         }
         *entries = checked;
     }
     Ok(())
+}
+
+/// Drop a grant when any component is a link. Native rules then govern access
+/// through that link. The native runner still owns binding ordinary paths.
+fn ignore_symlinked_write_root(path: &Path) -> Result<bool, String> {
+    let mut prefix = PathBuf::new();
+    for component in normalize_permission_path(path).components() {
+        prefix.push(component);
+        if !matches!(component, Component::Normal(_)) {
+            continue;
+        }
+        // Seatbelt normalizes macOS system aliases such as /tmp to /private/tmp.
+        if cfg!(target_os = "macos") && matches!(prefix.to_str(), Some("/tmp" | "/var" | "/etc")) {
+            continue;
+        }
+        match std::fs::symlink_metadata(&prefix) {
+            Ok(metadata) if metadata.is_symlink() => {
+                eprintln!(
+                    "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
+                    path.display()
+                );
+                return Ok(true);
+            }
+            Ok(_) => {}
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
+            {
+                break;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "cannot inspect writable root component '{}': {error}",
+                    prefix.display()
+                ));
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// A launch directory must not implicitly authorize the host or the entire home.
@@ -748,10 +794,7 @@ fn inspect_path_identity(path: &Path) -> std::io::Result<PathBuf> {
                 ));
             }
             Err(error)
-                if matches!(
-                    error.kind(),
-                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-                ) => {}
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
             Err(error) => return Err(error),
         }
     }

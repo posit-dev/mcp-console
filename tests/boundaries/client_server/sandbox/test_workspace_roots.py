@@ -321,6 +321,8 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
         project = home / "project"
         grant = project / "grant"
         grant.mkdir(parents=True)
+        output = root / "output"
+        output.mkdir()
         (home / "probe").write_text("unchanged")
         config = root / "config.json"
         config.write_text(
@@ -331,7 +333,7 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     "cache": "host",
                     "sandbox": {
                         "profile": "workspace",
-                        "filesystem": {"read_write": ["grant"]},
+                        "filesystem": {"read_write": ["grant", str(output)]},
                     },
                 }
             )
@@ -359,10 +361,12 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     print("relative grant used")
                     """),
             )
-            # Keep the old root available until its running worker has retired.
-            # The next launch must inspect the replacement symlink's target.
+            # Keep both old roots available until their running worker retires.
+            # The replacement should use the new targets' existing permissions.
             grant.rename(project / "original-grant")
             grant.symlink_to(home, target_is_directory=True)
+            output.rename(root / "original-output")
+            output.symlink_to(project, target_is_directory=True)
             client.send(control="restart")
             result = client.send(
                 # fmt: python
@@ -379,6 +383,8 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     else:
                         raise AssertionError("retargeted relative grant made home writable")
                     assert probe.read_text() == "unchanged"
+                    output = Path(os.environ["HOME"]).parent / "output"
+                    _ = (output / "result").write_text("allowed")
                     print("home remains read-only after restart")
                     """),
             )
@@ -389,6 +395,7 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
             ), result
             transcript, stderr = client.finish_with_standard_error()
         assert (home / "probe").read_text() == "unchanged"
+        assert (project / "result").read_text() == "allowed"
         if stderr:
             transcript.append({"stderr": stderr})
         return json.loads(

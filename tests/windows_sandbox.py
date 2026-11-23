@@ -795,6 +795,66 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.stdout.strip(), "launched")
 
     @requires_mxc(BINARY)
+    def test_junction_write_grant_uses_target_permissions(self):
+        # fmt: python
+        program = code(r"""
+            from pathlib import Path
+
+            try:
+                _ = Path("output/alias/value").write_text("updated")
+            except PermissionError:
+                print("read-only")
+            else:
+                print("writable")
+            """)
+        with workspace() as root:
+            output = root / "output"
+            target = output / "target"
+            target.mkdir(parents=True)
+            alias = output / "alias"
+            subprocess.run(
+                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
+                check=True,
+                capture_output=True,
+            )
+            value = target / "value"
+            value.write_text("original")
+            for grants, expected in (
+                ([str(alias)], "read-only"),
+                ([str(alias), str(output)], "writable"),
+            ):
+                with self.subTest(grants=grants):
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "sandbox",
+                            "--no-config",
+                            "-c",
+                            "sandbox.filesystem.read_write=" + json.dumps(grants),
+                            "--",
+                            sys.executable,
+                            "-c",
+                            program,
+                        ],
+                        cwd=root,
+                        env=dict(os.environ, MCP_CONSOLE_HOME=str(root / "home")),
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), expected)
+                    self.assertEqual(
+                        result.stderr,
+                        f"Warning: ignoring symlinked writable root '{alias}'. "
+                        "Grant writes using the target path.\n",
+                    )
+                    self.assertEqual(
+                        value.read_text(),
+                        "updated" if expected == "writable" else "original",
+                    )
+
+    @requires_mxc(BINARY)
     def test_tempdir_modes(self):
         # fmt: python
         program = code(r"""

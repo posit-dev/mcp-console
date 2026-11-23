@@ -84,16 +84,16 @@ source: filesystem.read_write
 stdout: |
   read-only
 stderr: >
-  Warning: refusing relative writable root 'home-link'; use an absolute
-  path to grant writes to the home directory or filesystem root
+  Warning: ignoring symlinked writable root '<workspace>/home-link'. Grant
+  writes using the target path.
 ---
 scenario: relative_symlink
 source: --writable-root
 stdout: |
   read-only
 stderr: >
-  Warning: refusing relative writable root 'home-link'; use an absolute
-  path to grant writes to the home directory or filesystem root
+  Warning: ignoring symlinked writable root '<workspace>/home-link'. Grant
+  writes using the target path.
 ---
 scenario: relative_project
 source: filesystem.read_write

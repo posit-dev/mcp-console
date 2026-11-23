@@ -94,10 +94,17 @@ An explicit resolver filesystem instead **replaces** its default entries, includ
 
 Relative `read_write` paths and `--writable-root` arguments that resolve to a filesystem root, the user's home directory, or a parent of home are ignored with a warning.
 This applies to both worker and resolver filesystem settings.
-This includes `.` when Console starts from one of those directories, parent paths such as `..`, and symlinks to those roots.
+This includes `.` when Console starts from one of those directories and parent paths such as `..`.
 To grant writes there explicitly, supply an absolute path.
-The check includes absent paths and is repeated at native launch so a changed symlink cannot widen a relative grant.
-Absolute paths retain their explicit authority and undergo native validation.
+Console checks absent paths too and repeats the check before each native launch.
+
+If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant.
+Code can still use the link with the target's existing permissions.
+For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
+Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
+The same rule applies to directory junctions on Windows.
+On macOS, the standard `/tmp`, `/var`, and `/etc` aliases retain their system meaning.
+Console also checks write grants for host temporary directories and dependency caches.
 
 Narrower native rules take precedence.
 At equal paths, deny wins over write, then read.
