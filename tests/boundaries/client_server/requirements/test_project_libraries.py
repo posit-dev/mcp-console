@@ -540,6 +540,122 @@ def test_project_glob_keeps_its_prepared_library(binary: Path) -> Transcript:
             return client.finish()
 
 
+@requires(POSIX, R, command("ir"))
+@executions(SANDBOXED)
+def test_renviron_glob_after_managed_entry_keeps_its_library(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return renviron_project_glob(
+        binary, execution, "${R_LIBS}::projectlibs/*:project-last"
+    )
+
+
+@requires(POSIX, R, command("ir"))
+@executions(SANDBOXED)
+def test_renviron_glob_replacing_managed_entry_keeps_its_library(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return renviron_project_glob(binary, execution, "projectlibs/*::project-last")
+
+
+def renviron_project_glob(
+    binary: Path, execution: Execution, r_libs: str
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(
+            root, ("consolefirst", "consolesecond")
+        )
+        modules = root / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        (root / "projectlibs").mkdir()
+        (root / "projectlibs/pkg").symlink_to(
+            root / "resolved-r-libraries/consolefirst"
+        )
+        (root / "project-last").mkdir()
+        environ = root / ".Renviron"
+        environ.write_text(f'R_LIBS="{r_libs}"\n')
+        environment.update(
+            RETICULATE_PYTHON=sys.executable,
+            RETICULATE_PYTHONPATH=str(modules),
+            R_ENVIRON_USER=str(environ),
+        )
+        with McpClient(
+            binary,
+            execution.serve("-c", "cache=host"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.transcript.append(
+                {"fixture": {".Renviron": environ.read_text().strip()}}
+            )
+            defer_r_bootstrap(client)
+            client.expect(python="pass")
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    project <- normalizePath(Sys.glob("projectlibs/*"))
+                    tail <- normalizePath("project-last")
+                    stopifnot(
+                      grepl("::", Sys.getenv("R_LIBS"), fixed = TRUE),
+                      identical(dirname(find.package("consolefirst")), project),
+                      tail %in% .libPaths()
+                    )
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    paths <- .libPaths()
+                    stopifnot(project %in% paths, match(project, paths) < match(tail, paths))
+                    """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_relative_entry_supplies_prepared_library_after_chdir(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        (root / "local").mkdir()
+        (root / "child").mkdir()
+        (root / "child/local").symlink_to(root / "resolved-r-libraries/consolefirst")
+        with paused_project_library(binary, root, "local") as client:
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+
+                    os.chdir("child")
+                    del os.environ["TMPDIR"]
+                    """),
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    project <- normalizePath(c("../project-first", "local", "../project-last"))
+                    stopifnot(identical(dirname(find.package("consolefirst")), project[[2L]]))
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    paths <- .libPaths()
+                    stopifnot(identical(paths[paths %in% project], project))
+                    """),
+            )
+            return client.finish()
+
+
 @requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
 def test_prepared_library_path_with_literal_brackets(binary: Path) -> Transcript:
     with TemporaryDirectory(dir="/tmp") as temporary:

@@ -1,0 +1,58 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+fixture:
+  .Renviron: R_LIBS="projectlibs/*::project-last"
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    project <- normalizePath(Sys.glob("projectlibs/*"))
+    tail <- normalizePath("project-last")
+    stopifnot(
+      grepl("::", Sys.getenv("R_LIBS"), fixed = TRUE),
+      identical(dirname(find.package("consolefirst")), project),
+      tail %in% .libPaths()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    stopifnot(project %in% paths, match(project, paths) < match(tail, paths))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

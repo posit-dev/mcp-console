@@ -146,16 +146,9 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
         // Python could change the installation paths while correcting TMPDIR.
         embedded_r::configure_installation(installation).map_err(|error| error.to_string())?;
     }
-    // R resolves relative R_LIBS entries in the directory where its main loop
-    // starts. Python may have changed directories since the last activation.
-    if let Some(project) = PROJECT_LIBRARY.take() {
-        let paths = startup_library_paths();
-        // Native environment files can also replace R_LIBS deliberately.
-        if paths.contains(&project.entry) {
-            prepare_startup_library(&project.resolved, paths).map_err(|error| error.to_string())?;
-        }
-    }
-    let patterns = startup_project_patterns().map_err(|error| error.to_string())?;
+    let patterns = StartupLibraries::read()
+        .settle()
+        .map_err(|error| error.to_string())?;
     embedded_r::start_mainloop(libraries).map_err(|error| error.to_string())?;
     publish_r_session()?;
     let runtime =
@@ -279,7 +272,7 @@ impl Integration {
         }
         // R may already have read .Renviron. Update its live search path
         // without running profiles or initializing an unused interpreter.
-        let prepared = prepare_startup_library(Path::new(library), startup_library_paths());
+        let prepared = StartupLibraries::read().prepare(Path::new(library));
         Ok(match prepared {
             Ok(project) => {
                 PROJECT_LIBRARY.set(project);
@@ -300,75 +293,103 @@ struct ProjectLibrary {
     resolved: PathBuf,
 }
 
-fn startup_library_paths() -> Vec<PathBuf> {
-    std::env::var_os("R_LIBS")
-        .iter()
-        .flat_map(std::env::split_paths)
-        .filter(|path| !path.as_os_str().is_empty())
-        .collect()
+const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
+
+struct StartupLibraries {
+    paths: Vec<PathBuf>,
+    owned: Option<usize>,
 }
 
-// Profiles can change the working directory. Capture project patterns where
-// R will expand them to initialize .libPaths().
-fn startup_project_patterns() -> std::io::Result<Vec<PathBuf>> {
-    let paths = startup_library_paths();
-    let Some((fallback, project)) = paths.split_last() else {
-        return Ok(Vec::new());
-    };
-    if Some(fallback.as_os_str()) != std::env::var_os("MCP_CONSOLE_R_LIBRARY").as_deref() {
-        return Ok(Vec::new());
+impl StartupLibraries {
+    fn read() -> Self {
+        let paths: Vec<_> = std::env::var_os("R_LIBS")
+            .iter()
+            .flat_map(std::env::split_paths)
+            .filter(|path| !path.as_os_str().is_empty())
+            .collect();
+        let owned = std::env::var_os(MANAGED_LIBRARY)
+            .and_then(|managed| paths.iter().position(|path| path.as_os_str() == managed));
+        Self { paths, owned }
     }
-    project
-        .iter()
-        .filter(|path| is_library_pattern(path))
-        .map(|path| embedded_r::anchor_library_pattern(path))
-        .collect()
-}
 
-fn prepare_startup_library(
-    library: &Path,
-    mut paths: Vec<PathBuf>,
-) -> Result<Option<ProjectLibrary>, Box<dyn std::error::Error>> {
-    const MANAGED: &str = "MCP_CONSOLE_R_LIBRARY";
-    // Remove only the spelling Console supplied. A project alias for the
-    // previous directory is a separate entry.
-    let previous = std::env::var_os(MANAGED)
-        .filter(|path| !path.is_empty())
-        .and_then(|previous| paths.iter().position(|path| path.as_os_str() == previous));
-    if let Some(index) = previous {
-        paths.remove(index);
+    fn settle(mut self) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+        // R interprets relative entries in its final startup directory. Recheck
+        // the accepted library only if .Renviron retained its supplying entry.
+        let candidate = PROJECT_LIBRARY
+            .take()
+            .filter(|project| self.paths.contains(&project.entry))
+            .map(|project| project.resolved)
+            .or_else(|| self.owned.map(|index| self.paths[index].clone()));
+        if let Some(candidate) = candidate.filter(|path| path.is_dir()) {
+            self.prepare(&candidate)?;
+        }
+        if let Some(owned) = self.owned {
+            self.paths.remove(owned);
+            // prepare() already checked the remaining literal project entries.
+            self.paths.retain(|path| is_library_pattern(path));
+        } else if std::env::var_os(MANAGED_LIBRARY).is_none_or(|path| path.is_empty()) {
+            return Ok(Vec::new());
+        }
+        // .Renviron may have replaced the managed spelling with a project
+        // entry. Capture it before profiles can change cwd after R's expansion.
+        Ok(self
+            .paths
+            .iter()
+            .map(|path| embedded_r::anchor_library_pattern(path))
+            .collect::<std::io::Result<_>>()?)
     }
-    // As in the running R bridge, a project entry already providing this
-    // library stays at its position and remains project-owned.
-    let target = library.canonicalize()?;
-    let project = paths
-        .iter()
-        .find(|path| {
-            !is_library_pattern(path)
-                && embedded_r::expand_library_home(path)
-                    .canonicalize()
-                    .ok()
-                    .as_ref()
-                    == Some(&target)
-        })
-        .map(|entry| ProjectLibrary {
-            entry: entry.clone(),
-            resolved: library.to_owned(),
-        });
-    let owned = if project.is_some() {
-        Path::new("")
-    } else {
-        // R expands wildcards during native startup. Give project matches
-        // their original precedence and supply the candidate as a fallback.
-        let position = if paths.iter().any(|path| is_library_pattern(path)) {
-            paths.len()
+
+    fn prepare(
+        &mut self,
+        library: &Path,
+    ) -> Result<Option<ProjectLibrary>, Box<dyn std::error::Error>> {
+        // Remove only Console's own spelling. Aliases and duplicate entries
+        // remain available for the project to supply the requested directory.
+        let target = library.canonicalize()?;
+        let project = self
+            .paths
+            .iter()
+            .enumerate()
+            .find(|(index, path)| {
+                self.owned != Some(*index)
+                    && !is_library_pattern(path)
+                    && embedded_r::expand_library_home(path)
+                        .canonicalize()
+                        .ok()
+                        .as_ref()
+                        == Some(&target)
+            })
+            .map(|(_, entry)| ProjectLibrary {
+                entry: entry.clone(),
+                resolved: library.to_owned(),
+            });
+        // Preserve the native R_LIBS spelling (including empty entries) when
+        // the same entry still supplies the candidate after .Renviron.
+        if project.is_none() && self.owned.is_some_and(|index| self.paths[index] == library) {
+            return Ok(None);
+        }
+        if project.is_some() && self.owned.is_none() {
+            embedded_r::set_environment(&[(MANAGED_LIBRARY, "".as_ref())])?;
+            return Ok(project);
+        }
+        let previous = self.owned.take();
+        if let Some(index) = previous {
+            self.paths.remove(index);
+        }
+        let marker = if project.is_some() {
+            Path::new("")
         } else {
-            previous.unwrap_or(0)
+            let position = if self.paths.iter().any(|path| is_library_pattern(path)) {
+                self.paths.len()
+            } else {
+                previous.unwrap_or(0)
+            };
+            self.paths.insert(position, library.to_owned());
+            self.owned = Some(position);
+            library
         };
-        paths.insert(position, library.to_owned());
-        library
-    };
-    let r_libs = std::env::join_paths(paths)?;
-    embedded_r::set_environment(&[("R_LIBS", &r_libs), (MANAGED, owned.as_os_str())])?;
-    Ok(project)
+        let paths = std::env::join_paths(&self.paths)?;
+        embedded_r::set_environment(&[("R_LIBS", &paths), (MANAGED_LIBRARY, marker.as_os_str())])?;
+        Ok(project)
+    }
 }
