@@ -818,10 +818,11 @@ class WindowsSandbox(unittest.TestCase):
                 capture_output=True,
             )
             value = target / "value"
-            value.write_text("original")
+            (alias / "value").write_text("original")
+            self.assertEqual(value.read_text(), "original")
             for grants, expected in (
                 ([str(alias)], "read-only"),
-                ([str(alias), str(output)], "writable"),
+                ([str(alias), str(target)], "writable"),
             ):
                 with self.subTest(grants=grants):
                     result = subprocess.run(
