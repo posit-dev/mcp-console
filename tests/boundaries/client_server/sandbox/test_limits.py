@@ -28,10 +28,12 @@ def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
     records = []
     with TemporaryDirectory() as directory:
         workspace = Path(directory)
-        for profile, limits in [
-            ("workspace", sensitive),
-            ("inherit_codex", sensitive),
-            ("workspace", {"network": {"allow_local_binding": True}}),
+        for profile, network, limits in [
+            ("workspace", "enabled", sensitive),
+            ("inherit_codex", "enabled", sensitive),
+            ("workspace", "enabled", {"network": {"allow_local_binding": True}}),
+            ("workspace", "enabled", {"network": {"domains": {"allow": []}}}),
+            ("workspace", "{proxy: {}}", {"network": {"domains": {"allow": []}}}),
         ]:
             # Discovery of a fixed profile needs no interpreter. The inherited
             # profile checks admission of a real cell on its first send.
@@ -58,7 +60,7 @@ def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
                     "-c",
                     f"sandbox.profile={profile}",
                     "-c",
-                    "sandbox.network=enabled",
+                    f"sandbox.network={network}",
                     "-c",
                     "sandbox.tempdir=read_only",
                 ),
@@ -68,7 +70,10 @@ def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
             ) as client:
                 client.initialize_and_list_tools()
                 description = client.transcript[-1]["result"]["tools"][0]["description"]
-                active = limits == sensitive
+                empty_allowlist = (
+                    limits["network"].get("domains", {}).get("allow") == []
+                )
+                active = limits == sensitive or empty_allowlist
                 assert ("mandatory limits" in description) == active, description
                 assert ("can directly access the network" in description) == (
                     not active
@@ -76,6 +81,10 @@ def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
                 assert "Full access disables" not in description
                 if profile == "workspace":
                     assert "workspace" in description
+                if empty_allowlist:
+                    assert "cannot reach any network destinations" in description, (
+                        description
+                    )
                 for private in (
                     "private-project",
                     "private.example.invalid",
@@ -85,6 +94,7 @@ def test_describes_mandatory_limits_at_discovery(binary: Path) -> Transcript:
                 records.append(
                     {
                         "profile": profile,
+                        "network": network,
                         "active": active,
                         "permissions": description.rsplit("\n\n", 1)[-1],
                     }

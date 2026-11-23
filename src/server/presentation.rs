@@ -470,13 +470,18 @@ fn description_for_launch(
     if no_sandbox {
         return "Evaluated code runs without a sandbox, with the server's permissions, including filesystem and network access. Package preparation may execute installation or build code; use only trusted dependencies.".into();
     }
-    let network_access = if policy.contains_key("proxy") {
+    let domains = limits.and_then(|limits| limits.pointer("/network/domains"));
+    let network_access = if domains
+        .and_then(|domains| domains.get("allow"))
+        .and_then(Value::as_array)
+        .is_some_and(Vec::is_empty)
+    {
+        "cannot reach any network destinations"
+    } else if policy.contains_key("proxy") {
         "can access the network subject to the launcher's proxy settings"
     } else {
         match policy.get("network").and_then(serde_json::Value::as_str) {
-            Some("enabled")
-                if limits.is_some_and(|limits| limits.pointer("/network/domains").is_some()) =>
-            {
+            Some("enabled") if domains.is_some() => {
                 "must use a proxy that filters network destinations"
             }
             Some("enabled") => "can directly access the network",

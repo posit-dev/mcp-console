@@ -1,5 +1,6 @@
 ---
 profile: workspace
+network: enabled
 active: true
 permissions: >-
   Evaluated code can read host files subject to configured restrictions
@@ -11,6 +12,7 @@ permissions: >-
   preparation.
 ---
 profile: inherit_codex
+network: enabled
 active: true
 permissions: >-
   The sandbox base comes from Codex metadata on the first send, or the
@@ -28,6 +30,7 @@ stderr: >
   access are unavailable
 ---
 profile: workspace
+network: enabled
 active: false
 permissions: >-
   Evaluated code can read host files subject to configured restrictions
@@ -35,3 +38,25 @@ permissions: >-
   subject to more specific read/deny rules. Package preparation may
   execute installation or build code with separate filesystem and network
   permissions; use only trusted dependencies.
+---
+profile: workspace
+network: enabled
+active: true
+permissions: >-
+  Evaluated code can read host files subject to configured restrictions
+  and cannot reach any network destinations. Writable locations:
+  workspace; subject to more specific read/deny rules. Package preparation
+  may execute installation or build code with separate filesystem and
+  network permissions; use only trusted dependencies. The launcher's
+  mandatory limits apply to both evaluated code and package preparation.
+---
+profile: workspace
+network: "{proxy: {}}"
+active: true
+permissions: >-
+  Evaluated code can read host files subject to configured restrictions
+  and cannot reach any network destinations. Writable locations:
+  workspace; subject to more specific read/deny rules. Package preparation
+  may execute installation or build code with separate filesystem and
+  network permissions; use only trusted dependencies. The launcher's
+  mandatory limits apply to both evaluated code and package preparation.
