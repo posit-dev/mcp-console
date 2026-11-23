@@ -161,7 +161,7 @@ def test_recovers_from_renviron_tempdir_without_rereading_it(
                     os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
                     for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
                         os.environ["EXPECTED_" + name] = os.environ[name]
-                        os.environ[name] = str(Path.cwd() / "wrong installation")
+                        os.environ[name] += "/wrong installation" * 16
                     print(answer)
                     """),
             )
