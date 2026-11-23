@@ -58,8 +58,8 @@ Matching uses the existing hostname-pattern rules rather than comparing pattern 
 An enabled network is routed through the managed proxy when limits require filtering.
 Restricted networking without a proxy remains restricted without a proxy.
 `allow_local_binding: false` removes permission; `true` does not grant it.
-On Linux, a mandatory false value denies `bind` and `listen` in the workload while preserving ordinary outbound connections.
-A binding-only limit does not add a proxy on Linux.
+On Linux and macOS, setting `allow_local_binding: false` prevents the workload from binding a socket or listening for connections.
+A binding-only limit preserves ordinary outbound connections without adding a proxy.
 An empty document mapping `{}` imposes no additional restrictions.
 
 Filesystem paths use the captured launch directory and launch user's home, as ordinary permission paths do.
@@ -83,12 +83,12 @@ Native setup errors remain launch failures, without a retry using weaker permiss
 
 ### Native combinations that remain unsupported
 
-Mandatory domain filtering is currently supported by Console on Linux.
+Console supports mandatory domain filtering on Linux and macOS.
 It rejects direct host Unix-socket grants that could bypass the filter.
 Windows MXC proxying permits bidirectional host-loopback access, so mandatory domain limits with active proxy networking are rejected there.
 Windows also rejects mandatory `allow_local_binding: false`, because its traffic controls do not establish that socket binding is forbidden.
-The native macOS runner rejects network limits combined with a Seatbelt extension; Console currently supplies such an extension for both workers and preparation.
-Console's macOS network-limits integration therefore remains unavailable.
+On macOS, the runner applies network limits after Console's Seatbelt extension.
+When local binding is permitted alongside domain filtering, outbound connections still go through the proxy.
 Filesystem limits do not require a network limit and use the native filesystem backend on all three platforms.
 The native runner also rejects externally enforced policies with active limits and minimal-filesystem presets with filesystem denies, because it cannot verify the resulting ceiling.
 

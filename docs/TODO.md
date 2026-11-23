@@ -59,10 +59,10 @@ Recurring release checks belong in [Release](../RELEASE.md).
   Verify the complete suite without requiring provider builds from source.
   This pin concerns development checks, not the versions Console can embed.
 
-- [ ] **SP-5 — Complete mandatory network limits on macOS and Windows.**
-  [Mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) currently reject network limits with macOS Seatbelt extensions, including Console's built-in extension, and reject Windows MXC domain limits with proxy networking because host-loopback access is bidirectional.
+- [ ] **SP-5 — Complete mandatory network limits on Windows.**
+  [Mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) currently reject Windows MXC domain limits with proxy networking because host-loopback access is bidirectional.
   Windows also needs verified socket-binding enforcement before admitting mandatory `allow_local_binding: false`.
-  Establish a native network boundary that cannot be reopened by extensions or direct loopback before admitting these combinations.
+  Validate proxy-only routing and socket binding on a native MXC host before admitting these combinations.
   Preserve fail-closed behavior and add native bypass regressions before removing the checks.
 
 - [ ] **SP-6 — Add launch diagnostics and inspection for mandatory limits.**

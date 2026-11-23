@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import LINUX_SANDBOX, SANDBOX, requires
+from support.requirements import SANDBOX, requires
 from support.sandbox_configuration import host_tcp_ports
 from support.suites import run_this_suite
 
@@ -338,7 +338,7 @@ def test_limits_follow_symlink_grants_into_protected_subtrees(
         return [{"stdout": result.stdout}]
 
 
-@requires(LINUX_SANDBOX)
+@requires(SANDBOX)
 def test_binding_limit_denies_servers_and_preserves_outbound_connections(
     binary: Path,
 ) -> Transcript:
@@ -399,7 +399,7 @@ def test_binding_limit_denies_servers_and_preserves_outbound_connections(
         return [{"stdout": result.stdout}]
 
 
-@requires(LINUX_SANDBOX)
+@requires(SANDBOX)
 def test_network_limits_force_filtering_without_enabling_network(
     binary: Path,
 ) -> Transcript:
