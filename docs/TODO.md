@@ -59,11 +59,9 @@ Recurring release checks belong in [Release](../RELEASE.md).
   Verify the complete suite without requiring provider builds from source.
   This pin concerns development checks, not the versions Console can embed.
 
-- [ ] **SP-5 — Complete mandatory network limits on Windows.**
-  [Mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) currently reject Windows MXC domain limits with proxy networking because host-loopback access is bidirectional.
-  Windows also needs verified socket-binding enforcement before admitting mandatory `allow_local_binding: false`.
-  Validate proxy-only routing and socket binding on a native MXC host before admitting these combinations.
-  Preserve fail-closed behavior and add native bypass regressions before removing the checks.
+- [ ] **SP-5 — Investigate mandatory socket-binding limits on Windows.**
+  [Mandatory limits](SANDBOX_CONFIGURATION.md#mandatory-limits) reject `allow_local_binding: false` on Windows. MXC regulates traffic and permits a socket to bind inside the sandbox.
+  Supporting this setting requires a per-workload mechanism that prevents binding and listening while preserving ordinary outbound connections.
 
 - [ ] **SP-6 — Add launch diagnostics and inspection for mandatory limits.**
   Limits currently narrow ordinary grants without rejecting overlap; malformed inputs and unsupported native combinations fail before the command starts.

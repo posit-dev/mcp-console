@@ -81,18 +81,18 @@ It also cannot be combined with the private `--runner-config-env` or `--settings
 There is no public check-only operation for limits yet.
 Native setup errors remain launch failures, without a retry using weaker permissions.
 
-### Native combinations that remain unsupported
+### Native enforcement
 
-Console supports mandatory domain filtering on Linux and macOS.
-It rejects direct host Unix-socket grants that could bypass the filter.
-Windows MXC proxying permits bidirectional host-loopback access, so mandatory domain limits with active proxy networking are rejected there.
-Windows also rejects mandatory `allow_local_binding: false`, because its traffic controls do not establish that socket binding is forbidden.
 On macOS, the runner applies network limits after Console's Seatbelt extension.
-When local binding is permitted alongside domain filtering, outbound connections still go through the proxy.
+On Windows, MXC restricts outbound TCP access to the proxy's listening addresses and ports when domain filtering is active.
+Local binding can remain available in both cases.
+The proxy checks requests for local destinations against the same domain rules.
+Windows rejects mandatory `allow_local_binding: false` before starting the workload.
+MXC controls traffic to and from listeners and has no policy for prohibiting socket binding itself.
+Domain limits reject direct host Unix-socket grants.
 Filesystem limits do not require a network limit and use the native filesystem backend on all three platforms.
 The native runner also rejects externally enforced policies with active limits and minimal-filesystem presets with filesystem denies, because it cannot verify the resulting ceiling.
 
-These failures identify unsupported enforcement combinations; they do not mean an ordinary grant attempted to override a limit.
 Remaining platform work and launch diagnostics are tracked in [Open work](TODO.md#sandbox-and-platforms).
 
 ## Choose a base profile {#profiles-and-temporary-storage}

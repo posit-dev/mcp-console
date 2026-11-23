@@ -215,6 +215,14 @@ class WindowsMxc(unittest.TestCase):
             self.assertEqual(secret.read_text(), "private")
 
     @requires_mxc(BINARY)
+    def test_network_limits_force_filtering_without_enabling_network(self):
+        from boundaries.cli.sandbox.test_limits import (
+            test_network_limits_force_filtering_without_enabling_network,
+        )
+
+        test_network_limits_force_filtering_without_enabling_network(BINARY)
+
+    @requires_mxc(BINARY)
     def test_proxy_launch(self):
         binary = installed_console(native_console(BINARY))
         companions = list(binary.parent.parent.rglob("mcp-console-sandbox.exe"))
