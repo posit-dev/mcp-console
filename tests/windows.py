@@ -250,17 +250,22 @@ class Session:
             )
             assert "running;" not in json.dumps(result), result
 
-    def send(self, *, response_deadline: float | None = None, **arguments):
+    def send(
+        self,
+        *,
+        metadata: dict | None = None,
+        response_deadline: float | None = None,
+        **arguments,
+    ):
         if response_deadline is None:
             response_deadline = time.monotonic() + self.timeout
         observe_once = "timeout_ms" in arguments
         arguments.setdefault("session", "default")
         arguments.setdefault("timeout_ms", 10000)
-        result = self.request(
-            "tools/call",
-            {"name": "send", "arguments": arguments},
-            deadline=response_deadline,
-        )
+        params = {"name": "send", "arguments": arguments}
+        if metadata is not None:
+            params["_meta"] = metadata
+        result = self.request("tools/call", params, deadline=response_deadline)
         if observe_once:
             return result
         return self._collect(result, arguments, response_deadline)

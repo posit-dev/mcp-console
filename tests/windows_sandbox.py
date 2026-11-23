@@ -914,16 +914,11 @@ class WindowsSandbox(unittest.TestCase):
                         raise AssertionError("junction granted writes")
                     print("checked both target directories")
                     """)
-                result = session.request(
-                    "tools/call",
-                    {
-                        "name": "send",
-                        "_meta": {"codex/sandbox-state": state},
-                        "arguments": {"python": program, "timeout_ms": 60000},
-                    },
+                session.expect(
+                    "checked both target directories",
+                    python=program,
+                    metadata={"codex/sandbox-state": state},
                 )
-                self.assertFalse(result.get("isError"), result)
-                self.assertIn("checked both target directories", json.dumps(result))
                 self.assertEqual((allowed / "result").read_text(), "allowed")
                 self.assertFalse((target / "result").exists())
             finally:
