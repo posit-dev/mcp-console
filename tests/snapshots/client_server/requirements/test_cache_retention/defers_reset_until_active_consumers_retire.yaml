@@ -1,0 +1,20 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-client-sandbox.yaml
+---
+send:
+  python: value = 'retained'; print(value)
+result:
+  content:
+    - type: text
+      text: |
+        retained
+  isError: false
+---
+send:
+  python: print(value)
+result:
+  content:
+    - type: text
+      text: |
+        retained
+  isError: false

@@ -1,0 +1,11 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python.yaml
+---
+send:
+  python: print('fresh')
+result:
+  content:
+    - type: text
+      text: |
+        fresh
+  isError: false

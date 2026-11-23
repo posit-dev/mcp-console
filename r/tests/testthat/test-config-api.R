@@ -13,7 +13,8 @@ test_that("ConsoleConfig exposes named configuration fields in its signature", {
       "inherit_environment",
       "tool",
       "startup",
-      "sessions"
+      "sessions",
+      "retention"
     )
   )
   expect_error(ConsoleConfig(lang = "r"), "lang")

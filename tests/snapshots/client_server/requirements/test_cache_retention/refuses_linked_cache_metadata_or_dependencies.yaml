@@ -1,0 +1,8 @@
+---
+stderr: >
+  cannot maintain Console cache '<workspace>/cache': cache retention
+  marker must be a regular file
+---
+stderr: >
+  cannot maintain Console cache '<workspace>/cache': managed dependencies
+  must be a directory, not a symlink or file

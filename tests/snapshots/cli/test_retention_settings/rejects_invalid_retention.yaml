@@ -1,0 +1,40 @@
+---
+selection: "null"
+stderr: >
+  configuration with CLI overrides: retention: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+selection: "[]"
+stderr: >
+  configuration with CLI overrides: retention: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+selection: "{cache_days: 0}"
+stderr: >
+  configuration with CLI overrides: retention: cache_days: invalid value:
+  integer `0`, expected a nonzero u32; see docs/CONFIGURATION.md for the
+  public format
+---
+selection: "{recordings_days: -1}"
+stderr: >
+  configuration with CLI overrides: retention: recordings_days: invalid
+  value: integer `-1`, expected a nonzero u32; see docs/CONFIGURATION.md
+  for the public format
+---
+selection: "{cache_days: 1.5}"
+stderr: >
+  configuration with CLI overrides: retention: cache_days: invalid type:
+  floating point `1.5`, expected a nonzero u32; see docs/CONFIGURATION.md
+  for the public format
+---
+selection: "{recordings_days: true}"
+stderr: >
+  configuration with CLI overrides: retention: recordings_days: invalid
+  type: boolean `true`, expected a nonzero u32; see docs/CONFIGURATION.md
+  for the public format
+---
+selection: "{unknown: 14}"
+stderr: >
+  configuration with CLI overrides: retention: unknown: unknown field
+  `unknown`, expected `cache_days` or `recordings_days`; see
+  docs/CONFIGURATION.md for the public format

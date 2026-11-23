@@ -28,6 +28,8 @@ pub(crate) struct Configuration {
     pub policy: SandboxSettings,
     pub resolver: SandboxSettings,
     pub cache: Option<crate::settings::Cache>,
+    pub retention: crate::retention::Settings,
+    pub cache_lease: Option<std::sync::Arc<std::fs::File>>,
     pub writable_roots: Vec<PathBuf>,
     pub directory: PathBuf,
 }
@@ -95,8 +97,9 @@ impl Configuration {
         }
         // Choose caches after inherited full access: sandbox-produced caches
         // must never become inputs to a newly unsandboxed session.
-        crate::resolver::cache::configure(
+        self.cache_lease = crate::resolver::cache::configure(
             self.cache.clone(),
+            self.retention,
             self.no_sandbox,
             python,
             &mut self.resolver,

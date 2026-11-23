@@ -168,6 +168,8 @@ struct Project {
     sessions: Sessions,
     startup: Option<startup::Startup>,
     cache: Option<Cache>,
+    #[serde(deserialize_with = "sandbox::mapping")]
+    retention: crate::retention::Settings,
     python: Option<python::Python>,
     #[serde(deserialize_with = "r_settings")]
     r: Option<R>,
@@ -251,6 +253,7 @@ pub(crate) struct Captured {
     pub sessions: Sessions,
     pub startup: Option<startup::Startup>,
     pub cache: Option<Cache>,
+    pub retention: crate::retention::Settings,
     pub python: Option<PythonChoice>,
     pub r: Option<R>,
     pub languages: Option<crate::cell::Languages>,
@@ -488,6 +491,7 @@ fn capture(
             r: project.r,
             startup: project.startup,
             cache: project.cache,
+            retention: project.retention,
             languages,
             python,
             source: configured.then_some(name),

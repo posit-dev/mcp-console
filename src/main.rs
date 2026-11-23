@@ -37,6 +37,7 @@ mod r_package_name;
 mod readiness;
 mod relay_protocol;
 mod resolver;
+mod retention;
 mod sandbox;
 mod server;
 mod server_transport;
@@ -258,6 +259,7 @@ fn run_server(
         sessions,
         startup,
         cache,
+        retention,
         python,
         r,
         languages,
@@ -286,6 +288,8 @@ fn run_server(
         policy,
         resolver,
         cache,
+        retention,
+        cache_lease: None,
         writable_roots,
         directory,
     };
