@@ -106,6 +106,8 @@ Code can still use the link with the target's existing permissions.
 For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
 Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
 If a `read_only` or `deny` exception is named through the ignored root, Console rejects the launch.
+This also applies when the exception reaches the same link through another spelling or uses `..` after the link.
+If both paths cross the same link and their missing components leave the relationship uncertain, Console rejects the launch.
 Name the exception using the target path, for example `output/locked`.
 The same rule applies to directory junctions on Windows.
 On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.

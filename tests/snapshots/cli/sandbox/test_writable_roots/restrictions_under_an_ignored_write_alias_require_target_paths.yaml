@@ -1,4 +1,5 @@
 ---
+scenario: read exception
 access: read_only
 stderr: >
   configuration environment 'POLICY': sandbox preflight failed (exit
@@ -6,7 +7,41 @@ stderr: >
   ignored writable root '<host>/shortcut'. Specify the restriction using
   the target path.
 ---
+scenario: deny exception
 access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/shortcut/child' beneath
+  ignored writable root '<host>/shortcut'. Specify the restriction using
+  the target path.
+---
+scenario: declared parent traversal
+access: read_only
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction '<host>/shortcut/../output/child'
+  beneath ignored writable root '<host>/shortcut/../output'. Specify the
+  restriction using the target path.
+---
+scenario: parent alias
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '<host>/parent-alias/shortcut/child' beneath ignored writable root
+  '<host>/shortcut'. Specify the restriction using the target path.
+---
+scenario: physical parent traversal
+access: deny
+stderr: >
+  configuration environment 'POLICY': sandbox preflight failed (exit
+  status: 1): cannot enforce restriction
+  '<host>/crossing/../same-link/child' beneath ignored writable root
+  '<host>/nested/same-link'. Specify the restriction using the target
+  path.
+---
+scenario: system temporary path
+access: read_only
 stderr: >
   configuration environment 'POLICY': sandbox preflight failed (exit
   status: 1): cannot enforce restriction '<host>/shortcut/child' beneath

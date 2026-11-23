@@ -717,13 +717,9 @@ pub(crate) fn revalidate_writable_roots(
             .filter(|entry| matches!(entry["access"].as_str(), Some("read" | "deny")))
         {
             if let Some(path) = entry.pointer("/path/path").and_then(Value::as_str) {
-                restrictions.push(normalize_permission_path(Path::new(path)));
+                restrictions.push(PathBuf::from(path));
             } else {
-                restrictions.extend(
-                    temporary_paths(entry)
-                        .iter()
-                        .map(|path| normalize_permission_path(path)),
-                );
+                restrictions.extend_from_slice(temporary_paths(entry));
             }
         }
         for mut entry in entries.drain(..) {
@@ -777,17 +773,22 @@ fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<
     if !has_untrusted_symlink(path)? {
         return Ok(false);
     }
-    // Native runners attach narrower exceptions to writable roots by name.
-    // Dropping a root must not detach an exception named through its alias.
-    let root = normalize_permission_path(path);
-    if let Some(restriction) = restrictions.iter().find(|child| child.starts_with(&root))
-        && (root == path || has_untrusted_symlink(&root)?)
-    {
-        return Err(format!(
-            "cannot enforce restriction '{}' beneath ignored writable root '{}'. Specify the restriction using the target path.",
-            restriction.display(),
-            path.display()
-        ));
+    for restriction in restrictions {
+        if restriction.starts_with(path)
+            || exception_uses_alias(path, restriction).map_err(|error| {
+                format!(
+                    "cannot compare restriction '{}' with writable root '{}': {error}",
+                    restriction.display(),
+                    path.display()
+                )
+            })?
+        {
+            return Err(format!(
+                "cannot enforce restriction '{}' beneath ignored writable root '{}'. Specify the restriction using the target path.",
+                restriction.display(),
+                path.display()
+            ));
+        }
     }
     eprintln!(
         "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
@@ -796,43 +797,143 @@ fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<
     Ok(true)
 }
 
+/// Both paths must traverse the same link. A restriction named directly by
+/// its target remains attached to that target when the alias grant is dropped.
+fn exception_uses_alias(root: &Path, child: &Path) -> std::io::Result<bool> {
+    let shared = any_untrusted_link(child, |child_link, child_meta| {
+        any_untrusted_link(root, |root_link, root_meta| {
+            same_entry(root_link, root_meta, child_link, child_meta)
+        })
+    })?;
+    if !shared {
+        return Ok(false);
+    }
+    // Either the declared traversal or the runner's lexical spelling may
+    // place the exception below this grant. Compare equivalent existing paths
+    // by filesystem identity even when the volume preserves caller casing.
+    if might_be_within(root, child)? {
+        return Ok(true);
+    }
+    let native_root = normalize_permission_path(root);
+    let native_child = normalize_permission_path(child);
+    Ok((native_root != root || native_child != child)
+        && might_be_within(&native_root, &native_child)?)
+}
+
+fn might_be_within(root: &Path, child: &Path) -> std::io::Result<bool> {
+    let root = inspect_path_identity(root)?;
+    let child = inspect_path_identity(child)?;
+    if child.starts_with(&root) {
+        return Ok(true);
+    }
+    let Some(depth) = child
+        .components()
+        .count()
+        .checked_sub(root.components().count())
+    else {
+        return Ok(false);
+    };
+    // If both names are absent, the filesystem cannot establish their identity.
+    // Require the target spelling when the nearest existing ancestors coincide.
+    for (left, right) in root.ancestors().zip(child.ancestors().skip(depth)) {
+        match (existing_entry(left)?, existing_entry(right)?) {
+            (Some(a), Some(b)) => return same_entry(left, &a, right, &b),
+            (None, None) => continue,
+            _ => return Ok(false),
+        }
+    }
+    Ok(false)
+}
+
 pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {
-    let mut prefix = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir if prefix.parent().is_none() => continue,
-            Component::ParentDir => {}
-            Component::Normal(_) => prefix.push(component),
-            _ => {
-                prefix.push(component);
+    any_untrusted_link(path, |_, _| Ok(true))
+        .map_err(|error| format!("cannot inspect writable root '{}': {error}", path.display()))
+}
+
+#[cfg(unix)]
+fn same_entry(
+    _: &Path,
+    left: &std::fs::Metadata,
+    _: &Path,
+    right: &std::fs::Metadata,
+) -> std::io::Result<bool> {
+    use std::os::unix::fs::MetadataExt as _;
+    Ok((left.dev(), left.ino()) == (right.dev(), right.ino()))
+}
+
+#[cfg(windows)]
+fn same_entry(
+    left: &Path,
+    _: &std::fs::Metadata,
+    right: &Path,
+    _: &std::fs::Metadata,
+) -> std::io::Result<bool> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    };
+    let handle = |path: &Path| {
+        let file = std::fs::File::options()
+            .access_mode(0)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path)?;
+        same_file::Handle::from_file(file)
+    };
+    Ok(handle(left)? == handle(right)?)
+}
+
+fn existing_entry(path: &Path) -> std::io::Result<Option<std::fs::Metadata>> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn any_untrusted_link(
+    path: &Path,
+    mut matches: impl FnMut(&Path, &std::fs::Metadata) -> std::io::Result<bool>,
+) -> std::io::Result<bool> {
+    // Walk both the original spelling and the native lexical prefixes. After
+    // link/.. they can be different directories; after missing/.. only the
+    // lexical prefix may exist.
+    let mut prefixes: Vec<_> = path.ancestors().collect();
+    let mut lexical = prefixes.pop().expect("path has an ancestor").to_owned();
+    for declared in prefixes.into_iter().rev() {
+        let (written, leaving) = match declared.components().next_back() {
+            Some(Component::Normal(name)) => {
+                lexical.push(name);
+                (declared, false)
+            }
+            Some(Component::ParentDir) => (
+                declared.parent().expect("parent traversal has a prefix"),
+                true,
+            ),
+            _ => continue,
+        };
+        for prefix in
+            std::iter::once(lexical.as_path()).chain((written != lexical).then_some(written))
+        {
+            let Some(metadata) = existing_entry(prefix)? else {
+                continue;
+            };
+            if !metadata.is_symlink() {
                 continue;
             }
-        }
-        match std::fs::symlink_metadata(&prefix) {
-            Ok(metadata) if metadata.is_symlink() => {
-                #[cfg(target_os = "macos")]
-                // The runner collapses parents lexically. Leaving a system link
-                // through `..` can name a different parent on the filesystem.
-                if component != Component::ParentDir && is_macos_system_alias(&prefix, &metadata) {
-                    continue;
-                }
+            #[cfg(target_os = "macos")]
+            let system_alias = is_macos_system_alias(prefix, &metadata);
+            #[cfg(not(target_os = "macos"))]
+            let system_alias = false;
+            // Normal links are inspected when entered. The standard macOS
+            // aliases become ambiguous only when '..' leaves the alias.
+            if leaving == system_alias && matches(prefix, &metadata)? {
                 return Ok(true);
             }
-            Ok(_) => {}
-            Err(error)
-                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
-            {
-                // A later `..` may return to an existing parent.
-            }
-            Err(error) => {
-                return Err(format!(
-                    "cannot inspect writable root component '{}': {error}",
-                    prefix.display()
-                ));
-            }
         }
-        if component == Component::ParentDir {
-            prefix.pop();
+        if leaving {
+            lexical.pop();
         }
     }
     Ok(false)
@@ -842,13 +943,18 @@ pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {
 fn is_macos_system_alias(path: &Path, metadata: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt as _;
 
-    // Compare the links themselves. Other links to /private/tmp have their own identity.
-    path.parent() == Some(Path::new("/"))
-        && ["/tmp", "/var", "/etc"].iter().any(|alias| {
-            std::fs::symlink_metadata(alias).is_ok_and(|system| {
-                (system.dev(), system.ino()) == (metadata.dev(), metadata.ino())
-            })
-        })
+    // Require the system link itself, in the physical root directory. A hard
+    // link to that symlink in another directory can resolve differently.
+    ["/tmp", "/var", "/etc"].iter().any(|alias| {
+        std::fs::symlink_metadata(alias)
+            .is_ok_and(|system| (system.dev(), system.ino()) == (metadata.dev(), metadata.ino()))
+    }) && path.parent().is_some_and(|parent| {
+        let root = Path::new("/");
+        parent == root
+            || parent
+                .canonicalize()
+                .is_ok_and(|directory| directory == root)
+    })
 }
 
 /// A launch directory must not implicitly authorize the host or the entire home.

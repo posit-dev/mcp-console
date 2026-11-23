@@ -794,6 +794,55 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.strip(), "launched")
 
+    def test_junction_exception_with_verbatim_parent_is_rejected_at_preflight(self):
+        from nt import _getfinalpathname
+
+        with workspace() as root:
+            target = root / "output"
+            target.mkdir()
+            (target / "locked").mkdir()
+            alias = root / "shortcut"
+            subprocess.run(
+                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
+                check=True,
+                capture_output=True,
+            )
+            # Resolve the parent only, leaving the junction in the restriction.
+            locked = Path(_getfinalpathname(root)) / alias.name / "locked"
+            policy = {
+                "sandbox": {
+                    "filesystem": {
+                        "read_write": [str(target), str(alias)],
+                        "read_only": [str(locked)],
+                    }
+                }
+            }
+            result = subprocess.run(
+                [
+                    BINARY,
+                    "sandbox",
+                    "--config-env",
+                    "POLICY",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "print('started')",
+                ],
+                cwd=root,
+                env=os.environ | {"POLICY": json.dumps(policy)},
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 1, result)
+            self.assertEqual(result.stdout, "", result)
+            self.assertEqual(
+                result.stderr,
+                "configuration environment 'POLICY': sandbox preflight failed (exit code: 1): "
+                f"cannot enforce restriction '{locked}' beneath ignored writable root '{alias}'. "
+                "Specify the restriction using the target path.\n",
+            )
+
     @requires_mxc(BINARY)
     def test_junction_write_grant_uses_target_permissions(self):
         # fmt: python

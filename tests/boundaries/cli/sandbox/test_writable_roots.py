@@ -101,19 +101,45 @@ def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transc
 def test_restrictions_under_an_ignored_write_alias_require_target_paths(
     binary: Path,
 ) -> Transcript:
-    with TemporaryDirectory() as directory:
+    with TemporaryDirectory(dir="/tmp") as directory:
         host = Path(directory).resolve()
         target = host / "output"
         target.mkdir()
         (target / "child").mkdir()
+        (host / "nested" / "start").mkdir(parents=True)
+        (host / "nested" / "same-link").symlink_to(target, target_is_directory=True)
+        (host / "crossing").symlink_to("nested/start", target_is_directory=True)
         (host / "shortcut").symlink_to(target, target_is_directory=True)
+        (host / "parent-alias").symlink_to(".", target_is_directory=True)
         transcript = []
-        for access in ("read_only", "deny"):
+        for scenario, access, grant, restriction in (
+            ("read exception", "read_only", "shortcut", "shortcut/child"),
+            ("deny exception", "deny", "shortcut", "shortcut/child"),
+            (
+                "declared parent traversal",
+                "read_only",
+                "shortcut/../output",
+                "shortcut/../output/child",
+            ),
+            ("parent alias", "deny", "shortcut", "parent-alias/shortcut/child"),
+            (
+                "physical parent traversal",
+                "deny",
+                "nested/same-link",
+                "crossing/../same-link/child",
+            ),
+            (
+                "system temporary path",
+                "read_only",
+                str(Path(directory) / "shortcut"),
+                "shortcut/child",
+            ),
+        ):
             config = {
                 "sandbox": {
                     "filesystem": {
-                        "read_write": ["output", "shortcut"],
-                        access: ["shortcut/child"],
+                        "read_write": ["output", grant],
+                        access: [restriction],
                     }
                 }
             }
@@ -136,11 +162,17 @@ def test_restrictions_under_an_ignored_write_alias_require_target_paths(
             assert result.stdout == "", result
             assert result.stderr == (
                 "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
-                f"cannot enforce restriction '{host / 'shortcut/child'}' beneath ignored "
-                f"writable root '{host / 'shortcut'}'. Specify the restriction using the target path.\n"
+                f"cannot enforce restriction '{host / restriction}' beneath ignored "
+                f"writable root '{host / grant}'. Specify the restriction using the target path.\n"
             ), result
             transcript.append(
-                {"access": access, "stderr": result.stderr.replace(str(host), "<host>")}
+                {
+                    "scenario": scenario,
+                    "access": access,
+                    "stderr": result.stderr.replace(str(host), "<host>").replace(
+                        directory, "<host>"
+                    ),
+                }
             )
         return transcript
 
@@ -151,7 +183,7 @@ def test_system_tmp_alias_accepts_equivalent_spelling(binary: Path) -> Transcrip
         host = Path(directory)
         alias = Path("/TMP") / host.name
         (host / "child").mkdir()
-        allowed = alias / "child" / ".."
+        allowed = Path("/private/../TMP") / host.name / "child" / ".."
         ignored = alias / ".." / ".." / host.name
         result = subprocess.run(
             [

@@ -1,5 +1,5 @@
 ---
-writable_root: /TMP/<directory>/child/..
+writable_root: /private/../TMP/<directory>/child/..
 exit_code: 0
 stderr: >
   Warning: ignoring symlinked writable root
