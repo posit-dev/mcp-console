@@ -115,6 +115,7 @@ The [integrator guide](INTEGRATOR_CONTROL.md#opt-in-to-immediate-execution) desc
 ## Shutdown and closure
 
 The relay closes stdin and attempts shutdown concurrently; workers cannot require both signals or a particular order.
+On Windows, the relay signals `MCP_CONSOLE_INPUT_READY_HANDLE` after closing its stdin writer, even when unread bytes remain in the pipe.
 Exit without acknowledgment.
 The relay can terminate and reap the direct child after grace; the native runner owns descendants and managed storage.
 

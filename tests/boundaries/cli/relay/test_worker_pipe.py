@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -115,6 +116,17 @@ def test_worker_reports_closed_output_pipe_without_r_sigpipe_handler(
 
 @requires(NATIVE_FIXTURES, R, WORKER)
 def test_worker_reaps_library_probe_on_stdin_eof(binary: Path) -> Transcript:
+    return reap_library_probe(binary, "stdin_eof")
+
+
+@requires(NATIVE_FIXTURES, R, WORKER)
+def test_worker_reaps_library_probe_on_shutdown_frame(binary: Path) -> Transcript:
+    return reap_library_probe(binary, "shutdown_frame")
+
+
+def reap_library_probe(
+    binary: Path, shutdown: Literal["stdin_eof", "shutdown_frame"]
+) -> Transcript:
     with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
         root = Path(temporary).resolve()
         environment, _ = r_test_environment()
@@ -168,13 +180,17 @@ def test_worker_reaps_library_probe_on_stdin_eof(binary: Path) -> Transcript:
                 marker = root / "probe.pid"
                 wait_for_path(marker, "Rscript library probe")
                 pid = int(marker.read_text())
-                # Keep the command pipe open. Only worker stdin closes.
-                worker.stdin.close()
+                # Keep the command pipe open and send only the selected shutdown signal.
+                if shutdown == "stdin_eof":
+                    worker.stdin.close()
+                else:
+                    commands.write('{"kind":"shutdown"}\n')
+                    commands.flush()
                 assert worker.wait(timeout=10) == 0
                 assert not process_exists(pid), pid
                 assert worker.stdout.read() == worker.stderr.read() == ""
                 return [json.loads(line) for line in output] + [
-                    {"stdin_eof_reaped_probe": True}
+                    {f"{shutdown}_reaped_probe": True}
                 ]
             except BaseException:
                 stop_process_id(pid)

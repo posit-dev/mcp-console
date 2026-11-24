@@ -1,0 +1,7 @@
+---
+kind: cell_started
+---
+kind: r_initialization
+state: entered
+---
+shutdown_frame_reaped_probe: true

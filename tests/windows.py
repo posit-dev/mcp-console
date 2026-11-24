@@ -2240,6 +2240,91 @@ class WindowsConsole(unittest.TestCase):
             },
         )
 
+    def test_worker_reaps_inspection_on_shutdown(self):
+        import _winapi
+        from asyncio.windows_utils import pipe
+
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "python.exe"
+            subprocess.run(
+                [
+                    "rustc",
+                    "--edition=2024",
+                    ROOT / "tests/fixtures/windows_inspection.rs",
+                    "-o",
+                    executable,
+                ],
+                check=True,
+            )
+            for shutdown in ("shutdown_frame", "stdin_eof"):
+                with self.subTest(shutdown=shutdown), ExitStack() as cleanup:
+                    gate = Gate()
+                    cleanup.callback(gate.close)
+                    commands, writer = pipe(overlapped=(True, False))
+                    reader, output = pipe(overlapped=(False, True))
+                    kernel = gate.kernel
+                    kernel.SetEvent.argtypes = [ctypes.c_void_p]
+                    kernel.SetEvent.restype = ctypes.c_int
+                    interrupt = kernel.CreateEventW(None, True, False, None)
+                    input_ready = kernel.CreateEventW(None, True, False, None)
+                    handles = [commands, output, interrupt, input_ready]
+                    for handle in [*handles, writer, reader]:
+                        cleanup.callback(_winapi.CloseHandle, handle)
+                    for handle in handles:
+                        os.set_handle_inheritable(handle, True)
+                    environment = dict(
+                        os.environ,
+                        MCP_CONSOLE_LOCAL_RUNTIME='{"r":false}',
+                        MCP_CONSOLE_SIDEBAND_READ_HANDLE=str(commands),
+                        MCP_CONSOLE_SIDEBAND_WRITE_HANDLE=str(output),
+                        MCP_CONSOLE_INTERRUPT_HANDLE=str(interrupt),
+                        MCP_CONSOLE_INPUT_READY_HANDLE=str(input_ready),
+                        RETICULATE_PYTHON=str(executable),
+                        TEST_INSPECTION_GATE=gate.name,
+                    )
+                    startup = subprocess.STARTUPINFO(
+                        lpAttributeList={"handle_list": handles}
+                    )
+                    worker = cleanup.enter_context(
+                        subprocess.Popen(
+                            [NATIVE_BINARY, "worker"],
+                            cwd=directory,
+                            env=environment,
+                            startupinfo=startup,
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        )
+                    )
+                    cleanup.callback(worker.kill)
+                    _winapi.WriteFile(
+                        writer,
+                        b'{"kind":"evaluate","language":"python","source":"42"}\n',
+                    )
+                    gate.accept(worker)
+                    inspection = _winapi.OpenProcess(
+                        _winapi.SYNCHRONIZE, False, int(gate.readline())
+                    )
+                    cleanup.callback(_winapi.CloseHandle, inspection)
+                    self.assertEqual(
+                        _winapi.WaitForSingleObject(inspection, 0), _winapi.WAIT_TIMEOUT
+                    )
+                    # Input remains unread by the inspection. The writer signals
+                    # readiness for both ordinary data and its eventual closure.
+                    worker.stdin.write(b"queued input\n")
+                    worker.stdin.flush()
+                    self.assertTrue(kernel.SetEvent(input_ready))
+                    if shutdown == "shutdown_frame":
+                        _winapi.WriteFile(writer, b'{"kind":"shutdown"}\n')
+                    else:
+                        worker.stdin.close()
+                        self.assertTrue(kernel.SetEvent(input_ready))
+                    self.assertEqual(worker.wait(timeout=10), 0, worker.stderr.read())
+                    self.assertEqual(
+                        _winapi.WaitForSingleObject(inspection, 0),
+                        _winapi.WAIT_OBJECT_0,
+                    )
+
     def test_startup_eof_cancels_python_inspection(self):
         with tempfile.TemporaryDirectory(prefix="console startup ") as directory:
             root = Path(directory)

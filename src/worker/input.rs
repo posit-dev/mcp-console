@@ -344,6 +344,11 @@ pub(super) fn initialize_windows_stdin(
 }
 
 #[cfg(windows)]
+pub(super) fn windows_stdin_ready() -> &'static crate::windows::Event {
+    &WINDOWS_STDIN.get().expect("worker stdin initialized").0
+}
+
+#[cfg(windows)]
 fn wait_windows_stdin() -> io::Result<()> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{ERROR_BROKEN_PIPE, WAIT_OBJECT_0};

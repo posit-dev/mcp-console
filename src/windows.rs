@@ -294,6 +294,38 @@ impl Write for Pipe {
     }
 }
 
+/// A closed writer can leave unread bytes in either a named or an anonymous
+/// stdin pipe. Query its connection state without reading those bytes.
+pub(crate) fn stdin_pipe_closed() -> io::Result<bool> {
+    use windows_sys::Wdk::Storage::FileSystem::{
+        FILE_PIPE_CLOSING_STATE, FILE_PIPE_DISCONNECTED_STATE, FILE_PIPE_LOCAL_INFORMATION,
+        FilePipeLocalInformation, NtQueryInformationFile,
+    };
+    let mut info = FILE_PIPE_LOCAL_INFORMATION::default();
+    let mut status = IO_STATUS_BLOCK::default();
+    // The worker's CRT stdin owns the synchronous pipe installed by the relay.
+    let result = unsafe {
+        NtQueryInformationFile(
+            libc::get_osfhandle(0) as _,
+            &mut status,
+            (&raw mut info).cast(),
+            size_of_val(&info) as u32,
+            FilePipeLocalInformation,
+        )
+    };
+    if result < 0 {
+        let code = unsafe { RtlNtStatusToDosError(result) };
+        if matches!(code, ERROR_BROKEN_PIPE | ERROR_PIPE_NOT_CONNECTED) {
+            return Ok(true);
+        }
+        return Err(io::Error::from_raw_os_error(code as i32));
+    }
+    Ok(matches!(
+        info.NamedPipeState,
+        FILE_PIPE_CLOSING_STATE | FILE_PIPE_DISCONNECTED_STATE
+    ))
+}
+
 pub(crate) fn available(handle: RawHandle) -> io::Result<usize> {
     let mut bytes = 0;
     if unsafe {

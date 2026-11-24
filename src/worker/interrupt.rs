@@ -159,7 +159,7 @@ fn initialize_native_input_watch() -> io::Result<()> {
 
 #[cfg(unix)]
 pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String> {
-    let activity = wait_for_native_io(sideband_fd)?;
+    let activity = wait_for_native_io(sideband_fd, None)?;
     if activity.interrupted {
         super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
     }
@@ -173,7 +173,10 @@ struct NativeActivity {
 }
 
 #[cfg(unix)]
-fn wait_for_native_io(descriptor: libc::c_int) -> Result<NativeActivity, String> {
+fn wait_for_native_io(
+    descriptor: libc::c_int,
+    shutdown_fd: Option<libc::c_int>,
+) -> Result<NativeActivity, String> {
     let wakeup_fd = super::input::interrupt_wakeup_fd();
     let mut descriptors = [
         libc::pollfd {
@@ -189,6 +192,11 @@ fn wait_for_native_io(descriptor: libc::c_int) -> Result<NativeActivity, String>
         libc::pollfd {
             fd: native_input_watch_fd(),
             events: native_input_watch_events(),
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: shutdown_fd.unwrap_or(-1),
+            events: libc::POLLIN,
             revents: 0,
         },
     ];
@@ -208,6 +216,9 @@ fn wait_for_native_io(descriptor: libc::c_int) -> Result<NativeActivity, String>
             return Err("native worker wait received an invalid descriptor".to_string());
         }
         let ready = descriptors[0].revents != 0;
+        if !ready && descriptors[3].revents != 0 {
+            super::core::mark_shutting_down();
+        }
         if !ready && descriptors[2].revents != 0 {
             if descriptors[2].revents & libc::POLLERR != 0 {
                 return Err("native worker stdin wait failed".to_string());
@@ -385,7 +396,8 @@ pub(crate) fn with_inspection_interrupt<T>(
 fn inspection_interrupted(finished: &io::PipeReader) -> Result<bool, String> {
     use std::os::fd::AsRawFd;
     while !super::core::is_shutting_down() {
-        let activity = wait_for_native_io(finished.as_raw_fd())?;
+        let activity =
+            wait_for_native_io(finished.as_raw_fd(), Some(super::priority::shutdown_fd()))?;
         if activity.interrupted {
             return Ok(true);
         }
@@ -604,18 +616,32 @@ fn inspection_interrupted(finished: &crate::windows::Event) -> Result<bool, Stri
     use windows_sys::Win32::System::Threading::{INFINITE, WaitForMultipleObjects};
     let wakeup = WINDOWS_WAKEUP.get().expect("interrupt initialized");
     let shutdown = super::priority::shutdown_event();
+    let stdin = super::input::windows_stdin_ready();
     let handles = [
         finished.as_raw_handle(),
         shutdown.as_raw_handle(),
         wakeup.as_raw_handle(),
+        stdin.as_raw_handle(),
     ];
-    match unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) } {
-        WAIT_OBJECT_0 => Ok(false),
-        result if result == WAIT_OBJECT_0 + 1 => {
+    loop {
+        // The writer signals after each write and after close. Reset before
+        // checking peer state so buffered, unread bytes cannot spin this wait
+        // or hide a concurrent close. No inspection consumes user input.
+        stdin.reset();
+        if crate::windows::stdin_pipe_closed().map_err(|error| error.to_string())? {
             super::core::mark_shutting_down();
-            Ok(true)
+            return Ok(true);
         }
-        result if result == WAIT_OBJECT_0 + 2 => Ok(true),
-        _ => Err(io::Error::last_os_error().to_string()),
+        match unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) }
+        {
+            WAIT_OBJECT_0 => return Ok(false),
+            result if result == WAIT_OBJECT_0 + 1 => {
+                super::core::mark_shutting_down();
+                return Ok(true);
+            }
+            result if result == WAIT_OBJECT_0 + 2 => return Ok(true),
+            result if result == WAIT_OBJECT_0 + 3 => {}
+            _ => return Err(io::Error::last_os_error().to_string()),
+        }
     }
 }
