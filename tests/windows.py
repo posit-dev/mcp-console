@@ -947,12 +947,14 @@ class WindowsConsole(unittest.TestCase):
                     )
 
     def test_verbatim_permission_paths_require_backslashes(self):
+        from itertools import product
         from nt import _getfinalpathname
 
         with tempfile.TemporaryDirectory() as temporary:
-            for base in (_getfinalpathname(temporary), r"\\?\UNC\localhost\share"):
+            bases = (_getfinalpathname(temporary), r"\\?\UNC\localhost\share")
+            for base, scope in product(bases, ("sandbox", "resolver.sandbox")):
                 path = base + r"\ordinary/child"
-                with self.subTest(path=path):
+                with self.subTest(path=path, scope=scope):
                     result = subprocess.run(
                         [
                             BINARY,
@@ -960,7 +962,7 @@ class WindowsConsole(unittest.TestCase):
                             "resolve",
                             "--no-config",
                             "-c",
-                            "sandbox.filesystem.read_write=" + json.dumps([path]),
+                            f"{scope}.filesystem.read_write=" + json.dumps([path]),
                         ],
                         cwd=temporary,
                         capture_output=True,

@@ -387,6 +387,9 @@ impl Sandbox {
                     let path =
                         crate::console_paths::expand_permission_home(std::path::Path::new(&path))
                             .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
+                    #[cfg(windows)]
+                    crate::console_paths::validate_verbatim_path(&path)
+                        .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
                     let path = path.to_str().ok_or_else(|| {
                         format!("{prefix}.filesystem: expanded path must be UTF-8")
                     })?;
