@@ -342,6 +342,13 @@ def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcri
     return cache_locations(binary, host=False, sources=("explicit_entries",))
 
 
+def renv_test_environment(tools: Path, cache: Path) -> dict[str, str]:
+    return environment(tools) | {
+        name: str(cache / name)
+        for name in (*CACHE_VARIABLES, "XDG_CACHE_HOME", "MPLCONFIGDIR")
+    }
+
+
 @requires(SANDBOX, command("uv"), command("rustc"))
 def test_preserves_renv_cache_list(binary: Path) -> Transcript:
     for explicit in (False, True):
@@ -350,7 +357,7 @@ def test_preserves_renv_cache_list(binary: Path) -> Transcript:
             tools = root / "bin"
             tools.mkdir()
             python, _ = isolated_python(root)
-            env = environment(tools)
+            env = renv_test_environment(tools, root / "caches")
             env.update(
                 RENV_PATHS_CACHE=f"{root / 'shared'};;stage/../local{os.pathsep}{root / 'last'}",
                 EXPECTED_CACHE=f"{root / 'shared'};;{root / 'local'}{os.pathsep}{root / 'last'}",
@@ -413,6 +420,36 @@ def test_preserves_renv_cache_list(binary: Path) -> Transcript:
             "explicit_grants_respected": True,
         }
     ]
+
+
+@requires(SANDBOX)
+def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transcript:
+    error = "RENV_PATHS_CACHE cannot represent '<expanded cache path>': path contains a list separator"
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        env = renv_test_environment(root, root / "caches")
+        env["RENV_PATHS_CACHE"] = "local"
+        arguments = (
+            "serve",
+            "-c",
+            "cache=host",
+            "-c",
+            f"python.existing={sys.executable}",
+        )
+        for separator in dict.fromkeys((";", os.pathsep)):
+            workspace = root / f"study{separator}2026"
+            workspace.mkdir()
+            with McpClient(binary, arguments, env, workspace) as client:
+                client.initialize_and_list_tools()
+                result = client.send(python="21 + 21")
+                assert result.get("isError"), result
+                diagnostic = error.replace(
+                    "<expanded cache path>", str(workspace / "local")
+                )
+                assert result["content"][0]["text"] == diagnostic, result
+                _, errors = client.finish_with_standard_error(expected_exit_status=1)
+                assert errors == diagnostic + "\n", errors
+    return [{"error": error}]
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))

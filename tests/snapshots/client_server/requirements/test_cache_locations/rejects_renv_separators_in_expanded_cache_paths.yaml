@@ -1,0 +1,4 @@
+---
+error: >-
+  RENV_PATHS_CACHE cannot represent '<expanded cache path>': path contains
+  a list separator

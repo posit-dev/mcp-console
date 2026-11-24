@@ -223,11 +223,15 @@ pub(crate) fn resolve_environment(
                 continue;
             }
             let directory = tool_directory(Path::new(path))?;
-            resolved.push_str(
-                directory
-                    .to_str()
-                    .ok_or("Console cache paths must be UTF-8")?,
-            );
+            let directory = directory
+                .to_str()
+                .ok_or("Console cache paths must be UTF-8")?;
+            if directory.contains(renv_separator) {
+                return Err(format!(
+                    "{RENV_CACHE} cannot represent '{directory}': path contains a list separator"
+                ));
+            }
+            resolved.push_str(directory);
             resolved.push_str(&entry[path.len()..]);
         }
         set_cache_variable(settings, RENV_CACHE, Path::new(&resolved))?;
