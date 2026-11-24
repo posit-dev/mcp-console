@@ -157,14 +157,11 @@ fn renv_separator(c: char) -> bool {
 
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
     if name == RENV_CACHE
-        && let Some(list) = path.to_str().filter(|s| s.contains(renv_separator))
+        && let Some(list) = path.to_str()
     {
-        if list
-            .split(renv_separator)
-            .any(|entry| has_parent_traversal(Path::new(entry)))
-        {
-            settings.insert(HOST_RENV_CACHE_LIST.into(), list.into());
-        }
+        // ir runs in a private working directory. Even a single relative
+        // cache must be anchored to the directory used to capture its grant.
+        settings.insert(HOST_RENV_CACHE_LIST.into(), list.into());
         return Ok(());
     }
     retain_environment_path(settings, path, &[(name, "")])
@@ -224,6 +221,10 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
         let mut resolved = String::new();
         for entry in list.split_inclusive(renv_separator) {
             let path = entry.trim_end_matches(renv_separator);
+            if path.is_empty() {
+                resolved.push_str(entry);
+                continue;
+            }
             let directory = tool_directory(Path::new(path))?;
             resolved.push_str(
                 directory
@@ -256,7 +257,7 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
 }
 
 pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
-    if !has_parent_traversal(path) {
+    if path.is_absolute() && !has_parent_traversal(path) {
         return Ok(path.to_owned());
     }
     // Use the same launch home as the declared filesystem grant.
@@ -275,7 +276,7 @@ pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
         && crate::settings::has_untrusted_symlink(prefix)?
     {
         // Unix follows a symlink before evaluating a subsequent '..'.
-        return Ok(expanded);
+        return Ok(absolute);
     }
     Ok(crate::console_paths::normalize_permission_path(&absolute))
 }

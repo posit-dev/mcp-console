@@ -710,6 +710,44 @@ def bootstrap_reticulate_uv(binary: Path, *, relative_xdg: bool) -> Transcript:
 
 
 @requires(SANDBOX, R, command("ir"))
+def test_r_prepares_packages_in_the_declared_renv_cache(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        env, _ = r_test_environment()
+        env.update(
+            IR_CACHE_DIR=str(root / "ir"),
+            RENV_PATHS_CACHE=f"local;~/{root.name}/shared",
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        resolver_env = json.dumps({"HOME": str(root / "resolver-home")})
+        arguments = (
+            "serve",
+            "-c",
+            "cache=host",
+            "-c",
+            f"resolver.environment={resolver_env}",
+        )
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                requirements={"action": "set", "r": ["utf8"]},
+                # fmt: r
+                r=code(r"""
+                    stopifnot(
+                      utf8::utf8_valid("prepared"),
+                      strsplit(Sys.getenv("RENV_PATHS_CACHE"), ";", fixed = TRUE)[[1L]] ==
+                        file.path(getwd(), c("local", "shared"))
+                    )
+                    """),
+            )
+            client.finish()
+        assert list((root / "local").rglob("utf8/DESCRIPTION"))
+        assert (root / "shared").is_dir()
+        assert not (root / "resolver-home" / root.name).exists()
+        return [{"prepared_r_package": "utf8", "renv_cache": "local"}]
+
+
+@requires(SANDBOX, R, command("ir"))
 def test_cold_r_cache_resolution(binary: Path) -> Transcript:
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
