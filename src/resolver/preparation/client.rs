@@ -298,6 +298,8 @@ impl Preparation {
             if let Some(directory) = crate::resolver::cache::duckdb_extension_directory(&settings)?
             {
                 command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+            } else {
+                command.env_remove(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
             }
             command
         };

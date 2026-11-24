@@ -359,7 +359,11 @@ def test_managed_python_requires_home_for_default_extensions(
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         expose_uv(root)
-        env = dict(environment(root), UV_CACHE_DIR=str(root / "uv-cache"))
+        env = dict(
+            environment(root),
+            UV_CACHE_DIR=str(root / "uv-cache"),
+            MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY="",
+        )
         env.pop("HOME", None)
         env.pop("XDG_CACHE_HOME", None)
         with sql_client(
