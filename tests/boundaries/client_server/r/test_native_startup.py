@@ -6,7 +6,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from contextlib import ExitStack, closing
+from collections.abc import Iterator
+from contextlib import ExitStack, closing, contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -797,11 +798,10 @@ def test_interrupted_profile_is_not_replayed(
             return client.finish()
 
 
-@requires(R, NATIVE_FIXTURES, command("ir"))
-@executions(DIRECT, SANDBOXED)
-def test_interrupted_library_probe_requires_restart(
+@contextmanager
+def stalled_library_probe(
     binary: Path, execution: Execution
-) -> Transcript:
+) -> Iterator[tuple[McpClient, int, Path]]:
     with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
         root = Path(temporary).resolve()
         environment = startup_environment(root, managed=True)
@@ -832,25 +832,43 @@ def test_interrupted_library_probe_requires_restart(
             )
             pid = host_process_id(int(marker.read_text()), client.process.pid)
             try:
-                output = wait_for_evaluation_output(
-                    client,
-                    None,
-                    "interrupted Rscript library probe",
-                    expected_error=True,
-                    completion_timeout_seconds=client.response_timeout,
-                    control="interrupt",
-                )
-                assert "restart required" in output, output
-                assert not process_exists(pid), pid
+                yield client, pid, environ
             except BaseException:
                 stop_process_id(pid)
                 raise
-            environ.unlink()
-            result = client.send(r='stop("incomplete R startup retried")')
-            assert "restart required" in result["content"][0]["text"], result
-            client.send(control="restart")
-            client.expect("[1] 42\n", r="6L * 7L")
-            return client.finish()
+
+
+@requires(R, NATIVE_FIXTURES, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_interrupted_library_probe_requires_restart(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with stalled_library_probe(binary, execution) as (client, pid, environ):
+        output = wait_for_evaluation_output(
+            client,
+            None,
+            "interrupted Rscript library probe",
+            expected_error=True,
+            completion_timeout_seconds=client.response_timeout,
+            control="interrupt",
+        )
+        assert "restart required" in output, output
+        assert not process_exists(pid), pid
+        environ.unlink()
+        result = client.send(r='stop("incomplete R startup retried")')
+        assert "restart required" in result["content"][0]["text"], result
+        client.send(control="restart")
+        client.expect("[1] 42\n", r="6L * 7L")
+        return client.finish()
+
+
+@requires(R, NATIVE_FIXTURES, command("ir"))
+def test_shutdown_reaps_library_probe(binary: Path) -> Transcript:
+    with stalled_library_probe(binary, DIRECT) as (client, pid, _):
+        client.stdin.close()
+        assert client.process.wait(timeout=client.shutdown_timeout) == 0
+        assert not process_exists(pid), f"Rscript PID {pid} survived server shutdown"
+        return client.finish() + [{"shutdown_reaped_library_probe": True}]
 
 
 @requires(R, SANDBOX)

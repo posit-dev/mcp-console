@@ -45,8 +45,20 @@ fn send(request_id: u64, event: PriorityEvent) -> Result<(), String> {
     super::core::send_worker_message(&WorkerMessage::Priority { request_id, event })
 }
 
+#[cfg(windows)]
+static SHUTDOWN: std::sync::OnceLock<crate::windows::Event> = std::sync::OnceLock::new();
+
+#[cfg(windows)]
+pub(super) fn shutdown_event() -> &'static crate::windows::Event {
+    SHUTDOWN.get().expect("worker ingress initialized")
+}
+
 pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::sideband::Reader> {
     let (coordinator, commands) = crate::sideband::local()?;
+    #[cfg(windows)]
+    SHUTDOWN
+        .set(crate::windows::Event::new()?)
+        .map_err(|_| io::Error::other("worker ingress already initialized"))?;
     std::thread::Builder::new()
         .name("worker-command-ingress".into())
         .spawn(move || {
@@ -104,6 +116,12 @@ pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::
                     }
                     message => {
                         let shutdown = matches!(message, ServerMessage::Shutdown);
+                        #[cfg(windows)]
+                        if shutdown {
+                            // Windows relay signals retirement through this frame.
+                            // Wake a native inspection without consuming queued commands.
+                            shutdown_event().set();
+                        }
                         if commands.send(&message).is_err() || shutdown {
                             break;
                         }

@@ -1,0 +1,16 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.r-only.direct.yaml
+---
+send:
+  r: stop("interrupted startup ran cell")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+shutdown_reaped_library_probe: true

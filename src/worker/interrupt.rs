@@ -159,10 +159,25 @@ fn initialize_native_input_watch() -> io::Result<()> {
 
 #[cfg(unix)]
 pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String> {
+    let activity = wait_for_native_io(sideband_fd)?;
+    if activity.interrupted {
+        super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
+    }
+    Ok(activity.ready)
+}
+
+#[cfg(unix)]
+struct NativeActivity {
+    ready: bool,
+    interrupted: bool,
+}
+
+#[cfg(unix)]
+fn wait_for_native_io(descriptor: libc::c_int) -> Result<NativeActivity, String> {
     let wakeup_fd = super::input::interrupt_wakeup_fd();
     let mut descriptors = [
         libc::pollfd {
-            fd: sideband_fd,
+            fd: descriptor,
             events: libc::POLLIN,
             revents: 0,
         },
@@ -192,20 +207,20 @@ pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String
         {
             return Err("native worker wait received an invalid descriptor".to_string());
         }
-        if descriptors[1].revents != 0 {
-            super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
-        }
-        if descriptors[0].revents != 0 {
-            return Ok(true);
-        }
-        if descriptors[2].revents & libc::POLLERR != 0 {
-            return Err("native worker stdin wait failed".to_string());
-        }
-        #[cfg(target_os = "macos")]
-        if descriptors[2].revents != 0 {
+        let ready = descriptors[0].revents != 0;
+        if !ready && descriptors[2].revents != 0 {
+            if descriptors[2].revents & libc::POLLERR != 0 {
+                return Err("native worker stdin wait failed".to_string());
+            }
+            #[cfg(target_os = "macos")]
             observe_native_input_watch()?;
+            #[cfg(target_os = "linux")]
+            super::core::mark_shutting_down();
         }
-        return Ok(false);
+        return Ok(NativeActivity {
+            ready,
+            interrupted: descriptors[1].revents != 0,
+        });
     }
 }
 
@@ -323,7 +338,7 @@ pub(crate) fn inspect_python(
     })
 }
 
-/// Connect a worker-owned child to the worker's interrupt wakeup.
+/// Stop a worker-owned inspection on interrupt or worker shutdown.
 /// ResolverProcess owns termination, output collection and reaping.
 pub(crate) fn with_inspection_interrupt<T>(
     kind: &str,
@@ -351,7 +366,7 @@ pub(crate) fn with_inspection_interrupt<T>(
                 Ok(false) => Ok(()),
                 Err(error) => {
                     let _ = handle.stop();
-                    Err(error.to_string())
+                    Err(error)
                 }
             }));
             Ok(())
@@ -367,13 +382,18 @@ pub(crate) fn with_inspection_interrupt<T>(
 }
 
 #[cfg(unix)]
-fn inspection_interrupted(finished: &io::PipeReader) -> io::Result<bool> {
-    let ready = crate::readiness::wait_for_io(
-        super::input::interrupt_wakeup_fd(),
-        libc::POLLIN,
-        Some(finished),
-    )?;
-    Ok(ready.stream)
+fn inspection_interrupted(finished: &io::PipeReader) -> Result<bool, String> {
+    use std::os::fd::AsRawFd;
+    while !super::core::is_shutting_down() {
+        let activity = wait_for_native_io(finished.as_raw_fd())?;
+        if activity.interrupted {
+            return Ok(true);
+        }
+        if activity.ready {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 thread_local! {
@@ -578,15 +598,20 @@ pub(crate) fn install_python_interrupt(
 }
 
 #[cfg(windows)]
-fn inspection_interrupted(finished: &crate::windows::Event) -> io::Result<bool> {
+fn inspection_interrupted(finished: &crate::windows::Event) -> Result<bool, String> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
     use windows_sys::Win32::System::Threading::{INFINITE, WaitForMultipleObjects};
     let wakeup = WINDOWS_WAKEUP.get().expect("interrupt initialized");
-    let handles = [finished.as_raw_handle(), wakeup.as_raw_handle()];
-    match unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) } {
+    let shutdown = super::priority::shutdown_event();
+    let handles = [
+        finished.as_raw_handle(),
+        wakeup.as_raw_handle(),
+        shutdown.as_raw_handle(),
+    ];
+    match unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) } {
         WAIT_OBJECT_0 => Ok(false),
-        result if result == WAIT_OBJECT_0 + 1 => Ok(true),
-        _ => Err(io::Error::last_os_error()),
+        result if result == WAIT_OBJECT_0 + 1 || result == WAIT_OBJECT_0 + 2 => Ok(true),
+        _ => Err(io::Error::last_os_error().to_string()),
     }
 }
