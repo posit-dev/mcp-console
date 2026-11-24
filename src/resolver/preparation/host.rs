@@ -48,9 +48,16 @@ impl Context {
         let configured_python = configured_python.and_then(|python| python.into_string().ok());
         let duckdb_extension_directory =
             std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
+        let mut python = resolver::ManagedPythonResolverConfiguration::capture();
+        if let Some(cache) = &mut python.matplotlib_cache
+            && (std::env::var_os(crate::settings::SANDBOX_MARKER).is_some()
+                || crate::warmup::trusted_preparation())
+        {
+            *cache = resolver::cache::tool_directory(cache)?;
+        }
+        let matplotlib_cache = python.matplotlib_cache.clone().map(Into::into);
         if !matches!(mode, Mode::R) {
-            let python =
-                resolver::ManagedPythonResolverConfiguration::capture().without_r_bootstrap();
+            let python = python.without_r_bootstrap();
             let has_uv = python.has_uv();
             return Ok((
                 Self {
@@ -71,10 +78,10 @@ impl Context {
                     local_r_home_bytes: None,
                     local_has_uv: Some(has_uv),
                     duckdb_extension_directory,
+                    matplotlib_cache,
                 },
             ));
         }
-        let python = resolver::ManagedPythonResolverConfiguration::capture();
         let (bootstrap, rscript) = resolver::discover(&python, on_started)?;
         let home = rscript
             .parent()
@@ -101,6 +108,7 @@ impl Context {
             local_r_home_bytes: None,
             local_has_uv: Some(python.has_uv()),
             duckdb_extension_directory,
+            matplotlib_cache,
         };
         Ok((
             Self {

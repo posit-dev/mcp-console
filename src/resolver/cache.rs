@@ -94,13 +94,6 @@ pub(crate) fn configure(
                         }
                     }
                 }
-                if let Some(path) = matplotlib_cache_override(resolver) {
-                    retain_environment_path(
-                        worker,
-                        &path,
-                        &[("MCP_CONSOLE_MATPLOTLIB_CACHE", "")],
-                    )?;
-                }
             }
             return Ok(());
         }
@@ -124,7 +117,7 @@ pub(crate) fn configure(
         |python| python.executable.is_some(),
     );
     // Explicit Python keeps its preinstalled user-site packages.
-    let mut variables: Vec<_> = CACHE_ENVIRONMENT
+    let variables: Vec<_> = CACHE_ENVIRONMENT
         .iter()
         .copied()
         .filter(|(name, _)| *name != "PYTHONUSERBASE" || !explicit_python)
@@ -133,10 +126,8 @@ pub(crate) fn configure(
         for &(name, relative) in &variables {
             set_cache_variable(settings, name, &grant.join(relative))?;
         }
+        retain_environment_path(settings, &grant, &variables)?;
     }
-    retain_environment_path(resolver, &grant, &variables)?;
-    variables.push(("MCP_CONSOLE_MATPLOTLIB_CACHE", "matplotlib"));
-    retain_environment_path(worker, &grant, &variables)?;
     resolver.insert(MANAGED_DIRECTORY.into(), json!(grant));
     Ok(())
 }

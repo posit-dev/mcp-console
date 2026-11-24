@@ -501,19 +501,32 @@ impl Client {
                 .and_then(|environment| environment.r.as_ref());
             // Preparation may have attached during setup. The worker must use
             // the directory selected by that resolver for this session.
-            let duckdb_extension_directory = match self
+            let discovery = self
                 .0
                 .resolver_preparation
                 .lock()
                 .map_err(|_| "preparation lock poisoned".to_string())?
                 .as_ref()
-            {
-                Some(preparation) => preparation
-                    .discovery
-                    .duckdb_extension_directory
-                    .as_ref()
-                    .map(std::path::PathBuf::from),
+                .map(|preparation| Arc::clone(&preparation.discovery));
+            let duckdb_extension_directory = match &discovery {
+                Some(discovery) => discovery.duckdb_extension_directory.clone().map(Into::into),
                 None => self.0.custom_worker_duckdb_directory.clone(),
+            };
+            let resolver_matplotlib_cache = if cfg!(unix)
+                && !self.0.no_sandbox
+                && python.is_none_or(|python| python.managed().is_some())
+            {
+                match &discovery {
+                    Some(discovery) => discovery.matplotlib_cache.clone().map(Into::into),
+                    None => {
+                        crate::resolver::cache::matplotlib_cache_override(&self.0.resolver_settings)
+                            .as_deref()
+                            .map(crate::resolver::cache::tool_directory)
+                            .transpose()?
+                    }
+                }
+            } else {
+                None
             };
             let spec = WorkerSpec {
                 builtin: environment
@@ -530,9 +543,7 @@ impl Client {
                 sandbox_settings: &self.0.sandbox_settings,
                 startup_source: self.0.startup_source.as_ref(),
                 duckdb_extension_directory: duckdb_extension_directory.as_deref(),
-                resolver_matplotlib_cache: crate::resolver::cache::matplotlib_cache_override(
-                    &self.0.resolver_settings,
-                ),
+                resolver_matplotlib_cache,
                 python,
                 managed_r,
                 dynamic_resolution: self.0.dynamic_resolution,

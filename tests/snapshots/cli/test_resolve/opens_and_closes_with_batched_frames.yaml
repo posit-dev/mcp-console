@@ -13,6 +13,7 @@ stdout:
             r_home: ~
             python: ~
           local_has_uv: false
+          matplotlib_cache: <fixture font cache>
       control: ~
       confirmed: true
   - Closed

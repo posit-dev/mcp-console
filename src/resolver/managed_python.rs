@@ -112,7 +112,12 @@ uv output:
             python.display()
         ));
     }
-    warm_matplotlib(&python, &resolver, &mut on_started)?;
+    warm_matplotlib(
+        &python,
+        configuration.matplotlib_cache.as_deref(),
+        &resolver,
+        &mut on_started,
+    )?;
     Ok(ManagedPython {
         python,
         requirements,
@@ -248,6 +253,7 @@ where
 
 fn warm_matplotlib<F>(
     python: &Path,
+    cache: Option<&Path>,
     resolver: &ResolverProcess,
     on_started: &mut Option<F>,
 ) -> Result<(), String>
@@ -257,7 +263,7 @@ where
     let mut command = resolver_command(python);
     // Matplotlib checks its config directory before its separate Linux cache.
     // A read-only host config must not redirect warmup to private temporary data.
-    if let Some(cache) = crate::python::matplotlib_cache_directory() {
+    if let Some(cache) = cache {
         command.env("MPLCONFIGDIR", cache);
     }
     command

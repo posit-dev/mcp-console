@@ -295,11 +295,7 @@ impl WorkerRuntime {
             None
         };
         command.env_remove("MCP_CONSOLE_MATPLOTLIB_CACHE");
-        if !no_sandbox
-            && cfg!(unix)
-            && python.is_none_or(|python| python.managed().is_some())
-            && let Some(cache) = resolver_matplotlib_cache
-        {
+        if let Some(cache) = resolver_matplotlib_cache {
             command.env("MCP_CONSOLE_MATPLOTLIB_CACHE", cache);
         }
         // Never accept an ambient internal selection for custom workers.

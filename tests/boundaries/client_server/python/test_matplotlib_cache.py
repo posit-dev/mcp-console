@@ -52,6 +52,8 @@ def uses_resolver_font_cache(
         # is independent of the shared font cache contract. The R-free case
         # also covers the default Console cache selection.
         host_cache = with_r or relative_xdg
+        if not host_cache:
+            env["XDG_CACHE_HOME"] = str(root / "unused" / ".." / "cache")
         cache = root / (
             "cache/matplotlib"
             if host_cache
@@ -73,6 +75,11 @@ def uses_resolver_font_cache(
             assert list(cache.glob("fontlist-v*.json"))
             for restart in (False, True):
                 if restart:
+                    if not host_cache:
+                        # The retained resolver already selected its font cache.
+                        nested = root / "other" / "nested"
+                        nested.mkdir(parents=True)
+                        (root / "unused").symlink_to(nested, target_is_directory=True)
                     client.send(control="restart")
                 client.expect(
                     "resolver cache and host configuration retained\n",

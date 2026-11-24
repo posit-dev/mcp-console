@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct ManagedPythonResolverConfiguration {
+    pub(super) matplotlib_cache: Option<std::path::PathBuf>,
     environment: Arc<BTreeMap<OsString, OsString>>,
     explicit_uv: Option<OsString>,
     reticulate_uv: Option<OsString>,
@@ -24,6 +25,7 @@ impl ManagedPythonResolverConfiguration {
             .filter(|uv| uv.as_os_str() != OsStr::new("managed"))
             .cloned();
         Self {
+            matplotlib_cache: crate::python::matplotlib_cache_directory(),
             environment: Arc::new(environment),
             explicit_uv,
             reticulate_uv,

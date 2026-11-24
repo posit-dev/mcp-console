@@ -89,12 +89,23 @@ def test_rejects_invalid_preparation_frames(binary: Path) -> Transcript:
     return transcript
 
 
+def check_font_cache(discovery: dict, directory: Path) -> None:
+    native = (
+        {"Windows": list(memoryview(str(directory).encode("utf-16-le")).cast("H"))}
+        if os.name == "nt"
+        else {"Unix": list(os.fsencode(directory))}
+    )
+    assert discovery["matplotlib_cache"] == native, discovery
+    discovery["matplotlib_cache"] = "<fixture font cache>"
+
+
 def test_opens_and_closes_with_batched_frames(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         environment = {
             **os.environ,
             "PATH": "",
             "MCP_CONSOLE_HOME": str(Path(temporary) / "console"),
+            "MPLCONFIGDIR": str(Path(temporary) / "fonts"),
         }
         environment.pop("RETICULATE_PYTHON", None)
         environment.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", None)
@@ -120,6 +131,9 @@ def test_opens_and_closes_with_batched_frames(binary: Path) -> Transcript:
             assert messages[0] == "Hello" and messages[2] == "Closed", messages
             assert messages[1]["Completed"]["id"] == 0, messages
             assert messages[1]["Completed"]["confirmed"] is True, messages
+            check_font_cache(
+                messages[1]["Completed"]["result"]["Ok"], Path(temporary) / "fonts"
+            )
             errors = process.stderr.read()
             assert errors == "", errors
             return [{"input": frames, "stdout": messages, "stderr": errors, "exit": 0}]
@@ -279,6 +293,7 @@ def test_later_stage_failure_does_not_inherit_earlier_control(
             "MCP_CONSOLE_TEST_STAGE_STARTED": str(started.path),
             "MCP_CONSOLE_TEST_STAGE_UV": str(uv),
             "MCP_CONSOLE_TEST_STAGE_PID": str(root / "stage-pid"),
+            "MPLCONFIGDIR": str(root / "fonts"),
             LOADER_VARIABLE: str(build_interposer(root, "preparation_stage_control")),
         }
         environment.pop("RETICULATE_UV", None)
@@ -312,6 +327,7 @@ def test_later_stage_failure_does_not_inherit_earlier_control(
             assert receive() == "Hello"
             discovery = receive()["Completed"]
             assert discovery["confirmed"] and "Ok" in discovery["result"], discovery
+            check_font_cache(discovery["result"]["Ok"], root / "fonts")
             send({"Run": {"id": 1, "operation": "Bootstrap"}})
             assert receive()["Completed"]["result"] == {"Ok": None}
             send(

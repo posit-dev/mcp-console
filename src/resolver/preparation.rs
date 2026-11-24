@@ -40,6 +40,8 @@ pub(crate) struct Discovery {
     /// Effective path in the launched resolver's environment, shared by its workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duckdb_extension_directory: Option<std::ffi::OsString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub matplotlib_cache: Option<std::ffi::OsString>,
 }
 
 #[derive(Deserialize, Serialize)]

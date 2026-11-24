@@ -192,6 +192,7 @@ Managed R preparation also supplies `IR_NO_LOCAL_SOURCES=1` and a package-subpro
 | `PROCESSOR_ARCHITECTURE`              | On Windows, Console sets an absent or empty value to its native architecture (`AMD64` or `ARM64`) before loading runtimes.                                           |
 
 Private plotting/cache initialization still occurs with `cache: host` when `sandbox.tempdir: managed` is selected.
+On Unix, managed workers seed their private Matplotlib font cache from the retained resolver's selected directory, including after restart.
 Other tempdir modes and `--no-sandbox` retain normal library cache selection after the configuration/cache assignments above.
 Selecting host caches does not turn the built-in worker into an ordinary unmodified interpreter command.
 
