@@ -67,7 +67,7 @@ impl ClientConfiguration {
         } else {
             directory
                 .as_deref()
-                .map(crate::resolver::cache::tool_directory)
+                .map(crate::resolver::cache::selected_tool_directory)
                 .transpose()?
         };
         self.resolver_settings = settings;
@@ -164,11 +164,10 @@ impl ClientConfiguration {
         let resolver_preparation;
         #[cfg(any(unix, windows))]
         let preparation = crate::resolver::preparation::Preparation::open_local(
-            crate::resolver::preparation::Mode::Auto,
+            crate::resolver::preparation::Worker::Builtin(installation.clone()),
             resolver_settings.clone(),
             no_sandbox,
             configured_python.as_deref(),
-            installation.clone(),
             diagnostics.clone(),
             on_started,
         )?;

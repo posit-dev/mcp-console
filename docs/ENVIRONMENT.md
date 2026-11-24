@@ -141,6 +141,8 @@ With `sandbox.tempdir: managed`, the worker subsequently places `XDG_CACHE_HOME`
 Values observed inside a cell are therefore not necessarily the persistent resolver cache locations.
 
 With `cache: host`, tool variables/defaults select caches and Console generates appropriate resolver grants.
+Workers that share a cache setting with their resolver reuse its selected path across restarts.
+Worker-specific settings keep their own values.
 An explicit resolver filesystem replaces those generated entries.
 `MCP_CONSOLE_HOME` does not move caches.
 The principal host-cache overrides are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
@@ -153,7 +155,7 @@ Console resolves a home-relative R cache path containing `..` against the same l
 For a list in `RENV_PATHS_CACHE`, the default resolver policy grants each nonempty directory separately.
 The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Relative entries use the launch directory, and a leading `~` uses the launch home even when the resolver has its own `HOME`.
-Console reports an error if an expanded entry or the selected managed renv cache directory contains a list separator.
+Console reports an error if an expanded entry, the cache derived from renv’s root, or the selected managed renv cache directory contains a list separator.
 Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
 Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
 
@@ -161,6 +163,7 @@ Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.
 On Windows, an absent or relative `HOME` falls back to an absolute `USERPROFILE` for that directory.
 Managed workers load extensions from the directory used during preparation.
+If a custom worker starts before requesting preparation, its resolver uses the extension directory selected for that worker.
 It is captured before execution and does not itself grant filesystem access.
 
 ## R startup and libraries

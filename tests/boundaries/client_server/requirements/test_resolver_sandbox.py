@@ -221,7 +221,12 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
     binary: Path, execution: Execution
 ) -> Transcript:
     zod = Path(__file__).resolve().parents[3] / "fixtures/zod"
-    for explicit in (False, True):
+    overrides = (
+        ("default", "relative", "link")
+        if execution is SANDBOXED
+        else ("default", "absolute")
+    )
+    for override in overrides:
         with TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             env, _ = r_test_environment()
@@ -229,18 +234,32 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
             env["MCP_CONSOLE_TEST_ZOD_PYTHON_CELLS"] = str(root / "cells.jsonl")
             home = root / "resolver-home"
             home.mkdir()
-            cache = root / "extensions" if explicit else home / ".duckdb/extensions"
-            resolver_env = {
-                "HOME": str(home),
-                **r_library_cache_environment(env),
-            }
-            if explicit:
+            cache = (
+                home / ".duckdb/extensions"
+                if override == "default"
+                else root / "extensions"
+            )
+            r_caches = r_library_cache_environment(env)
+            resolver_env = {"HOME": str(home), **r_caches}
+            stage = root / "stage"
+            resolver = {"environment": resolver_env}
+            if override in ("relative", "link"):
+                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "stage/../extensions"
+                )
+                resolver["sandbox"] = {
+                    "filesystem": {
+                        "read_only": ["/"],
+                        "read_write": [str(root), *r_caches.values()],
+                    }
+                }
+                if override == "link":
+                    stage.symlink_to(home, target_is_directory=True)
+            elif override == "absolute":
                 resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
             config = root / ".agents/console/config.yaml"
             config.parent.mkdir(parents=True)
-            config.write_text(
-                json.dumps({"cache": "host", "resolver": {"environment": resolver_env}})
-            )
+            config.write_text(json.dumps({"cache": "host", "resolver": resolver}))
             with McpClient(
                 binary,
                 execution.serve(
@@ -256,10 +275,14 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
                 # use the same cache selection captured at Console startup.
                 for phase in ("launch", "live R", "restart"):
                     if phase == "live R":
-                        prepared = client.send(
-                            requirements={"r": ["praise"], "duckdb": ["sqlite"]}
+                        if override in ("relative", "link"):
+                            nested = root / "other" / "nested"
+                            nested.mkdir(parents=True)
+                            stage.unlink(missing_ok=True)
+                            stage.symlink_to(nested, target_is_directory=True)
+                        client.expect(
+                            None, requirements={"r": ["praise"], "duckdb": ["sqlite"]}
                         )
-                        assert not prepared.get("isError"), prepared
                         assert list(cache.glob("v*/**/sqlite_scanner.duckdb_extension"))
                     elif phase == "restart":
                         client.send(control="restart")

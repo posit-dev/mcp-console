@@ -359,8 +359,10 @@ def test_preserves_renv_cache_list(binary: Path) -> Transcript:
             python, _ = isolated_python(root)
             env = renv_test_environment(tools, root / "caches")
             env.update(
+                RENV_PATHS_ROOT=str(root / "renv;root"),
                 RENV_PATHS_CACHE=f"{root / 'shared'};;stage/../local{os.pathsep}{root / 'last'}",
                 EXPECTED_CACHE=f"{root / 'shared'};;{root / 'local'}{os.pathsep}{root / 'last'}",
+                IR_LIBRARY_ROOT="stage/../libraries",
             )
             probing_uv(
                 root,
@@ -373,6 +375,8 @@ def test_preserves_renv_cache_list(binary: Path) -> Transcript:
 
                     assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"]
                     if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
+                        assert Path(os.environ["IR_LIBRARY_ROOT"]) == Path.cwd() / "libraries"
+                        assert Path(os.environ["RENV_PATHS_SOURCE"]) == Path.cwd() / "resolver-source"
                         Path("local/prepared").touch()
                         try:
                             Path("beside-caches").touch()
@@ -389,31 +393,47 @@ def test_preserves_renv_cache_list(binary: Path) -> Transcript:
             }
             if explicit:
                 (root / "local").mkdir()
+                (root / "first").mkdir()
+                (root / "stage").symlink_to(root / "first", target_is_directory=True)
                 config["resolver"] = {
                     "sandbox": {
                         "filesystem": {"read_only": ["/"], "read_write": ["local"]}
                     }
                 }
+            config.setdefault("resolver", {})["environment"] = {
+                "RENV_PATHS_SOURCE": "stage/../resolver-source"
+            }
             path = root / "config.json"
             path.write_text(json.dumps(config))
             with McpClient(
                 binary, ("serve", "--config-file", str(path)), env, root
             ) as client:
                 client.initialize_and_list_tools()
-                client.expect(
-                    # fmt: python
-                    python=code("""
-                        import os
-                        from pathlib import Path
+                for restart in (False, True):
+                    if restart:
+                        if explicit:
+                            (root / "stage").unlink()
+                        nested = root / "other/nested"
+                        nested.mkdir(parents=True)
+                        (root / "stage").symlink_to(nested, target_is_directory=True)
+                        client.send(control="restart")
+                    client.expect(
+                        # fmt: python
+                        python=code("""
+                            import os
+                            from pathlib import Path
 
-                        assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"]
-                        assert Path("local/prepared").exists()
-                        """),
-                )
+                            assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"], os.environ[
+                                "RENV_PATHS_CACHE"
+                            ]
+                            assert Path(os.environ["IR_LIBRARY_ROOT"]) == Path.cwd() / "libraries"
+                            assert Path(os.environ["RENV_PATHS_SOURCE"]) == Path.cwd() / "caches/RENV_PATHS_SOURCE"
+                            assert Path("local/prepared").exists()
+                            """),
+                    )
                 client.finish()
             assert (root / "shared").is_dir() == (not explicit)
             assert (root / "last").is_dir() == (not explicit)
-            assert not (root / "stage").exists()
     return [
         {
             "renv_cache_order": ["shared", "local", "last"],
@@ -428,7 +448,8 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env = renv_test_environment(root, root / "caches")
-        env["RENV_PATHS_CACHE"] = "local"
+        env.pop("RENV_PATHS_CACHE")
+        env.pop("RENV_PATHS_ROOT")
         for separator in dict.fromkeys((";", os.pathsep)):
             workspace = root / f"study{separator}2026"
             workspace.mkdir()
@@ -437,12 +458,36 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
             grant = "resolver.sandbox.filesystem=" + json.dumps(
                 {"read_only": ["/"], "read_write": [str(workspace)]}
             )
-            for cwd, cache, options in (
-                (workspace, workspace / "local", ("-c", "cache=host")),
+            for cwd, cache, variables, options in (
+                (
+                    workspace,
+                    workspace / "renv/cache",
+                    {"RENV_PATHS_ROOT": "stage/../renv"},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    workspace,
+                    workspace / "r-base/R/renv/cache",
+                    {"R_USER_CACHE_DIR": "stage/../r-base"},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    workspace,
+                    workspace / "local",
+                    {"RENV_PATHS_CACHE": "local"},
+                    ("-c", "cache=host"),
+                ),
                 (
                     root,
                     workspace / "dependencies/renv/cache",
+                    {},
                     ("-c", f"cache.directory={alias}", "-c", grant),
+                ),
+                (
+                    root,
+                    workspace / "dependencies/renv/cache",
+                    {},
+                    ("-c", f"cache.directory={workspace}"),
                 ),
             ):
                 arguments = (
@@ -451,7 +496,7 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                     f"python.existing={sys.executable}",
                     *options,
                 )
-                with McpClient(binary, arguments, env, cwd) as client:
+                with McpClient(binary, arguments, env | variables, cwd) as client:
                     client.initialize_and_list_tools()
                     result = client.send(python="21 + 21")
                     assert result.get("isError"), result
@@ -461,6 +506,9 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                         expected_exit_status=1
                     )
                     assert errors == diagnostic + "\n", errors
+                assert not (workspace / "dependencies").exists()
+                assert not cache.exists(), cache
+                assert not Path(env["UV_CACHE_DIR"]).exists()
     return [{"error": error}]
 
 

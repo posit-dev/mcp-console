@@ -9,11 +9,10 @@ pub(crate) struct Preparation {
 
 impl Preparation {
     pub(crate) fn open_local(
-        _: super::Mode,
+        _: super::Worker<'_>,
         _: crate::settings::SandboxSettings,
         _: bool,
         _: Option<&std::ffi::OsStr>,
-        _: Option<crate::local_runtime::RInstallation>,
         _: crate::process_output::Diagnostics,
         _: &dyn Fn(crate::resolver::ResolverStopHandle) -> Result<(), String>,
     ) -> Result<Self, String> {

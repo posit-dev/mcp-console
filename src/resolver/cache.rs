@@ -160,6 +160,29 @@ fn renv_cache_entry(directory: &Path) -> Result<&str, String> {
     Ok(directory)
 }
 
+// renv splits its selected cache after deriving it from the root. An explicitly
+// empty cache list overrides the root just like any other explicit list.
+fn validate_renv_cache(settings: &SandboxSettings) -> Result<(), String> {
+    let value = |name| crate::settings::environment_path_value(settings, name);
+    if value(RENV_CACHE).is_none()
+        && let Some(root) = value("RENV_PATHS_ROOT").or_else(|| {
+            // With explicit grants Console doesn't provision R's default;
+            // renv can select an existing legacy root instead.
+            if settings
+                .get("filesystem")
+                .and_then(|fs| fs.get("entries"))
+                .is_some()
+            {
+                return None;
+            }
+            r_cache_base(settings).map(|base| base.join("R/renv"))
+        })
+    {
+        renv_cache_entry(&root.join("cache"))?;
+    }
+    Ok(())
+}
+
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
     if name == RENV_CACHE
         && let Some(list) = path.to_str()
@@ -218,14 +241,37 @@ fn set_cache_variable(
     Ok(())
 }
 
-/// The retained cache spelling also supplies filesystem grants. Only rewrite
-/// the environment for this launch, after its filesystem policy is captured.
-pub(crate) fn resolve_environment(
-    settings: &mut SandboxSettings,
-    managed_directory: Option<&Path>,
-) -> Result<(), String> {
-    if let Some(Value::String(list)) = settings.remove(HOST_RENV_CACHE_LIST)
-        && environment_path(settings, RENV_CACHE).as_deref() == Some(Path::new(&list))
+/// Cache variables whose declared spelling differs from the resolver's selection.
+#[derive(Clone, Default)]
+pub(crate) struct Environment {
+    replacements: Vec<(String, PathBuf, PathBuf)>,
+}
+
+impl Environment {
+    fn select(&mut self, name: String, declared: PathBuf, selected: PathBuf) {
+        if selected != declared {
+            self.replacements.push((name, declared, selected));
+        }
+    }
+
+    pub(crate) fn apply(&self, settings: &mut SandboxSettings) -> Result<(), String> {
+        settings.remove(HOST_RENV_CACHE_LIST);
+        settings.remove(CACHE_ENVIRONMENT_PATHS);
+        // An independently configured worker keeps its own cache choices.
+        for (name, declared, selected) in &self.replacements {
+            if environment_path(settings, name).as_ref() == Some(declared) {
+                set_cache_variable(settings, name, selected)?;
+            }
+        }
+        validate_renv_cache(settings)
+    }
+}
+
+/// Resolve the launch environment independently of the declared filesystem grants.
+pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<Environment, String> {
+    let mut environment = Environment::default();
+    if let Some(Value::String(list)) = settings.get(HOST_RENV_CACHE_LIST)
+        && environment_path(settings, RENV_CACHE).as_deref() == Some(Path::new(list))
     {
         let mut resolved = String::new();
         for entry in list.split_inclusive(renv_separator) {
@@ -238,56 +284,43 @@ pub(crate) fn resolve_environment(
             resolved.push_str(renv_cache_entry(&directory)?);
             resolved.push_str(&entry[path.len()..]);
         }
-        set_cache_variable(settings, RENV_CACHE, Path::new(&resolved))?;
+        environment.select(RENV_CACHE.into(), list.into(), resolved.into());
     }
-    let Some(paths) = settings.remove(CACHE_ENVIRONMENT_PATHS) else {
-        return Ok(());
-    };
-    for path in
-        serde_json::from_value::<Vec<EnvironmentPath>>(paths).map_err(|error| error.to_string())?
-    {
-        let root = match managed_directory {
-            Some(directory) => directory.to_owned(),
-            None => tool_directory(&path.directory)?,
-        };
-        for (name, relative) in path.variables {
-            // A runtime selection may explicitly replace or remove one of the
-            // environment variables before launch. Preserve that selection.
-            let value = |base: &Path| {
-                if relative.is_empty() {
-                    base.to_owned()
-                } else {
-                    base.join(&relative)
-                }
+    if let Some(paths) = settings.get(CACHE_ENVIRONMENT_PATHS) {
+        let paths: Vec<EnvironmentPath> =
+            serde::Deserialize::deserialize(paths).map_err(|error| error.to_string())?;
+        for path in paths {
+            let root = if settings.contains_key(MANAGED_DIRECTORY) {
+                selected_tool_directory(&path.directory)?
+            } else {
+                tool_directory(&path.directory)?
             };
-            if environment_path(settings, &name) == Some(value(&path.directory)) {
-                let selected = value(&root);
-                if name == RENV_CACHE {
-                    renv_cache_entry(&selected)?;
-                }
-                if root != path.directory {
-                    set_cache_variable(settings, &name, &selected)?;
+            for (name, relative) in path.variables {
+                let value = |base: &Path| {
+                    if relative.is_empty() {
+                        base.to_owned()
+                    } else {
+                        base.join(&relative)
+                    }
+                };
+                let declared = value(&path.directory);
+                if environment_path(settings, &name).as_ref() == Some(&declared) {
+                    let selected = value(&root);
+                    if name == RENV_CACHE {
+                        renv_cache_entry(&selected)?;
+                    }
+                    environment.select(name, declared, selected);
                 }
             }
         }
     }
-    Ok(())
+    environment.apply(settings)?;
+    Ok(environment)
 }
 
-/// Share the resolver's selected directory with its workers. Keep the original
-/// declaration in settings for independent provisioning and permission checks.
-pub(super) fn select_managed_directory(
-    settings: &mut SandboxSettings,
-) -> Result<Option<PathBuf>, String> {
-    let Some(path) = settings.get(MANAGED_DIRECTORY) else {
-        return Ok(None);
-    };
-    let directory = tool_directory(Path::new(
-        path.as_str().expect("captured managed cache directory"),
-    ))?;
-    let directory = retained_cache_target(&directory)?;
-    resolve_environment(settings, Some(&directory))?;
-    Ok(Some(directory))
+/// Select a stable tool path while permission checks retain the declaration.
+pub(crate) fn selected_tool_directory(path: &Path) -> Result<PathBuf, String> {
+    retained_cache_target(&tool_directory(path)?)
 }
 
 fn retained_cache_target(directory: &Path) -> Result<PathBuf, String> {
@@ -317,8 +350,11 @@ pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
         .find(|prefix| prefix.components().next_back() == Some(std::path::Component::ParentDir))
         && crate::settings::has_untrusted_symlink(prefix)?
     {
-        // Unix follows a symlink before evaluating a subsequent '..'.
-        return Ok(absolute);
+        // Unix follows the link before '..'. Keep that target for this resolver's
+        // lifetime; an inaccessible host cache keeps the tool's native behavior.
+        return Ok(
+            crate::console_paths::canonicalize_existing_prefix(&absolute).unwrap_or(absolute),
+        );
     }
     Ok(crate::console_paths::normalize_permission_path(&absolute))
 }
@@ -419,6 +455,30 @@ pub(super) fn matplotlib_directory(settings: &SandboxSettings) -> Result<Option<
         .transpose()
 }
 
+fn r_cache_base(settings: &SandboxSettings) -> Option<PathBuf> {
+    let env = |name| environment_path(settings, name);
+    env("R_USER_CACHE_DIR")
+        .or_else(|| env("XDG_CACHE_HOME"))
+        .or_else(|| {
+            #[cfg(windows)]
+            if let Some(local) = env("LOCALAPPDATA").filter(|path| path.is_absolute()) {
+                return Some(local.join("R/cache"));
+            }
+            let home = env("HOME").filter(|path| path.is_absolute());
+            #[cfg(windows)]
+            let home = home.or_else(|| env("USERPROFILE").filter(|path| path.is_absolute()));
+            home.map(|home| {
+                home.join(if cfg!(windows) {
+                    "AppData/Local/R/cache"
+                } else if cfg!(target_os = "macos") {
+                    "Library/Caches/org.R-project.R"
+                } else {
+                    ".cache"
+                })
+            })
+        })
+}
+
 #[cfg(any(unix, windows))]
 pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>, String> {
     // Cache selection uses the resolver's effective environment, including its
@@ -458,22 +518,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         .unwrap_or_else(|| home.join(".local/share"));
     #[cfg(windows)]
     let xdg_data = roaming;
-    let r_cache = env("R_USER_CACHE_DIR")
-        .or_else(|| env("XDG_CACHE_HOME"))
-        .unwrap_or_else(|| {
-            if cfg!(target_os = "macos") {
-                home.join("Library/Caches/org.R-project.R")
-            } else {
-                #[cfg(windows)]
-                {
-                    local.join("R/cache")
-                }
-                #[cfg(unix)]
-                {
-                    xdg_cache.clone()
-                }
-            }
-        });
+    let r_cache = r_cache_base(settings).expect("absolute resolver home");
     let mut caches = vec![
         env("UV_CACHE_DIR")
             .unwrap_or_else(|| uv_cache_base.join(if cfg!(windows) { "cache" } else { "uv" })),

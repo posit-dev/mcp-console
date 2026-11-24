@@ -2,16 +2,32 @@
 
 use crate::settings::SandboxSettings;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command, String> {
-    let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
-        "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
-    )?;
-    let mut settings = materialize(settings)?;
-    super::cache::resolve_environment(&mut settings, None)?;
-    let directory = super::cache::tool_directory(&directory)?;
+pub(crate) fn command(
+    declared: SandboxSettings,
+    parent: u32,
+    captured_duckdb: Option<&Path>,
+) -> Result<(Command, super::preparation::PreparationCaches), String> {
+    // Validate the tool environment before provisioning any directories.
+    // Filesystem permissions still come from the original path spellings.
+    let mut settings = declared.clone();
+    let environment = super::cache::resolve_environment(&mut settings)?;
+    let directory = match captured_duckdb {
+        Some(directory) => directory.to_owned(),
+        None => {
+            let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
+                "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
+            )?;
+            super::cache::selected_tool_directory(&directory)?
+        }
+    };
+    let caches = super::preparation::PreparationCaches {
+        environment,
+        matplotlib: super::cache::matplotlib_directory(&settings)?,
+    };
+    materialize(&mut settings, &declared)?;
     #[cfg(windows)]
     // MXC denies renv's junctions and Robocopy's restartable-copy operations.
     // Use R's copier within the same cache grants, without privileged setup.
@@ -54,10 +70,10 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
     command
         .env("RENV_CONFIG_CACHE_SYMLINKS", "FALSE")
         .env("RENV_CONFIG_COPY_METHOD", "r");
-    Ok(command)
+    Ok((command, caches))
 }
 
-fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String> {
+fn materialize(settings: &mut SandboxSettings, declared: &SandboxSettings) -> Result<(), String> {
     let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
     let managed = settings
         .remove(super::cache::MANAGED_DIRECTORY)
@@ -71,7 +87,7 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
     } else if let Some(directory) = &managed {
         vec![directory.clone()]
     } else {
-        super::cache::writable_roots(&settings)?
+        super::cache::writable_roots(declared)?
     };
     let create_caches = !caches.is_empty();
     let filesystem = settings.entry("filesystem").or_insert_with(|| json!({}));
@@ -90,7 +106,7 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
         }
     }
     crate::settings::capture_filesystem_paths(
-        &mut settings,
+        settings,
         &workspace,
         crate::settings::PolicyContext::Launch,
     )?;
@@ -115,5 +131,5 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
             .entry("macos_seatbelt_profile_extension")
             .or_insert_with(|| include_str!("../sandbox/policy_extensions.sbpl").into());
     }
-    Ok(settings)
+    Ok(())
 }

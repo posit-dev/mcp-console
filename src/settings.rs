@@ -48,6 +48,10 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
 pub type SandboxSettings = Map<String, Value>;
 
 pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
+    environment_path_value(settings, name).filter(|path| !path.as_os_str().is_empty())
+}
+
+pub(crate) fn environment_path_value(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
     let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));
     settings
         .get("environment")
@@ -69,7 +73,6 @@ pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option
                 .then(|| std::env::var_os(name).map(PathBuf::from))
                 .flatten()
         })
-        .filter(|path| !path.as_os_str().is_empty())
 }
 
 #[derive(Clone)]

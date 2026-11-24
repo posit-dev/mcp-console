@@ -546,9 +546,7 @@ impl Client {
                 sandbox_settings: &self.0.sandbox_settings,
                 startup_source: self.0.startup_source.as_ref(),
                 duckdb_extension_directory: duckdb_extension_directory.as_deref(),
-                managed_cache_directory: preparation
-                    .as_ref()
-                    .and_then(|p| p.caches.managed.as_deref()),
+                cache_environment: preparation.as_ref().map(|p| &p.caches.environment),
                 resolver_matplotlib_cache,
                 python,
                 managed_r,

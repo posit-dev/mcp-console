@@ -219,7 +219,7 @@ impl Preparation {
         // platform environment during trusted installation warmup.
         #[cfg(unix)]
         if !no_sandbox {
-            crate::resolver::cache::resolve_environment(&mut settings, None)?;
+            crate::resolver::cache::resolve_environment(&mut settings)?;
         }
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
             crate::settings::configure_environment(&mut command, &settings);
@@ -230,7 +230,7 @@ impl Preparation {
             )?;
             #[cfg(windows)]
             {
-                command = crate::resolver::sandbox::command(settings, std::process::id())?;
+                command = crate::resolver::sandbox::command(settings, std::process::id(), None)?.0;
             }
             #[cfg(unix)]
             command
@@ -278,43 +278,40 @@ impl Preparation {
     }
 
     pub(crate) fn open_local(
-        mode: Mode,
+        worker: super::Worker<'_>,
         mut settings: crate::settings::SandboxSettings,
         no_sandbox: bool,
         python: Option<&std::ffi::OsStr>,
-        installation: Option<crate::local_runtime::RInstallation>,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<Self, String> {
-        let caches = if no_sandbox {
-            super::PreparationCaches::default()
-        } else {
-            let managed = crate::resolver::cache::select_managed_directory(&mut settings)?;
-            super::PreparationCaches {
-                managed,
-                matplotlib: crate::resolver::cache::matplotlib_directory(&settings)?,
-            }
+        let (mode, installation, captured_duckdb) = match worker {
+            super::Worker::Builtin(installation) => (Mode::Auto, installation, None),
+            super::Worker::Custom(directory) => (Mode::Custom, None, directory),
         };
-        let mut command = if !no_sandbox {
+        let (mut command, caches) = if !no_sandbox {
             // Preparation and the retained worker must agree on whether Python
             // is managed, including with an isolated resolver environment.
             crate::settings::preserve_environment(
                 &mut settings,
                 [("RETICULATE_PYTHON".as_ref(), python)],
             )?;
-            crate::resolver::sandbox::command(settings, std::process::id())?
+            crate::resolver::sandbox::command(settings, std::process::id(), captured_duckdb)?
         } else {
             let mut command = std::process::Command::new(
                 std::env::current_exe().map_err(|error| error.to_string())?,
             );
             crate::settings::configure_environment(&mut command, &settings);
-            if let Some(directory) = crate::resolver::cache::duckdb_extension_directory(&settings)?
-            {
+            let directory = match captured_duckdb {
+                Some(path) => Some(path.to_owned()),
+                None => crate::resolver::cache::duckdb_extension_directory(&settings)?,
+            };
+            if let Some(directory) = directory {
                 command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
             } else {
                 command.env_remove(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
             }
-            command
+            (command, Default::default())
         };
         if let Some(python) = python {
             command.env("RETICULATE_PYTHON", python);

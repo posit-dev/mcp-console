@@ -22,7 +22,7 @@ pub(crate) use unsupported::Preparation;
 /// Cache locations selected when the controller launches this resolver.
 #[derive(Clone, Default)]
 pub(crate) struct PreparationCaches {
-    pub(crate) managed: Option<std::path::PathBuf>,
+    pub(crate) environment: super::cache::Environment,
     pub(crate) matplotlib: Option<std::path::PathBuf>,
 }
 
@@ -99,6 +99,12 @@ pub(crate) enum Operation {
     PythonDuckdbAvailable {
         python: ManagedPython,
     },
+}
+
+/// Local startup inputs available before opening the preparation process.
+pub(crate) enum Worker<'a> {
+    Builtin(Option<crate::local_runtime::RInstallation>),
+    Custom(Option<&'a std::path::Path>),
 }
 
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]

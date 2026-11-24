@@ -184,7 +184,7 @@ struct WorkerSpec<'a> {
     sandbox_settings: &'a crate::settings::SandboxSettings,
     startup_source: Option<&'a crate::settings::startup::Startup>,
     duckdb_extension_directory: Option<&'a std::path::Path>,
-    managed_cache_directory: Option<&'a std::path::Path>,
+    cache_environment: Option<&'a crate::resolver::cache::Environment>,
     resolver_matplotlib_cache: Option<std::path::PathBuf>,
     python: Option<&'a PythonEnvironment>,
     managed_r: Option<&'a crate::resolver::ManagedR>,
