@@ -45,8 +45,35 @@ fn send(request_id: u64, event: PriorityEvent) -> Result<(), String> {
     super::core::send_worker_message(&WorkerMessage::Priority { request_id, event })
 }
 
+#[cfg(unix)]
+static SHUTDOWN: std::sync::OnceLock<(io::PipeReader, io::PipeWriter)> = std::sync::OnceLock::new();
+#[cfg(windows)]
+static SHUTDOWN: std::sync::OnceLock<crate::windows::Event> = std::sync::OnceLock::new();
+
+#[cfg(unix)]
+pub(super) fn shutdown_fd() -> std::os::fd::RawFd {
+    use std::os::fd::AsRawFd;
+    SHUTDOWN
+        .get()
+        .expect("worker ingress initialized")
+        .0
+        .as_raw_fd()
+}
+
+#[cfg(windows)]
+pub(super) fn shutdown_event() -> &'static crate::windows::Event {
+    SHUTDOWN.get().expect("worker ingress initialized")
+}
+
 pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::sideband::Reader> {
     let (coordinator, commands) = crate::sideband::local()?;
+    #[cfg(unix)]
+    let shutdown = io::pipe()?;
+    #[cfg(windows)]
+    let shutdown = crate::windows::Event::new()?;
+    SHUTDOWN
+        .set(shutdown)
+        .map_err(|_| io::Error::other("worker ingress already initialized"))?;
     std::thread::Builder::new()
         .name("worker-command-ingress".into())
         .spawn(move || {
@@ -104,6 +131,21 @@ pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::
                     }
                     message => {
                         let shutdown = matches!(message, ServerMessage::Shutdown);
+                        if shutdown {
+                            // A stalled inspection cannot read its own command queue.
+                            // Leave the frame in order and wake every inspection separately.
+                            #[cfg(unix)]
+                            {
+                                use std::io::Write;
+                                let mut signal =
+                                    &SHUTDOWN.get().expect("worker ingress initialized").1;
+                                if let Err(error) = signal.write_all(&[1]) {
+                                    super::core::record_worker_failure(error.to_string());
+                                }
+                            }
+                            #[cfg(windows)]
+                            shutdown_event().set();
+                        }
                         if commands.send(&message).is_err() || shutdown {
                             break;
                         }

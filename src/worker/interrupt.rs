@@ -159,10 +159,28 @@ fn initialize_native_input_watch() -> io::Result<()> {
 
 #[cfg(unix)]
 pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String> {
+    let activity = wait_for_native_io(sideband_fd, None)?;
+    if activity.interrupted {
+        super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
+    }
+    Ok(activity.ready)
+}
+
+#[cfg(unix)]
+struct NativeActivity {
+    ready: bool,
+    interrupted: bool,
+}
+
+#[cfg(unix)]
+fn wait_for_native_io(
+    descriptor: libc::c_int,
+    shutdown_fd: Option<libc::c_int>,
+) -> Result<NativeActivity, String> {
     let wakeup_fd = super::input::interrupt_wakeup_fd();
     let mut descriptors = [
         libc::pollfd {
-            fd: sideband_fd,
+            fd: descriptor,
             events: libc::POLLIN,
             revents: 0,
         },
@@ -174,6 +192,11 @@ pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String
         libc::pollfd {
             fd: native_input_watch_fd(),
             events: native_input_watch_events(),
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: shutdown_fd.unwrap_or(-1),
+            events: libc::POLLIN,
             revents: 0,
         },
     ];
@@ -192,20 +215,23 @@ pub(super) fn wait_for_activity(sideband_fd: libc::c_int) -> Result<bool, String
         {
             return Err("native worker wait received an invalid descriptor".to_string());
         }
-        if descriptors[1].revents != 0 {
-            super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
+        let ready = descriptors[0].revents != 0;
+        if !ready && descriptors[3].revents != 0 {
+            super::core::mark_shutting_down();
         }
-        if descriptors[0].revents != 0 {
-            return Ok(true);
-        }
-        if descriptors[2].revents & libc::POLLERR != 0 {
-            return Err("native worker stdin wait failed".to_string());
-        }
-        #[cfg(target_os = "macos")]
-        if descriptors[2].revents != 0 {
+        if !ready && descriptors[2].revents != 0 {
+            if descriptors[2].revents & libc::POLLERR != 0 {
+                return Err("native worker stdin wait failed".to_string());
+            }
+            #[cfg(target_os = "macos")]
             observe_native_input_watch()?;
+            #[cfg(target_os = "linux")]
+            super::core::mark_shutting_down();
         }
-        return Ok(false);
+        return Ok(NativeActivity {
+            ready,
+            interrupted: descriptors[1].revents != 0,
+        });
     }
 }
 
@@ -304,41 +330,54 @@ pub(crate) fn install_python_interrupt(
 }
 
 pub(crate) fn check_python_selection_interrupt() -> Result<(), String> {
+    check_inspection_interrupt("Python inspection")
+}
+
+fn check_inspection_interrupt(kind: &str) -> Result<(), String> {
     if requested() {
-        Err("Python inspection interrupted".into())
+        Err(format!("{kind} interrupted"))
     } else {
         Ok(())
     }
 }
 
-/// Connect inspection cancellation to the worker's existing SIGINT wakeup.
-/// ResolverProcess continues to own termination, output collection and reaping.
-#[cfg(unix)]
 pub(crate) fn inspect_python(
     executable: &std::path::Path,
 ) -> Result<crate::python::NativePython, String> {
-    super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
-    let (finished, completion) = io::pipe().map_err(|error| error.to_string())?;
+    with_inspection_interrupt("Python inspection", |started| {
+        crate::python::inspect_native(executable, started)
+    })
+}
+
+/// Stop a worker-owned inspection on interrupt or worker shutdown.
+/// ResolverProcess owns termination, output collection and reaping.
+pub(crate) fn with_inspection_interrupt<T>(
+    kind: &str,
+    operation: impl FnOnce(
+        &mut dyn FnMut(crate::resolver::ResolverStopHandle) -> Result<(), String>,
+    ) -> Result<T, String>,
+) -> Result<T, String> {
+    #[cfg(unix)]
+    let (finished, completion) = {
+        super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
+        io::pipe().map_err(|error| error.to_string())?
+    };
+    #[cfg(windows)]
+    let (finished, completion) =
+        crate::windows::notification().map_err(|error| error.to_string())?;
+    check_inspection_interrupt(kind)?;
     std::thread::scope(|scope| {
         let mut watcher = None;
-        let result = crate::python::inspect_native(executable, |handle| {
-            // Draining stale wakeups must not hide a queued request just
-            // because the calling R callback currently defers interrupts.
-            if requested() {
-                return Err("Python inspection interrupted".to_string());
-            }
-            watcher = Some(scope.spawn(move || {
-                match crate::readiness::wait_for_io(
-                    super::input::interrupt_wakeup_fd(),
-                    libc::POLLIN,
-                    Some(&finished),
-                ) {
-                    Ok(ready) if ready.stream => handle.stop(),
-                    Ok(_) => Ok(()),
-                    Err(error) => {
-                        let _ = handle.stop();
-                        Err(error.to_string())
-                    }
+        let result = operation(&mut |handle| {
+            // Preserve an interrupt delivered during spawn, even when R defers it.
+            check_inspection_interrupt(kind)?;
+            let finished = &finished;
+            watcher = Some(scope.spawn(move || match inspection_interrupted(finished) {
+                Ok(true) => handle.stop(),
+                Ok(false) => Ok(()),
+                Err(error) => {
+                    let _ = handle.stop();
+                    Err(error)
                 }
             }));
             Ok(())
@@ -347,10 +386,26 @@ pub(crate) fn inspect_python(
         if let Some(watcher) = watcher {
             watcher
                 .join()
-                .map_err(|_| "Python inspection interrupt watcher panicked")??;
+                .map_err(|_| format!("{kind} interrupt watcher panicked"))??;
         }
         result
     })
+}
+
+#[cfg(unix)]
+fn inspection_interrupted(finished: &io::PipeReader) -> Result<bool, String> {
+    use std::os::fd::AsRawFd;
+    while !super::core::is_shutting_down() {
+        let activity =
+            wait_for_native_io(finished.as_raw_fd(), Some(super::priority::shutdown_fd()))?;
+        if activity.interrupted {
+            return Ok(true);
+        }
+        if activity.ready {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 thread_local! {
@@ -555,49 +610,38 @@ pub(crate) fn install_python_interrupt(
 }
 
 #[cfg(windows)]
-pub(crate) fn inspect_python(
-    executable: &std::path::Path,
-) -> Result<crate::python::NativePython, String> {
-    with_python_interrupt(|started| crate::python::inspect_native(executable, started))
-}
-
-#[cfg(windows)]
-pub(crate) fn with_python_interrupt<T>(
-    operation: impl FnOnce(
-        &dyn Fn(crate::resolver::ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<T, String>,
-) -> Result<T, String> {
+fn inspection_interrupted(finished: &crate::windows::Event) -> Result<bool, String> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
     use windows_sys::Win32::System::Threading::{INFINITE, WaitForMultipleObjects};
-    check_python_selection_interrupt()?;
     let wakeup = WINDOWS_WAKEUP.get().expect("interrupt initialized");
-    let (finished, completion) =
-        crate::windows::notification().map_err(|error| error.to_string())?;
-    std::thread::scope(|scope| {
-        let watcher = std::sync::Mutex::new(None);
-        let result = operation(&|handle| {
-            check_python_selection_interrupt()?;
-            let finished = finished.clone();
-            *watcher.lock().unwrap() = Some(scope.spawn(move || {
-                let handles = [finished.as_raw_handle(), wakeup.as_raw_handle()];
-                match unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) } {
-                    WAIT_OBJECT_0 => Ok(()),
-                    result if result == WAIT_OBJECT_0 + 1 => handle.stop(),
-                    _ => {
-                        let _ = handle.stop();
-                        Err(io::Error::last_os_error().to_string())
-                    }
-                }
-            }));
-            Ok(())
-        });
-        drop(completion);
-        if let Some(watcher) = watcher.into_inner().unwrap() {
-            watcher
-                .join()
-                .map_err(|_| "Python inspection watcher panicked")??;
+    let shutdown = super::priority::shutdown_event();
+    let stdin = super::input::windows_stdin_ready();
+    let handles = [
+        finished.as_raw_handle(),
+        shutdown.as_raw_handle(),
+        wakeup.as_raw_handle(),
+        stdin.as_raw_handle(),
+    ];
+    loop {
+        // The writer signals after each write and after close. Reset before
+        // checking peer state so buffered, unread bytes cannot spin this wait
+        // or hide a concurrent close. No inspection consumes user input.
+        stdin.reset();
+        if crate::windows::stdin_pipe_closed().map_err(|error| error.to_string())? {
+            super::core::mark_shutting_down();
+            return Ok(true);
         }
-        result
-    })
+        match unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) }
+        {
+            WAIT_OBJECT_0 => return Ok(false),
+            result if result == WAIT_OBJECT_0 + 1 => {
+                super::core::mark_shutting_down();
+                return Ok(true);
+            }
+            result if result == WAIT_OBJECT_0 + 2 => return Ok(true),
+            result if result == WAIT_OBJECT_0 + 3 => {}
+            _ => return Err(io::Error::last_os_error().to_string()),
+        }
+    }
 }

@@ -201,7 +201,7 @@ fn prune(value: &mut Value, defaults: &Value) {
 /// Translate captured application permissions back to their public spelling.
 /// Missing filesystem policy retains runtime-owned cache/temporary grants.
 fn permissions(settings: &SandboxSettings) -> Value {
-    let mut result = json!({ "network": settings["network"], "tempdir": super::Tempdir::from_settings(settings).name() });
+    let mut result = json!({ "network": settings["network"], "tempdir": super::Tempdir::from_settings(settings).configuration() });
     if settings
         .get("extends")
         .is_some_and(|profile| profile == ":workspace")

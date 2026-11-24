@@ -1,9 +1,11 @@
 """Python cell exits follow the ordinary REPL and worker replacement contracts."""
 
+import json
 import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from boundaries.client_server.server.test_no_r import no_r_client
 from support.assertions import last_result_text
@@ -12,7 +14,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment
 from support.records import Transcript
-from support.requirements import R, requires
+from support.requirements import R, SANDBOX, posix_r_tempdir_whitespace, requires
 
 
 @contextmanager
@@ -90,6 +92,34 @@ def test_r_system_exit_replaces_worker(
     binary: Path, execution: Execution
 ) -> Transcript:
     return exit_transcript(binary, execution, True, ("import sys\nsys.exit(33)",))
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=False))
+def test_worker_exit_after_r_rejects_tempdir_allows_replacement(
+    binary: Path,
+) -> Transcript:
+    environment, _ = r_test_environment()
+    with TemporaryDirectory(prefix="private temp ") as parent:
+        arguments = SANDBOXED.serve(
+            "-c",
+            "r.resolution=disabled",
+            "-c",
+            "python=" + json.dumps(sys.executable),
+            "-c",
+            "sandbox.tempdir.managed.parent=" + json.dumps(parent),
+        )
+        with McpClient(binary, arguments, environment) as client:
+            client.initialize_and_list_tools()
+            client.expect(None, r="1L")
+            assert (
+                "R requires a temporary directory without whitespace"
+                in last_result_text(client)
+            )
+            result = client.send(python="raise SystemExit(33)")
+            assert result["isError"], result
+            assert "[worker exited with status 33]" in last_result_text(client), result
+            client.expect("42\n", python="print(42)")
+            return client.finish()
 
 
 @executions(DIRECT, SANDBOXED)

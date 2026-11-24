@@ -466,7 +466,7 @@ fn description_for_launch(
         }
     };
     let mut writable = match crate::settings::Tempdir::from_settings(policy) {
-        crate::settings::Tempdir::Managed => vec![if cfg!(windows) {
+        crate::settings::Tempdir::Managed(_) => vec![if cfg!(windows) {
             "private `TMPDIR` (also `TEMP` and `TMP`)".to_string()
         } else {
             "private `TMPDIR`".to_string()

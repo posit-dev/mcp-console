@@ -2,6 +2,15 @@ use crate::r_bridge::EvaluationOutcome;
 
 const SQL_BRIDGE_SOURCE: &str = include_str!("bridge.R");
 
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_managed_tempdir() -> harp::Result<libr::SEXP> {
+    use harp::object::RObject;
+    Ok(crate::worker::managed_tempdir()
+        .map_or_else(RObject::null, RObject::from)
+        .sexp)
+}
+
 pub(super) struct Backend(crate::r_bridge::Bridge);
 
 impl Backend {

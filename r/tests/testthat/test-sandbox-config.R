@@ -169,6 +169,21 @@ test_that("client profiles and temporary storage retain their YAML shape", {
   expect_error(ConsoleConfig(sandbox = list(tempdir = TRUE)), "tempdir")
 })
 
+test_that("managed temporary storage preserves its parent for workers and resolvers", {
+  temp <- list(managed = list(parent = tempdir()))
+  fields <- list(tempdir = temp)
+  config <- ConsoleConfig(sandbox = fields, resolver = list(sandbox = fields))
+  expect_identical(as.list(config)$sandbox, fields)
+  expect_identical(as.list(config)$resolver$sandbox, fields)
+  config@sandbox@tempdir <- "read_only"
+  config@sandbox@tempdir <- temp
+  expect_identical(as.list(config)$sandbox, fields)
+  expect_error(
+    ConsoleConfig(sandbox = list(tempdir = list(managed = list()))),
+    "parent"
+  )
+})
+
 test_that("local binding preserves omission and explicit resets", {
   expect_null(
     ConsoleConfig(

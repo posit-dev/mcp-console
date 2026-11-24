@@ -160,7 +160,16 @@ R interprets `R_ENVIRON`, `R_ENVIRON_USER`, `R_PROFILE`, `R_PROFILE_USER`, `R_LI
 `r.vanilla: true` suppresses normal startup files/workspace restoration; it is not general environment clearing.
 
 Managed preparation prepends its library to captured `R_LIBS`; native startup or user code can alter `.libPaths()` afterward.
+R keeps the first occurrence of a directory in `R_LIBS`, including when a later wildcard matches it.
+When requirements change before R finishes starting, Console replaces its previous directory in the current `R_LIBS`, preserving the order of project libraries added by `.Renviron`.
+If Console needs to add a prepared directory to an `R_LIBS` that contains wildcard patterns, it appends the directory so R searches the project's entries first.
+Directories supplied by a pattern at native startup remain in the search path across later requirements changes, even if a site or user profile changes which paths match.
+The resolver must return a managed library path without glob syntax (`*`, `?`, `[`, or, on Unix, a backslash) or the platform's path-list separator (`:` on Unix and `;` on Windows), because R interprets the path in `R_LIBS` on restart.
+If a replacement library fails this check, the current worker and its requirements stay active.
+If the project already lists the prepared directory by an absolute path, a relative path, or a path beginning with `~/`, it keeps that entry in place across later requirements changes.
+If Python changes directories before R starts, R resolves the project's relative entries in the new directory and the prepared library remains available at its absolute path.
 Console supplies `R_HOME`, `R_SHARE_DIR`, `R_INCLUDE_DIR`, and `R_DOC_DIR` from the selected installation rather than retaining mismatched resource paths.
+If R startup pauses while you correct the temporary directory, Console restores those four paths in the native environment and in Python before rpy2 attaches.
 On Windows, embedded R home uses nonempty `R_USER`, then `HOME`, then the native profile fallback.
 
 Discovery and preparation suppress profile/environment files.

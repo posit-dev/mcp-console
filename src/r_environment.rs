@@ -2,6 +2,15 @@ const R_ENVIRONMENT_BRIDGE_SOURCE: &str = include_str!("r_environment/bridge.R")
 
 use libr::SEXP;
 
+pub(crate) const LIBRARY_GLOB_CHARACTERS: &str = if cfg!(unix) { r"\*?[" } else { "*?[" };
+
+pub(crate) fn is_library_pattern(path: &std::path::Path) -> bool {
+    path.as_os_str()
+        .as_encoded_bytes()
+        .iter()
+        .any(|ch| LIBRARY_GLOB_CHARACTERS.as_bytes().contains(ch))
+}
+
 thread_local! {
     static RESOLUTION_SUSPENDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }

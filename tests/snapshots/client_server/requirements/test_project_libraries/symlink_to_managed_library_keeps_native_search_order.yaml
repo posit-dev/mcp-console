@@ -1,0 +1,45 @@
+---
+!same-as MCP initialization for this execution mode
+---
+fixture:
+  .Renviron: |-
+    ORIGINAL_LIBRARY="${MCP_CONSOLE_R_LIBRARY}"
+    R_LIBS="${R_LIBS}:project-lib:project-root${MCP_CONSOLE_R_LIBRARY}"
+---
+send:
+  r: |
+    original <- normalizePath(Sys.getenv("ORIGINAL_LIBRARY"))
+    project <- normalizePath("project-lib")
+    paths <- .libPaths()
+    stopifnot(identical(
+      paths[paths %in% c(original, project)],
+      c(original, project)
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    stopifnot(
+      identical(paths[paths %in% c(original, project)], c(original, project)),
+      consolesecond::fixture()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

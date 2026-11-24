@@ -395,8 +395,8 @@ def enable_native() -> None:
     global _native_enabled, _native_storage, _native_extension_directory
 
     _native_enabled = True
-    if _os.environ.get("MCP_CONSOLE_MANAGED_TEMPDIR") == "1":
-        _native_storage = _Path(_os.environ["TMPDIR"]) / "mcp-console-duckdb"
+    if (temporary := _services.managed_tempdir()) is not None:
+        _native_storage = _Path(temporary) / "mcp-console-duckdb"
     _native_extension_directory = _os.environ.get(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", ""
     )

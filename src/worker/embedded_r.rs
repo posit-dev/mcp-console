@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 use std::error::Error;
-use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_void};
+use std::ffi::{CStr, CString, OsStr, c_char, c_int, c_uchar, c_void};
 use std::io;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -133,7 +134,7 @@ impl Runtime {
         library: &str,
     ) -> Result<crate::r_environment::PreparationOutcome, String> {
         defer_interrupts(
-            || self.environment.prepare(std::path::Path::new(library)),
+            || self.environment.prepare(Path::new(library)),
             discard_interrupts,
         )
     }
@@ -264,10 +265,63 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     }
 }
 
-pub(super) fn initialize_r(
+type GetEnv = unsafe extern "C" fn(*const c_char) -> *mut c_char;
+
+fn native_getenv() -> Result<GetEnv, Box<dyn Error>> {
+    #[cfg(unix)]
+    let environment = libc::getenv;
+    // R and CPython share the system UCRT. Console's static CRT retains its
+    // own environment, which misses changes made in .Renviron or Python.
+    #[cfg(windows)]
+    let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
+    #[cfg(windows)]
+    let environment = unsafe { *runtime.get::<GetEnv>(b"getenv\0")? };
+    Ok(environment)
+}
+
+pub(super) fn tempdir_parent() -> Result<PathBuf, Box<dyn Error>> {
+    unsafe extern "C" {
+        fn mcp_r_tempdir_variable(environment: GetEnv) -> *const c_char;
+    }
+    let variable = unsafe { mcp_r_tempdir_variable(native_getenv()?) };
+    if variable.is_null() {
+        return Ok("/tmp".into());
+    }
+    // The C helper returns a static variable name. Read the native path
+    // without converting Windows Unicode or Unix filesystem bytes.
+    let variable = unsafe { CStr::from_ptr(variable) }.to_str()?;
+    Ok(std::env::var_os(variable)
+        .ok_or_else(|| format!("R's temporary directory variable {variable} is unset"))?
+        .into())
+}
+
+pub(super) fn rejects_tempdir(_r_home: &Path) -> Result<bool, Box<dyn Error>> {
+    unsafe extern "C" {
+        fn mcp_r_tempdir_has_whitespace(environment: GetEnv) -> c_int;
+    }
+    if unsafe { mcp_r_tempdir_has_whitespace(native_getenv()?) } == 0 {
+        return Ok(false);
+    }
+    // R 4.3 extended its Windows whitespace restriction to Unix. The base
+    // package ships with the selected libR and records its version.
+    #[cfg(unix)]
+    {
+        let path = _r_home.join("library/base/DESCRIPTION");
+        let description = std::fs::read_to_string(&path)?;
+        let version = description
+            .lines()
+            .find_map(|line| line.strip_prefix("Version:"))
+            .ok_or_else(|| format!("missing Version in {}", path.display()))?;
+        Ok(semver::Version::parse(version.trim())? >= semver::Version::new(4, 3, 0))
+    }
+    #[cfg(windows)]
+    Ok(true)
+}
+
+pub(super) fn read_startup_environment(
     installation: &crate::local_runtime::RInstallation,
     vanilla: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<harp::library::RLibraries, Box<dyn Error>> {
     let r_home = &installation.home;
     // Let the selected R launcher choose its configured default architecture
     // when users start subprocesses through commandArgs()[1].
@@ -302,11 +356,73 @@ pub(super) fn initialize_r(
 
     // Python cells and startup hooks can mutate these paths before late R
     // initialization. Restore the captured installation immediately before R starts.
-    installation.configure_environment();
+    configure_installation(installation)?;
     REPL_EVALUATING.store(true, Ordering::SeqCst);
     initialize_r_console()?;
-    native::initialize_r(r_home, &mut argument_pointers)?;
+    native::read_startup_environment(r_home, &mut argument_pointers)?;
+    Ok(libraries)
+}
 
+pub(super) fn configure_installation(
+    installation: &crate::local_runtime::RInstallation,
+) -> Result<(), Box<dyn Error>> {
+    set_environment(&installation.environment())?;
+    crate::python::refresh_r_installation(installation)?;
+    Ok(())
+}
+
+fn user_home() -> Option<PathBuf> {
+    #[cfg(windows)]
+    for name in ["R_USER", "HOME"] {
+        if let Some(path) = std::env::var_os(name).filter(|path| !path.is_empty()) {
+            return Some(path.into());
+        }
+    }
+    std::env::home_dir()
+}
+
+pub(super) fn expand_library_home(path: &Path) -> std::borrow::Cow<'_, Path> {
+    if let Ok(relative) = path.strip_prefix("~")
+        && let Some(home) = user_home()
+    {
+        return home.join(relative).into();
+    }
+    path.into()
+}
+
+pub(super) fn set_environment(variables: &[(&str, &OsStr)]) -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    for &(name, value) in variables {
+        unsafe { std::env::set_var(name, value) };
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        // R may already share an initialized UCRT environment with CPython.
+        // _wputenv_s updates that environment and the process environment.
+        type WPutEnv = unsafe extern "C" fn(*const u16, *const u16) -> c_int;
+        let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
+        let set = unsafe { runtime.get::<WPutEnv>(b"_wputenv_s\0")? };
+        for &(name, value) in variables {
+            let key: Vec<_> = name.encode_utf16().chain([0]).collect();
+            let value: Vec<_> = value.encode_wide().chain([0]).collect();
+            let status = unsafe { set(key.as_ptr(), value.as_ptr()) };
+            if status != 0 {
+                return Err(format!("cannot set {name} for R (UCRT error {status})").into());
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn start_mainloop(libraries: &harp::library::RLibraries) -> Result<(), Box<dyn Error>> {
+    super::interrupt::attach_r(super::interrupt::State {
+        signal: mcp_r_record_interrupt,
+        requested: interrupt_pending,
+        pending: console_interrupt_pending,
+        acknowledge: acknowledge_console_interrupt,
+    })?;
+    native::start_mainloop()?;
     libraries.initialize_post_setup_r();
     unsafe {
         harp::CONSOLE_THREAD_ID = Some(thread::current().id());
@@ -318,6 +434,17 @@ pub(super) fn initialize_r(
     // any earlier Console request, and restores the process interrupt service.
     initialize_r_repl()?;
     Ok(())
+}
+
+pub(super) fn has_global_environment() -> Result<bool, Box<dyn Error>> {
+    // harp snapshots this constant only after setup_Rmainloop returns. A native
+    // .Rprofile runs inside that call, when R's actual global environment is live.
+    #[cfg(unix)]
+    let library = libloading::os::unix::Library::this();
+    #[cfg(windows)]
+    let library = libloading::os::windows::Library::open_already_loaded("R.dll")?;
+    let global = unsafe { library.get::<*const *const c_void>(b"R_GlobalEnv\0")? };
+    Ok(unsafe { !(**global).is_null() })
 }
 
 fn initialize_r_console() -> Result<(), Box<dyn Error>> {
@@ -332,12 +459,6 @@ fn initialize_r_console() -> Result<(), Box<dyn Error>> {
     unsafe {
         mcp_r_console_configure(r_read_console, check_interrupt, libr::R_interrupts_pending);
     }
-    super::interrupt::attach_r(super::interrupt::State {
-        signal: mcp_r_record_interrupt,
-        requested: interrupt_pending,
-        pending: console_interrupt_pending,
-        acknowledge: acknowledge_console_interrupt,
-    })?;
     Ok(())
 }
 

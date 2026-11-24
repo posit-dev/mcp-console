@@ -628,6 +628,107 @@ class WindowsSandbox(unittest.TestCase):
             finally:
                 session.close()
 
+    @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
+    def test_r_tempdir_with_spaces_keeps_the_worker(self):
+        with workspace() as parent:
+            session = worker_session(
+                sandbox=True,
+                defer_bootstrap=True,
+                overrides=["sandbox.tempdir.managed.parent=" + json.dumps(str(parent))],
+            )
+            try:
+                session.initialize()
+                result = session.expect(
+                    "Rscript started:",
+                    # fmt: python
+                    python=code("""
+                        import os
+                        from pathlib import Path
+                        import subprocess
+
+                        retained_pid = os.getpid()
+                        assert " " in os.environ["TMPDIR"]
+                        selected = Path(os.environ["TMPDIR"]) / "selected temp"
+                        selected.mkdir()
+                        (selected / "selected-by-python").touch()
+                        os.environ["TMPDIR"] = str(selected)
+                        project_library = selected / "project-library"
+                        project_library.mkdir()
+                        os.environ["R_LIBS"] = os.pathsep.join((str(project_library), os.environ["R_LIBS"]))
+                        r_bin = Path(os.environ["R_HOME"]) / "bin"
+                        rscript = r_bin / "Rscript.exe"
+                        if not rscript.is_file():
+                            rscript = r_bin / "x64/Rscript.exe"
+                        probe = subprocess.run(
+                            [rscript, "--vanilla", "-"],
+                            input=b"",
+                            capture_output=True,
+                            env=dict(os.environ, LANGUAGE="C", LC_ALL="C"),
+                        )
+                        if probe.returncode:
+                            assert b"'R_TempDir' contains space" in probe.stderr, probe
+                        print("Rscript started:", probe.returncode == 0)
+                        """),
+                )
+                result_text = json.dumps(result)
+                if "Rscript started: False" in result_text:
+                    session.expect(
+                        "R requires a temporary directory without whitespace", r="42L"
+                    )
+                    # A relative spelling of the same writable directory works
+                    # even on volumes where Windows does not supply short names.
+                    session.expect(
+                        "TMPDIR changed",
+                        # fmt: python
+                        python=code("""
+                            os.chdir(selected)
+                            os.environ["TMPDIR"] = "."
+                            print("TMPDIR changed")
+                            """),
+                    )
+                else:
+                    self.assertIn("Rscript started: True", result_text)
+                session.expect("[prepared]", requirements={"r": ["digest"]})
+                session.expect(
+                    "installation paths changed",
+                    # fmt: python
+                    python=code("""
+                        for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
+                            os.environ["EXPECTED_" + name] = os.environ[name]
+                            os.environ[name] = str(selected / "wrong installation")
+                        print("installation paths changed")
+                        """),
+                )
+                session.expect(
+                    "R used the directory selected by Python",
+                    # fmt: r
+                    r=code("""
+                        names <- c("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                        stopifnot(identical(
+                          normalizePath(unname(Sys.getenv(names)), mustWork = TRUE),
+                          normalizePath(unname(Sys.getenv(paste0("EXPECTED_", names))), mustWork = TRUE)
+                        ))
+                        stopifnot(file.exists(file.path(dirname(tempdir()), "selected-by-python")))
+                        project <- file.path(dirname(tempdir()), "project-library")
+                        managed <- Sys.getenv("MCP_CONSOLE_R_LIBRARY")
+                        stopifnot(
+                          normalizePath(project, winslash = "/") %in% .libPaths(),
+                          identical(
+                            dirname(find.package("digest")),
+                            normalizePath(managed, winslash = "/")
+                          )
+                        )
+                        cat("R used the directory selected by Python")
+                        """),
+                )
+                session.expect(
+                    "same worker",
+                    python='assert os.getpid() == retained_pid; print("same worker")',
+                )
+            finally:
+                session.close()
+
     def test_modified_companion_is_rejected_before_execution(self):
         with workspace() as root:
             native = native_console(BINARY)
@@ -805,7 +906,10 @@ class WindowsSandbox(unittest.TestCase):
 
             temporary = Path(os.environ["TMPDIR"])
             mode = os.environ["EXPECTED_MODE"]
-            assert (temporary == Path(os.environ["EXPECTED_TEMP"])) is (mode != "managed")
+            managed = mode in ("managed", "managed_parent")
+            assert (temporary == Path(os.environ["EXPECTED_TEMP"])) is (not managed)
+            if managed:
+                assert temporary == Path(os.environ["TEMP"]) == Path(os.environ["TMP"])
             try:
                 _ = (temporary / "probe").write_text("temporary")
             except OSError as error:
@@ -818,16 +922,21 @@ class WindowsSandbox(unittest.TestCase):
                 assert mode != "read_only"
             print(json.dumps({"temporary": str(temporary)}))
             """)
-        for mode in ("managed", "read_write", "read_only"):
+        for mode in ("managed", "managed_parent", "read_write", "read_only"):
             with self.subTest(mode=mode), workspace() as root:
                 temporary = root / "host-temp"
                 temporary.mkdir()
+                selection = mode
+                if mode == "managed_parent":
+                    parent = root / "private temp"
+                    parent.mkdir()
+                    selection = {"managed": {"parent": str(parent)}}
                 config = root / ".agents/console/config.yaml"
                 config.parent.mkdir(parents=True)
                 config.write_text(
                     json.dumps(
                         {
-                            "sandbox": {"tempdir": mode},
+                            "sandbox": {"tempdir": selection},
                             "environment": {"TmpDir": str(temporary)},
                         }
                     )
@@ -848,8 +957,11 @@ class WindowsSandbox(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 selected = Path(json.loads(result.stdout)["temporary"])
                 self.assertTrue(temporary.is_dir())
-                if mode == "managed":
+                if mode in ("managed", "managed_parent"):
                     self.assertFalse(selected.exists())
+                if mode == "managed_parent":
+                    self.assertIn(parent, selected.parents)
+                    self.assertEqual(list(parent.iterdir()), [])
 
     @requires_mxc(BINARY)
     def test_read_write_supplies_tempdir_when_child_has_no_selection(self):

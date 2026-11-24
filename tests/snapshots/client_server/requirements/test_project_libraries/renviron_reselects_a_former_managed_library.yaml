@@ -1,0 +1,64 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+
+    old = os.environ["MCP_CONSOLE_R_LIBRARY"]
+    os.environ["PROJECT_LIBRARY"] = old
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: os.environ["R_LIBS"] = os.pathsep.join((old, old))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    old <- normalizePath(Sys.getenv("PROJECT_LIBRARY"))
+    new <- dirname(find.package("consolefirst"))
+    paths <- .libPaths()
+    stopifnot(identical(paths[paths %in% c(old, new)], c(old, new)))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: >
+    stopifnot(old %in% .libPaths(), !new %in% .libPaths(),
+    consolesecond::fixture())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

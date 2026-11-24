@@ -6,4 +6,5 @@ disallowed_host_denied: true
 custom_write: true
 replaced_cache_grants: true
 custom_download_host: true
+worker_and_resolver_temp_cleaned: true
 captured_policy: true

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::cell::Language;
 use crate::worker_protocol::{
     NativePythonActivation, PythonRequirementManifest, PythonResolveRequest,
-    PythonVersionResolveRequest, RResolutionFailureKind, WorkerMessage, deserialize_payload_free,
+    PythonVersionResolveRequest, RInitializationState, RResolutionFailureKind, WorkerMessage,
+    deserialize_payload_free,
 };
 
 pub(crate) const PARTIAL_COMMAND_EOF: &str = "relay stdin closed midway through a frame";
@@ -83,7 +84,7 @@ pub(crate) enum RelayEvent {
         interrupted: bool,
     },
     RInitialization {
-        complete: bool,
+        state: RInitializationState,
     },
     ConsoleOutput {
         data: String,
@@ -188,7 +189,7 @@ impl From<WorkerMessage> for RelayEvent {
             WorkerMessage::RuntimeInitialized { interrupted } => {
                 Self::RuntimeInitialized { interrupted }
             }
-            WorkerMessage::RInitialization { complete } => Self::RInitialization { complete },
+            WorkerMessage::RInitialization { state } => Self::RInitialization { state },
             WorkerMessage::ConsoleOutput { data } => Self::ConsoleOutput { data },
             WorkerMessage::ConsoleDiagnostic { data } => Self::ConsoleDiagnostic { data },
             WorkerMessage::Image { data, mime_type } => Self::Image { data, mime_type },

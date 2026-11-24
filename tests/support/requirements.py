@@ -5,8 +5,10 @@ import platform
 import shutil
 import subprocess
 import sys
+import sysconfig
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TypeVar
@@ -23,8 +25,12 @@ from support.linux_sandbox import (
 @dataclass(frozen=True)
 class Requirement:
     name: str
-    available: bool
+    condition: bool | Callable[[], bool]
     reason: str
+
+    @property
+    def available(self) -> bool:
+        return self.condition() if callable(self.condition) else self.condition
 
 
 # Keep implementation availability here until the corresponding runtime lands.
@@ -46,6 +52,11 @@ R = Requirement(
         )
     ),
     "requires R_HOME or R on PATH",
+)
+NATIVE_RETICULATE_PROFILE = Requirement(
+    "native reticulate profile",
+    sysconfig.get_platform() != "win-arm64",
+    "reticulate 1.47.0 cannot attach Python in a native R profile on Windows ARM64",
 )
 SANDBOX = Requirement(
     "sandbox",
@@ -180,6 +191,42 @@ def case_insensitive_paths() -> Requirement:
             probe.with_name("LOWERCASE").is_dir(),
             "requires a case-insensitive temporary filesystem",
         )
+
+
+@cache
+def _posix_r_accepts_spaced_tempdir() -> bool | None:
+    if not POSIX.available or not R.available:
+        return None
+    from support.r import r_test_environment
+
+    try:
+        environment, rscript = r_test_environment()
+        with TemporaryDirectory(prefix="private temp ") as directory:
+            result = subprocess.run(
+                [rscript, "--vanilla", "-"],
+                input=b'stopifnot(dirname(tempdir()) == Sys.getenv("TMPDIR"))\n',
+                env=environment | {"TMPDIR": directory, "LC_ALL": "C", "LANGUAGE": "C"},
+                capture_output=True,
+                timeout=15,
+            )
+    except (OSError, subprocess.SubprocessError):
+        # Broken R installations are also fixtures for unrelated cases.
+        return None
+    if result.returncode == 0:
+        return True
+    if b"'R_TempDir' contains space" in result.stderr:
+        return False
+    return None
+
+
+def posix_r_tempdir_whitespace(*, accepted: bool) -> Requirement:
+    return Requirement(
+        "R tempdir",
+        lambda: _posix_r_accepts_spaced_tempdir() is accepted,
+        "requires R to "
+        + ("accept" if accepted else "reject")
+        + " a spaced POSIX temp path",
+    )
 
 
 def windows_short_paths() -> Requirement:

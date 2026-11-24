@@ -22,12 +22,12 @@ mod r_integration;
 // language dispatch; activity and bootstrap own native command waiting and
 // process setup. The R backend owns its interpreter and native R events.
 #[cfg(any(unix, windows))]
-pub(crate) use coordinator::run;
+pub(crate) use coordinator::{managed_tempdir, run};
 #[cfg(unix)]
 pub(crate) use core::mark_shutting_down;
 #[cfg(any(unix, windows))]
 pub(crate) use core::{
-    bootstrapping, emit_output, is_shutting_down, publish_plot, publish_python_activation,
+    emit_output, is_shutting_down, publish_plot, publish_python_activation,
     publish_python_activation_failure, publish_r_activation, publish_r_activation_failure,
     record_bootstrap_interrupt, record_execution_error, record_worker_failure, resolve_python,
     resolve_python_version, resolve_r,
@@ -37,7 +37,7 @@ pub(crate) use input::python_interrupt_wakeup;
 #[cfg(any(unix, windows))]
 pub(crate) use input::{PythonInput, read_python_input};
 #[cfg(windows)]
-pub(crate) use interrupt::with_python_interrupt;
+pub(crate) use interrupt::with_inspection_interrupt;
 #[cfg(any(unix, windows))]
 pub(crate) use interrupt::{
     acknowledge_python_interrupt, begin_python_commit, check_python_selection_interrupt,
@@ -58,6 +58,6 @@ pub(crate) fn run(_bootstrap_runtimes: bool) -> Result<(), Box<dyn std::error::E
 
 #[cfg(any(unix, windows))]
 pub(crate) use r_integration::{
-    available as r_available, ensure_bridge, ensure_initialized as ensure_r,
+    available as r_available, ensure_bridge, ensure_initialized as ensure_r, ensure_r_for_rpy2,
     initialized as r_initialized,
 };

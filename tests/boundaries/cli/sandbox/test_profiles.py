@@ -500,6 +500,45 @@ def test_tempdir_modes_are_independent_of_workspace_profile(binary: Path) -> Tra
 
 
 @requires(SANDBOX)
+def test_managed_tempdir_parent(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        host = Path(directory).resolve()
+        parent = host / "private temp"
+        parent.mkdir()
+        result = run(
+            binary,
+            host,
+            # fmt: python
+            code("""
+                import errno
+                from pathlib import Path
+                import tempfile
+
+                temporary = Path(tempfile.gettempdir())
+                parent = Path.cwd() / "private temp"
+                assert parent in temporary.parents, temporary
+                (temporary / "probe").write_text("private")
+                try:
+                    (parent / "probe").write_text("shared")
+                except OSError as error:
+                    assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                else:
+                    raise AssertionError("managed tempdir parent was writable")
+                print("private child writable, parent read-only")
+                """),
+            "--config-env",
+            "TEST_CONFIG",
+            environment={
+                "TEST_CONFIG": json.dumps(
+                    {"sandbox": {"tempdir": {"managed": {"parent": str(parent)}}}}
+                ),
+            },
+        )
+        assert list(parent.iterdir()) == []
+        return [result]
+
+
+@requires(SANDBOX)
 def test_read_only_temp_retains_explicit_write_grants(binary: Path) -> Transcript:
     with TemporaryDirectory() as directory, TemporaryDirectory() as temporary:
         host = Path(directory).resolve()

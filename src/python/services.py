@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+from importlib.machinery import PathFinder
 import json
 import os
 import signal
@@ -98,6 +99,56 @@ def install_services() -> None:
 
 
 install_services()
+
+
+class _Rpy2Loader:
+    def __init__(self, loader):
+        self.loader = loader
+
+    def __getattr__(self, name):
+        return getattr(self.loader, name)
+
+    def create_module(self, specification):
+        # Native profiles may import this interface themselves. Finish startup
+        # before importlib publishes an empty module in sys.modules.
+        ensure_r_ready()
+        self.loaded = sys.modules.get(specification.name)
+        if self.loaded is not None:
+            return self.loaded
+        return self.loader.create_module(specification)
+
+    def exec_module(self, module):
+        module.__spec__.loader = module.__loader__ = self.loader
+        if self.loaded is None:
+            self.loader.exec_module(module)
+
+
+class _Rpy2Import:
+    @staticmethod
+    def find_spec(fullname, path=None, target=None):
+        if fullname not in {"rpy2.rinterface", "rpy2.robjects"} or os.getpid() != _pid:
+            return None
+        specification = PathFinder.find_spec(fullname, path, target)
+        if specification is not None and specification.loader is not None:
+            specification.loader = _Rpy2Loader(specification.loader)
+        return specification
+
+
+def guard_rpy2_import():
+    # Let imports from sitecustomize and ordinary cells use Console's R.
+    # A find_spec availability probe does not start an interpreter.
+    sys.meta_path.insert(sys.meta_path.index(PathFinder), _Rpy2Import)
+
+
+def set_r_installation_path(name: str, path: str) -> None:
+    os.environ[name] = path
+
+
+def publish_r_session():
+    # CPython caches os.environ even when a native library sets a variable.
+    os.environ["R_SESSION_INITIALIZED"] = f'PID={_pid}:NAME="reticulate"'
+    if _Rpy2Import in sys.meta_path:
+        sys.meta_path.remove(_Rpy2Import)
 
 
 class _LazyR:

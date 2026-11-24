@@ -152,6 +152,17 @@ impl Context {
                     on_started,
                     report,
                 )?;
+                // Every accepted built-in library can become R_LIBS on restart.
+                // Reject an ambiguous path before the controller retires a worker.
+                if crate::r_environment::is_library_pattern(r.library()) {
+                    return Err("resolved R library path contains wildcard characters. Use a library directory without glob syntax".into());
+                }
+                // join_paths rejects ':' on Unix. On Windows it quotes ';',
+                // but R splits R_LIBS on every semicolon, including quoted ones.
+                #[cfg(windows)]
+                if r.library().as_os_str().as_encoded_bytes().contains(&b';') {
+                    return Err("resolved R library path contains the R_LIBS separator ';'. Use a library directory without a semicolon".into());
+                }
                 serde_json::to_value(r).map_err(|error| error.to_string())
             }
             Operation::ResolveRStandalone { requirements } => {

@@ -155,17 +155,7 @@ impl RInstallation {
             #[cfg(windows)]
             let resources =
                 ["share", "include", "doc"].map(|name| home.join(name).into_os_string());
-            let rscript = home.join(if cfg!(windows) {
-                "bin/Rscript.exe"
-            } else {
-                "bin/Rscript"
-            });
-            #[cfg(windows)]
-            let rscript = if rscript.is_file() {
-                rscript
-            } else {
-                home.join("bin/x64/Rscript.exe")
-            };
+            let rscript = super::rscript_in(&home);
             #[cfg(windows)]
             let library = harp::sys::library::find_r_shared_library_folder(&home).join("R.dll");
             #[cfg(unix)]
@@ -245,13 +235,7 @@ impl RInstallation {
     }
     pub(crate) fn configure(&self, command: &mut std::process::Command) -> Result<(), String> {
         self.validate()?;
-        command.env("R_HOME", &self.home).env("RHOME", &self.home);
-        for (name, value) in ["R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"]
-            .into_iter()
-            .zip(&self.resources)
-        {
-            command.env(name, value);
-        }
+        command.envs(self.environment()).env("RHOME", &self.home);
         Ok(())
     }
 }

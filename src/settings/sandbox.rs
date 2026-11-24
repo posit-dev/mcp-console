@@ -154,27 +154,52 @@ pub(crate) fn apply_workspace_profile(policy: &mut SandboxSettings) {
     );
 }
 
-#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
 pub(crate) enum Tempdir {
-    #[default]
-    Managed,
+    Managed(Option<String>),
     ReadWrite,
     ReadOnly,
 }
 
+impl Default for Tempdir {
+    fn default() -> Self {
+        Self::Managed(None)
+    }
+}
+
+impl<'de> Deserialize<'de> for Tempdir {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "snake_case", deny_unknown_fields)]
+        enum Selection {
+            Managed { parent: String },
+            ReadWrite,
+            ReadOnly,
+        }
+        let value = Value::deserialize(deserializer)?;
+        if super::native_variant_name(&value) == Some("managed") {
+            return Ok(Self::default());
+        }
+        match serde_path_to_error::deserialize(value).map_err(D::Error::custom)? {
+            Selection::Managed { parent } => Ok(Self::Managed(Some(parent))),
+            Selection::ReadWrite => Ok(Self::ReadWrite),
+            Selection::ReadOnly => Ok(Self::ReadOnly),
+        }
+    }
+}
+
 impl Tempdir {
     pub(crate) fn from_settings(settings: &SandboxSettings) -> Self {
-        settings.get("tempdir").map_or(Self::Managed, |value| {
+        settings.get("tempdir").map_or_else(Self::default, |value| {
             serde_json::from_value(value.clone()).expect("captured tempdir choice")
         })
     }
 
-    pub(crate) fn name(self) -> &'static str {
+    pub(super) fn configuration(&self) -> Value {
         match self {
-            Self::Managed => "managed",
-            Self::ReadWrite => "read_write",
-            Self::ReadOnly => "read_only",
+            Self::Managed(None) => "managed".into(),
+            Self::Managed(Some(parent)) => json!({"managed": {"parent": parent}}),
+            Self::ReadWrite => "read_write".into(),
+            Self::ReadOnly => "read_only".into(),
         }
     }
 }
@@ -350,7 +375,7 @@ impl<'de> Deserialize<'de> for UnixSockets {
 }
 
 impl Sandbox {
-    pub(super) fn compile(self, resolver: bool) -> Result<SandboxSettings, String> {
+    pub(super) fn compile(mut self, resolver: bool) -> Result<SandboxSettings, String> {
         if resolver
             && self
                 .profile
@@ -365,7 +390,19 @@ impl Sandbox {
             "sandbox"
         };
         let mut policy = SandboxSettings::new();
-        policy.insert("tempdir".into(), self.tempdir.name().into());
+        if let Tempdir::Managed(Some(parent)) = &mut self.tempdir {
+            let field = format!("{prefix}.tempdir.managed.parent");
+            let path = crate::console_paths::expand_home(Path::new(parent))
+                .map_err(|error| format!("{field}: {error}"))?;
+            if !path.is_absolute() {
+                return Err(format!("{field} must be an absolute path"));
+            }
+            *parent = path
+                .into_os_string()
+                .into_string()
+                .map_err(|_| format!("{field}: expanded path must be UTF-8"))?;
+        }
+        policy.insert("tempdir".into(), self.tempdir.configuration());
         if matches!(
             self.profile,
             Some(ProfileSelection::Named(Profile::Workspace))

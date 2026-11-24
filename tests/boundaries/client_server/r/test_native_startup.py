@@ -1,24 +1,42 @@
 """R owns startup discovery, ordering, and retry inside each worker."""
 
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import time
-from contextlib import ExitStack, closing
+from collections.abc import Iterator
+from contextlib import ExitStack, closing, contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from boundaries.client_server.recording.test_boundaries import await_event
 from support.client import McpClient
-from support.checkpoints import FifoCheckpoint, wait_for_path
+from support.checkpoints import (
+    FifoCheckpoint,
+    fixture_fifo_writer,
+    wait_for_checkpoint,
+    wait_for_path,
+)
 from support.assertions import wait_for_evaluation_output
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
 from support.progress import RUNNING
-from support.requirements import POSIX, R, SANDBOX, requires
+from support.processes import host_process_id, process_exists, stop_process_id
+from support.native import LOADER_VARIABLE, build_interposer
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    R,
+    SANDBOX,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
 
@@ -70,6 +88,167 @@ def writable_arguments(execution: Execution, root: Path) -> tuple[str, ...]:
     return startup_arguments(
         execution, *(("--writable-root", str(root)) if execution == SANDBOXED else ())
     )
+
+
+def tempdir_startup_client(
+    binary: Path,
+    root: Path,
+    *,
+    spaced_parent: bool,
+    languages: list[str],
+    r_resolution: str = "disabled",
+) -> McpClient:
+    environment, _ = r_test_environment()
+    spaced = root / "private temp"
+    plain = root / "private"
+    spaced.mkdir()
+    plain.mkdir()
+    repaired = root / "repaired"
+    repaired.mkdir()
+    parent, override = (spaced, plain) if spaced_parent else (plain, spaced)
+    environ = root / ".Renviron"
+    environ.write_text(f'TMPDIR="{override}"\n')
+    environment.update(TMPDIR=str(root), R_ENVIRON_USER=str(environ))
+    config = root / ".agents/console/config.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "r": {"resolution": r_resolution},
+                "python": sys.executable,
+                "languages": languages,
+                "sandbox": {"tempdir": {"managed": {"parent": str(parent)}}},
+            }
+        )
+    )
+    return McpClient(
+        binary,
+        ("serve", "--writable-root", str(root)),
+        environment,
+        root,
+        use_r_startup_files=True,
+    )
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=False))
+def test_renviron_can_select_a_usable_tempdir(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        with tempdir_startup_client(
+            binary, root, spaced_parent=True, languages=["r"]
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "[1] TRUE\n",
+                r='identical(dirname(tempdir()), file.path(getwd(), "private"))',
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, posix_r_tempdir_whitespace(accepted=False))
+def test_recovers_from_renviron_tempdir_without_rereading_it(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        with tempdir_startup_client(
+            binary, root, spaced_parent=False, languages=["r", "python", "sql"]
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(python="answer = 42")
+            output = client.expect(None, r="1L")["content"][0]["text"]
+            assert "R requires a temporary directory without whitespace" in output, (
+                output
+            )
+            client.expect(
+                '[input requested: "Python input> "]\n[waiting for stdin]',
+                python='input("Python input> ")',
+            )
+            interrupted = client.send(control="interrupt", timeout_ms=10_000)
+            assert "KeyboardInterrupt" in interrupted["content"][0]["text"], interrupted
+            client.expect(
+                "42\n",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    os.environ["TMPDIR"] = str(Path.cwd() / "repaired")
+                    for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
+                        os.environ["EXPECTED_" + name] = os.environ[name]
+                        os.environ[name] += "/wrong installation" * 16
+                    print(answer)
+                    """),
+            )
+            client.expect(
+                "R resumed with the selected installation\n",
+                # fmt: r
+                r=code(r"""
+                    names <- c("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                    stopifnot(
+                      identical(dirname(tempdir()), file.path(getwd(), "repaired")),
+                      identical(
+                        unname(Sys.getenv(names)),
+                        unname(Sys.getenv(paste0("EXPECTED_", names)))
+                      ),
+                      identical(R.home("share"), Sys.getenv("R_SHARE_DIR"))
+                    )
+                    cat("R resumed with the selected installation\n")
+                    """),
+            )
+            client.expect("42\n", python="print(answer)")
+            return client.finish()
+
+
+@requires(R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_only_embedded_r_runs_the_session_test_hook(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp" if os.name == "posix" else None
+    ) as temporary:
+        root = Path(temporary).resolve()
+        environment = startup_environment(root, managed=True)
+        environment["TMPDIR"] = str(root)
+        (root / "project-library").mkdir()
+        (root / ".Renviron").write_text(
+            f'R_LIBS="${{R_LIBS}}{os.pathsep}project-*"\n'
+            'TMP="${TMPDIR}"\nTMPDIR="${TMP}/missing"\n'
+            "R_TESTS=library-hook.R\nR_BATCH=1\n"
+        )
+        (root / "library-hook.R").write_text(
+            # fmt: r
+            code(r"""
+                marker <- file.path(Sys.getenv("TMP"), "r-tests-pids")
+                cat(Sys.getpid(), file = marker, sep = "\n", append = TRUE)
+                if (!interactive()) {
+                  cat("R_TESTS ran in noninteractive R\n")
+                }
+                """)
+        )
+        with McpClient(
+            binary,
+            startup_arguments(execution),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code("""
+                    stopifnot(
+                      identical(readLines(marker), as.character(Sys.getpid())),
+                      identical(
+                        normalizePath(dirname(tempdir()), winslash = "/"),
+                        normalizePath(Sys.getenv("TMP"), winslash = "/")
+                      ),
+                      normalizePath("project-library", winslash = "/") %in% .libPaths()
+                    )
+                    """)
+            )
+            return client.finish()
 
 
 @requires(R)
@@ -206,6 +385,44 @@ def test_vanilla_override_survives_restart(
             config.write_text("r:\n  vanilla: false\n")
             client.send(control="restart")
             client.expect("vanilla startup complete\n", r=check)
+            return client.finish()
+
+
+@requires(POSIX, R)
+@executions(DIRECT)
+def test_exit_reading_renviron_requires_explicit_restart(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = r_test_environment()
+        environ = root / ".Renviron"
+        os.mkfifo(environ)
+        environment["R_ENVIRON_USER"] = str(environ)
+        with McpClient(
+            binary,
+            execution.serve("-c", "languages=[r]", "-c", "r.resolution=disabled"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            pending = client.start_send(r="1L")
+            # Opening the writer proves native R has reached its environment
+            # file. Holding it open keeps startup from completing.
+            with fixture_fifo_writer(environ, client=client):
+                started = await_event(client, root, "worker_started")
+                environ.unlink()
+                stop_process_id(started["pid"])
+            client.receive(pending)
+            assert pending["result"]["isError"], pending
+            retry = client.send(r="42L")
+            assert (
+                "startup may have executed; explicit restart required"
+                in retry["content"][0]["text"]
+            ), retry
+            client.send(control="restart")
+            client.expect("[1] 42\n", r="42L")
             return client.finish()
 
 
@@ -585,6 +802,79 @@ def test_interrupted_profile_is_not_replayed(
             client.send(control="restart")
             client.expect("[1] TRUE\n", r="native_repaired")
             return client.finish()
+
+
+@contextmanager
+def stalled_library_probe(
+    binary: Path, execution: Execution
+) -> Iterator[tuple[McpClient, int, Path]]:
+    with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        environment = startup_environment(root, managed=True)
+        scratch = root / "scratch"
+        scratch.mkdir()
+        environment["TMPDIR"] = str(scratch)
+        fixture = build_interposer(root, "r_library_probe")
+        environ = root / ".Renviron"
+        environ.write_text(
+            f'{LOADER_VARIABLE}="{fixture}"\nR_LIBS="${{R_LIBS}}:project-*"\n'
+        )
+        with McpClient(
+            binary,
+            startup_arguments(execution),
+            environment,
+            current_directory=root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.send(r='stop("interrupted startup ran cell")', timeout_ms=0)
+            marker = wait_for_checkpoint(
+                lambda: next(scratch.rglob("probe.pid"), None),
+                "Rscript library probe",
+                root=scratch,
+                recursive=True,
+                timeout=client.response_timeout,
+                client=client,
+            )
+            pid = host_process_id(int(marker.read_text()), client.process.pid)
+            try:
+                yield client, pid, environ
+            except BaseException:
+                stop_process_id(pid)
+                raise
+
+
+@requires(R, NATIVE_FIXTURES, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_interrupted_library_probe_requires_restart(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with stalled_library_probe(binary, execution) as (client, pid, environ):
+        output = wait_for_evaluation_output(
+            client,
+            None,
+            "interrupted Rscript library probe",
+            expected_error=True,
+            completion_timeout_seconds=client.response_timeout,
+            control="interrupt",
+        )
+        assert "restart required" in output, output
+        assert not process_exists(pid), pid
+        environ.unlink()
+        result = client.send(r='stop("incomplete R startup retried")')
+        assert "restart required" in result["content"][0]["text"], result
+        client.send(control="restart")
+        client.expect("[1] 42\n", r="6L * 7L")
+        return client.finish()
+
+
+@requires(R, NATIVE_FIXTURES, command("ir"))
+def test_shutdown_reaps_library_probe(binary: Path) -> Transcript:
+    with stalled_library_probe(binary, DIRECT) as (client, pid, _):
+        client.stdin.close()
+        assert client.process.wait(timeout=client.shutdown_timeout) == 0
+        assert not process_exists(pid), f"Rscript PID {pid} survived server shutdown"
+        return client.finish() + [{"shutdown_reaped_library_probe": True}]
 
 
 @requires(R, SANDBOX)

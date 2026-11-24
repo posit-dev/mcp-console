@@ -1,0 +1,39 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    duckdb: []
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: >-
+        resolved R library path contains wildcard characters. Use a library
+        directory without glob syntax
+  isError: true

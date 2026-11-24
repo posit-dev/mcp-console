@@ -1,0 +1,85 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    original = os.environ["MCP_CONSOLE_R_LIBRARY"]
+    Path("local").symlink_to(original)
+    os.environ["ORIGINAL_LIBRARY"] = original
+    os.environ["R_LIBS_SITE"] = str(Path("project-last").resolve())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    alias = Path("local")
+    alias.unlink()
+    alias.symlink_to("child/local")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    os.chdir("child")
+    del os.environ["TMPDIR"]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    project <- normalizePath(c("../project-first", "local", "../project-last"))
+    paths <- .libPaths()
+    stopifnot(
+      !normalizePath(Sys.getenv("ORIGINAL_LIBRARY")) %in% paths,
+      identical(paths[paths %in% project], project),
+      consolefirst::fixture(),
+      consolesecond::fixture()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

@@ -140,10 +140,10 @@ def test_routes_background_python_text_to_raw_streams(
             if "worker" in event
         )
         assert [
-            event["worker"]["complete"]
+            event["worker"]["state"]
             for event in transcript
             if event.get("worker", {}).get("kind") == "r_initialization"
-        ] == [False, True]
+        ] == ["entered", "complete"]
         return transcript
 
 
@@ -294,8 +294,8 @@ parent log
         event["kind"] == "completed" for event in worker
     )
     assert [
-        event["complete"] for event in worker if event["kind"] == "r_initialization"
-    ] == [False, True]
+        event["state"] for event in worker if event["kind"] == "r_initialization"
+    ] == ["entered", "complete"]
     for kind, expected in (
         ("console_output", "parent stdout\n[1] 42\n"),
         ("console_diagnostic", "parent stderr\nparent log\n"),

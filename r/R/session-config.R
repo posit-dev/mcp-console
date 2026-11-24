@@ -60,16 +60,7 @@ PythonConfig <- S7::new_class(
 ExistingPython <- S7::new_class(
   "ExistingPython",
   parent = PythonConfig,
-  properties = list(
-    existing = S7::new_property(
-      S7::class_character,
-      validator = function(value) {
-        if (length(value) != 1L || is.na(value) || !nzchar(value)) {
-          "must be one non-empty path"
-        }
-      }
-    )
-  )
+  properties = list(existing = config_path())
 )
 
 ManagedPython <- S7::new_class(
@@ -256,6 +247,12 @@ SessionsConfig <- S7::new_class(
 #'   and `"inherit_codex"` (client permissions). Filesystem entries are
 #'   `read_only`, `read_write`, and `deny` path vectors. Temporary storage is
 #'   `"managed"` (the default), `"read_write"`, or `"read_only"`.
+#'   Set `tempdir = list(managed = list(parent = "/path/to/temp"))` to choose
+#'   a parent for workers' private temporary directories. The path must be
+#'   absolute after expansion of a leading `~`. The same setting under the
+#'   resolver's `sandbox` controls package preparation. See
+#'   [temporary storage](https://posit-dev.github.io/mcp-console/sandbox_configuration/#temporary-storage)
+#'   for R path and directory permission requirements.
 #' @param languages A character vector selecting `"r"`, `"python"`, and/or
 #'   `"sql"`. By default all three are visible to the model.
 #' @param cache `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`

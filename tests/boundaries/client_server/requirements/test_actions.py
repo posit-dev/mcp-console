@@ -46,6 +46,47 @@ def inspect(client: McpClient) -> dict:
     return snapshot
 
 
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_invalid_restart_library_preserves_worker(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(root, ("consolefirst",))
+        (root / "storage").mkdir()
+        (root / "lib[1]").symlink_to(root / "storage", target_is_directory=True)
+        environment["MCP_CONSOLE_TEST_IR_LIBRARY_ROOT"] = str(root / "lib[1]")
+        with McpClient(
+            binary, execution.serve("-c", "cache=host"), environment, root
+        ) as client:
+            client.initialize_and_list_tools()
+            accepted = {"action": "set", "r": ["jsonlite"], "python": [], "duckdb": []}
+            result = client.send(
+                control="restart",
+                requirements=accepted,
+                r="worker_pid <- Sys.getpid(); libraries <- .libPaths()",
+            )
+            assert not result["isError"], result
+            result = client.send(
+                control="restart",
+                requirements={"action": "set", "r": ["consolefirst"], "duckdb": []},
+            )
+            assert result["isError"], result
+            assert result["content"] == [
+                {
+                    "type": "text",
+                    "text": "resolved R library path contains wildcard characters. "
+                    "Use a library directory without glob syntax",
+                }
+            ], result
+            assert inspect(client)["requirements"]["r"] == ["jsonlite"]
+            client.expect(
+                r="stopifnot(identical(Sys.getpid(), worker_pid), identical(.libPaths(), libraries))"
+            )
+            return client.finish()
+
+
 @executions(DIRECT, SANDBOXED)
 def test_inspection_completes_while_prepared_cells_overlap(
     binary: Path, execution: Execution

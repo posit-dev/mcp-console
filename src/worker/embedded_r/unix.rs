@@ -1,8 +1,9 @@
 //! Unix libR startup and event activity. R calls remain on the coordinator thread.
 
 use std::error::Error;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{CString, c_char, c_int, c_void};
 use std::io;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -55,12 +56,19 @@ unsafe extern "C-unwind" {
     fn mcp_r_priority_events();
 }
 
-pub(super) fn initialize_r(
-    _r_home: &Path,
+pub(super) fn read_startup_environment(
+    r_home: &Path,
     arguments: &mut [*mut c_char],
 ) -> Result<(), Box<dyn Error>> {
+    static SELECTED_HOME: OnceLock<CString> = OnceLock::new();
+    let home = CString::new(r_home.as_os_str().as_bytes())?;
+    let library = libloading::os::unix::Library::this();
     unsafe {
+        let r_home_slot = *library.get::<*mut *mut c_char>(b"R_Home\0")?;
         libr::Rf_initialize_R(arguments.len() as c_int, arguments.as_mut_ptr());
+        // Unix R retains getenv("R_HOME") for loading base and profiles. A
+        // Python cell can replace that storage while startup is paused.
+        *r_home_slot = SELECTED_HOME.get_or_init(|| home).as_ptr().cast_mut();
         libr::set(libr::R_Interactive, libr::Rboolean_TRUE);
         libr::set(libr::R_Consolefile, std::ptr::null_mut());
         libr::set(libr::R_Outputfile, std::ptr::null_mut());
@@ -70,6 +78,10 @@ pub(super) fn initialize_r(
         libr::set(libr::ptr_R_ShowMessage, Some(r_show_message));
         libr::set(libr::ptr_R_Busy, Some(r_busy));
     }
+    Ok(())
+}
+
+pub(super) fn start_mainloop() -> Result<(), Box<dyn Error>> {
     // setup_Rmainloop installs R's signal handlers before profiles run. Its
     // event callback observes pending interrupts before R consumes them and
     // restores Console's SIGINT wakeup while retaining R's fatal diagnostics.

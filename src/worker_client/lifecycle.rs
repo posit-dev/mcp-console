@@ -1,3 +1,4 @@
+use crate::worker_protocol::RInitializationState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
@@ -21,8 +22,12 @@ impl WorkerGeneration {
         Arc::ptr_eq(&self.0, &other.0)
     }
 
-    pub(super) fn r_initialization(&self, complete: bool) {
-        self.0.store(complete, Ordering::Release);
+    pub(super) fn r_initialization(&self, state: RInitializationState) {
+        let permitted = match state {
+            RInitializationState::Entered => false,
+            RInitializationState::Paused | RInitializationState::Complete => true,
+        };
+        self.0.store(permitted, Ordering::Release);
     }
 
     pub(super) fn r_startup_permitted(&self) -> bool {

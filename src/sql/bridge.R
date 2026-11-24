@@ -30,10 +30,9 @@ base::local(
       config$extension_directory <- Sys.getenv(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
       )
-      parent <- if (identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1")) {
-        Sys.getenv("TMPDIR")
-      } else {
-        tempdir()
+      parent <- .Call("mcp_console_managed_tempdir")
+      if (is.null(parent)) {
+        parent <- tempdir()
       }
       storage <- file.path(parent, "mcp-console-duckdb")
       config$secret_directory <- file.path(storage, "stored-secrets")

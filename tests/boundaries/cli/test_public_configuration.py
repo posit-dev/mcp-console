@@ -59,12 +59,21 @@ def observe(binary: Path, root: Path, document: dict, overrides=()) -> dict:
 
 @requires(SANDBOX, NATIVE_FIXTURES)
 def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
-    examples = CONFIGURATION_EXAMPLES
     companions = {}
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         (root / "data").mkdir()
         (root / "secrets").mkdir()
+        parent = root / "private temp"
+        parent.mkdir()
+        examples = CONFIGURATION_EXAMPLES | {
+            "managed_temp_parent": {
+                "sandbox": {
+                    "profile": "read_only",
+                    "tempdir": {"managed": {"parent": str(parent)}},
+                }
+            },
+        }
         for name, document in examples.items():
             native = observe(binary, root, document)
             assert native["filesystem"]["kind"] == "restricted", native
@@ -81,8 +90,18 @@ def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
                 }, native
             else:
                 assert "extends" not in native, native
-            managed = document["sandbox"].get("tempdir", "managed") == "managed"
-            assert ("private_tmp" in native["lifecycle"]) is managed, native
+            tempdir = document["sandbox"].get("tempdir", "managed")
+            if isinstance(tempdir, dict):
+                assert native["lifecycle"]["private_tmp"] == {
+                    "parent": tempdir["managed"]["parent"],
+                    "environment": ["TMPDIR"],
+                }, native
+            elif tempdir == "managed":
+                assert native["lifecycle"]["private_tmp"] == {
+                    "environment": ["TMPDIR"]
+                }, native
+            else:
+                assert "private_tmp" not in native["lifecycle"], native
             assert "tempdir" not in native, native
             if isinstance(document["sandbox"].get("network"), dict):
                 proxy = native["proxy"]
@@ -97,9 +116,10 @@ def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
             else:
                 assert "proxy" not in native
             # Keep every transport field, normalizing only incidental paths.
-            native = json.loads(json.dumps(native).replace(str(root), "<workspace>"))
             if sys.platform == "darwin":
-                companions[f"{name}.darwin.yaml"] = [document, native]
+                companions[f"{name}.darwin.yaml"] = json.loads(
+                    json.dumps([document, native]).replace(str(root), "<workspace>")
+                )
     return TranscriptWithCompanions([{"native_launches": list(examples)}], companions)
 
 

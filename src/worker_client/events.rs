@@ -10,6 +10,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use crate::relay_protocol::{PARTIAL_COMMAND_EOF, RelayCommand, RelayEvent};
+use crate::worker_protocol::RInitializationState;
 
 use super::lifecycle::OldGenerationCommitDisposition;
 use super::{OutputTape, WorkerCallbacks, WorkerProcessOutcome};
@@ -311,10 +312,14 @@ fn dispatch_worker_events(
                         "worker relay sent a semantic event after closing the worker sideband"
                             .to_string(),
                     ),
-                    RelayEvent::RInitialization { complete: false } => {
-                        // Retirement must retain evidence of startup user code,
-                        // even when ordinary callbacks are no longer admitted.
-                        callbacks.generation.r_initialization(false);
+                    RelayEvent::RInitialization {
+                        state: RInitializationState::Entered,
+                    } => {
+                        // Retain native entry even when retirement has closed
+                        // admission to ordinary callbacks.
+                        callbacks
+                            .generation
+                            .r_initialization(RInitializationState::Entered);
                         Ok(())
                     }
                     _ if semantic_failure => Ok(()),
@@ -772,8 +777,8 @@ fn handle_semantic_event(
         RelayEvent::RuntimeInitialized { interrupted } => {
             callbacks.finish_bootstrap(operation, interrupted)
         }
-        RelayEvent::RInitialization { complete } => {
-            callbacks.generation.r_initialization(complete);
+        RelayEvent::RInitialization { state } => {
+            callbacks.generation.r_initialization(state);
             Ok(())
         }
         event @ (RelayEvent::Completed

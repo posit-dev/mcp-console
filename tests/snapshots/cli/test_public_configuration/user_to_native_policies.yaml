@@ -12,3 +12,4 @@ native_launches:
   - workspace_read_write_temp
   - read_only_temp
   - groups
+  - managed_temp_parent

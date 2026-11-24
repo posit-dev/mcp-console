@@ -49,7 +49,10 @@ def test_materializes_home_paths_and_preserves_literal_values(
         selected = root / "config.json"
         source = {
             "r": "~/R/bin/R",
-            "sandbox": {"filesystem": filesystem},
+            "sandbox": {
+                "filesystem": filesystem,
+                "tempdir": {"managed": {"parent": "~"}},
+            },
             "environment": {"HOME": str(root / "child-home"), "LITERAL": "~/${HOME}"},
             "tool": {"instructions": "Keep ~ and ${HOME} literal."},
         }
@@ -81,6 +84,7 @@ def test_materializes_home_paths_and_preserves_literal_values(
                 "read_write": [str(home / "output"), *filesystem["read_write"][1:]],
                 "deny": [str(home)],
             }, settings
+            assert settings["sandbox"]["tempdir"] == {"managed": {"parent": str(home)}}
             assert settings["environment"] == source["environment"], settings
             assert settings["tool"]["instructions"] == source["tool"]["instructions"], (
                 settings
@@ -156,6 +160,7 @@ def test_home_paths_reject_relative_home(binary: Path) -> Transcript:
             ("--no-config", "-c", "r.executable=~/R"),
             ("--no-config", "-c", "python=~/python"),
             ("--no-config", "-c", "sandbox.filesystem.deny=[~/private]"),
+            ("--no-config", "-c", "sandbox.tempdir.managed.parent=~/private"),
             ("--config-file", "~/config.yaml"),
         ):
             result = resolve(binary, root, environment, *arguments)
@@ -177,13 +182,19 @@ def test_materializes_resolver_home_paths(binary: Path) -> Transcript:
             "resolver.environment.HOME=/resolver-home",
             "-c",
             "resolver.sandbox.filesystem={read_only: [~/data], read_write: [~/cache], deny: [~/private]}",
+            "-c",
+            "resolver.sandbox.tempdir.managed.parent=~/resolver temp",
         )
         assert result.returncode == 0 and result.stderr == "", result
-        assert json.loads(result.stdout)["resolver"]["sandbox"]["filesystem"] == {
+        sandbox = json.loads(result.stdout)["resolver"]["sandbox"]
+        assert sandbox["filesystem"] == {
             "read_only": [str(root / "data")],
             "read_write": [str(root / "cache")],
             "deny": [str(root / "private")],
         }, result
+        assert sandbox["tempdir"] == {
+            "managed": {"parent": str(root / "resolver temp")}
+        }
     return [{"resolver_paths_use_launch_home": True}]
 
 

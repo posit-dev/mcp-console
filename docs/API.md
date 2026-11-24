@@ -189,7 +189,10 @@ After initial runtime discovery or preparation fails, fix the reported problem.
 The default session requires an explicit restart; a named session retries on its next code call or an explicit restart.
 Polls and input alone retain the failure until discovery succeeds.
 Rejected code and input are not replayed.
-If configured session startup code or native R initialization may already have run, an explicit restart is required before another attempt.
+If configured session startup or native R initialization fails or is interrupted after it may have run, explicitly restart before another attempt.
+When the worker reports that R needs a temporary directory without whitespace, startup is paused and Python keeps its state.
+You can correct `TMPDIR` in a live Python cell and retry the R cell in the same worker.
+If a configured [SQL startup block](RUNTIME_CONFIGURATION.md#session-startup-source) failed, SQL still requires an explicit restart.
 
 ### Standard input and managed reads
 

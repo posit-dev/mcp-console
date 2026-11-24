@@ -1,0 +1,64 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.yaml
+---
+send:
+  python: answer = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    private = Path(os.environ["TMPDIR"]).relative_to(Path.cwd() / "private temp")
+    os.environ["TMP"] = str(Path.cwd() / "alias" / private)
+    os.environ["TMPDIR"] = str(Path.cwd() / "missing temp")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: identical(dirname(tempdir()), Sys.getenv("TMP"))
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

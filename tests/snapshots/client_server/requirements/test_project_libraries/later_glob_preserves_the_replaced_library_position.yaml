@@ -1,0 +1,82 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: |
+    import os
+    import subprocess
+    from pathlib import Path
+
+    old = os.environ["MCP_CONSOLE_R_LIBRARY"]
+    Path("libs/pkg").symlink_to(old)
+    os.environ["R_LIBS_SITE"] = str(Path("project-last").resolve())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    paths = subprocess.check_output(["printenv", "R_LIBS"], text=True).strip()
+    os.environ["R_LIBS"] = paths + ":unmatched-*"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: del os.environ["TMPDIR"]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    project <- normalizePath(c("libs/pkg", "project-first", "project-last"))
+    paths <- .libPaths()
+    stopifnot(
+      identical(paths[paths %in% project], project),
+      !normalizePath("resolved-r-libraries/consolefirst") %in% paths,
+      consolefirst::fixture(),
+      consolesecond::fixture()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

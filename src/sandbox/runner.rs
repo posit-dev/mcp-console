@@ -60,12 +60,15 @@ pub(super) fn run(
         // This is also the serve path: an ambient value never selects policy.
         let mut lifecycle = json!({});
         match crate::settings::Tempdir::from_settings(&settings) {
-            crate::settings::Tempdir::Managed => {
+            crate::settings::Tempdir::Managed(parent) => {
                 lifecycle["private_tmp"] = json!({"environment": if cfg!(windows) {
                     vec!["TMPDIR", "TEMP", "TMP"]
                 } else {
                     vec!["TMPDIR"]
                 }});
+                if let Some(parent) = parent {
+                    lifecycle["private_tmp"]["parent"] = json!(parent);
+                }
             }
             crate::settings::Tempdir::ReadWrite => {
                 // Resolve from the workload environment, not the supervisor's

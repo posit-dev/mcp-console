@@ -164,6 +164,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
                 "\
 ## Temporary storage options:
 ## - managed (default): private writable storage with Console cleanup.
+##   Use {managed: {parent: /absolute/path}} to place it in an existing directory.
 ## - read_write: writable host temp directories, without Console cleanup.
 ## - read_only: no private storage or automatic temporary write grants;
 ##   other filesystem permissions still apply.

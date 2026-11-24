@@ -117,6 +117,11 @@ struct PythonApi {
     call_no_args: PyObjectCallNoArgs,
     call_function_obj_args: PyObjectCallFunctionObjArgs,
     unicode_from_string_and_size: PyUnicodeFromStringAndSize,
+    #[cfg(unix)]
+    unicode_from_path: PyUnicodeFromStringAndSize,
+    #[cfg(windows)]
+    unicode_from_path: unsafe extern "C" fn(*const u16, isize) -> *mut PyObject,
+    call_function: unsafe extern "C" fn(*mut PyObject, *const libc::c_char, ...) -> *mut PyObject,
     long_as_long: PyLongAsLong,
     dec_ref: PyDecRef,
     err_fetch: PyErrFetch,
@@ -486,6 +491,46 @@ pub(super) fn services_installed() -> Result<bool, String> {
         .ok_or("Python shared library is not loaded")?
         .setup
         .services)
+}
+
+pub(crate) fn refresh_r_installation(
+    installation: &crate::local_runtime::RInstallation,
+) -> Result<(), String> {
+    if initialized_selection()?.is_none() || !services_installed()? {
+        return Ok(());
+    }
+    api()?.with_gil(|api| unsafe {
+        for (name, path) in installation.environment() {
+            let set = api.function(c"_mcp_console_services", c"set_r_installation_path")?;
+            let key = CString::new(name).expect("R installation environment name");
+            // Match os.environ's filesystem decoding on Unix, and preserve
+            // the native UTF-16 path on Windows.
+            #[cfg(unix)]
+            let native = std::os::unix::ffi::OsStrExt::as_bytes(path);
+            #[cfg(windows)]
+            let native: Vec<u16> = std::os::windows::ffi::OsStrExt::encode_wide(path).collect();
+            let value = (api.unicode_from_path)(native.as_ptr().cast(), native.len() as isize);
+            if value.is_null() {
+                api.display_pending_exception();
+                return Err(format!("cannot decode {name} for Python"));
+            }
+            let result = (api.call_function)(set, c"sO".as_ptr(), key.as_ptr(), value);
+            (api.dec_ref)(value);
+            if result.is_null() {
+                api.display_pending_exception();
+                return Err(format!("cannot set {name} for Python"));
+            }
+            (api.dec_ref)(result);
+        }
+        Ok(())
+    })
+}
+
+pub(crate) fn publish_r_session() -> Result<(), String> {
+    if initialized_selection()?.is_some() && services_installed()? {
+        api()?.with_gil(|api| api.call_unit(c"_mcp_console_services", c"publish_r_session"))?;
+    }
+    Ok(())
 }
 
 pub(super) fn install_services() -> Result<(), String> {
@@ -1368,6 +1413,13 @@ impl PythonApi {
             unicode_from_string_and_size: unsafe {
                 load_symbol(library, path, b"PyUnicode_FromStringAndSize\0")?
             },
+            #[cfg(unix)]
+            unicode_from_path: unsafe {
+                load_symbol(library, path, b"PyUnicode_DecodeFSDefaultAndSize\0")?
+            },
+            #[cfg(windows)]
+            unicode_from_path: unsafe { load_symbol(library, path, b"PyUnicode_FromWideChar\0")? },
+            call_function: unsafe { load_symbol(library, path, b"PyObject_CallFunction\0")? },
             long_as_long: unsafe { load_symbol(library, path, b"PyLong_AsLong\0")? },
             dec_ref: unsafe { load_symbol(library, path, b"Py_DecRef\0")? },
             err_fetch: unsafe { load_symbol(library, path, b"PyErr_Fetch\0")? },

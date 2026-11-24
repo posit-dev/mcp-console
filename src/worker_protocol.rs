@@ -27,6 +27,14 @@ pub(crate) enum RResolutionFailureKind {
     Operation,
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RInitializationState {
+    Entered,
+    Paused,
+    Complete,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum ServerMessage {
@@ -215,7 +223,7 @@ pub(crate) enum WorkerMessage {
         interrupted: bool,
     },
     RInitialization {
-        complete: bool,
+        state: RInitializationState,
     },
     ConsoleOutput {
         data: String,

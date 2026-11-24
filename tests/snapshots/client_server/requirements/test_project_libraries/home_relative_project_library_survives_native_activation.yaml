@@ -1,0 +1,82 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  r: 1L
+result:
+  content:
+    - type: text
+      text: >
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import os; del os.environ["TMPDIR"]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    project <- file.path(
+      getwd(),
+      c(
+        "project-first",
+        "resolved-r-libraries/consolefirst",
+        "project-last"
+      )
+    )
+    initial <- .libPaths()
+    stopifnot(identical(dirname(find.package("consolefirst")), project[[2L]]))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    replacement <- file.path(
+      getwd(),
+      "resolved-r-libraries/consolefirst-consolesecond"
+    )
+    paths <- .libPaths()
+    stopifnot(
+      project[[2L]] %in% paths,
+      identical(paths[2:5], c(replacement, project)),
+      identical(initial[2:4], project),
+      identical(dirname(find.package("consolesecond")), replacement),
+      consolefirst::fixture(),
+      consolesecond::fixture()
+    )
+    cat("project library retained across native activation\n")
+result:
+  content:
+    - type: text
+      text: |
+        project library retained across native activation
+  isError: false

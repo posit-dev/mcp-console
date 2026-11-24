@@ -1,0 +1,82 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: >-
+        Error: R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R; SQL withheld; explicit restart
+        required
+
+
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import os
+
+    assert importlib.util.find_spec("rpy2.rinterface") is not None
+    assert f"PID={os.getpid()}" not in os.environ.get("R_SESSION_INITIALIZED", "").split(
+        ":"
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    try:
+        from rpy2 import rinterface
+    except RuntimeError as error:
+        print(error)
+    else:
+        raise AssertionError("rpy2 attached while R was paused")
+result:
+  content:
+    - type: text
+      text: >
+        R requires a temporary directory without whitespace. Set
+        sandbox.tempdir.managed.parent to a suitable directory and relaunch
+        Console, or set TMPDIR before starting R.
+  isError: false
+---
+send:
+  python: |
+    paths = {
+        key: os.environ[key]
+        for key in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+    }
+    for key in paths:
+        os.environ[key] = os.path.join(os.getcwd(), "missing-r", key)
+    os.environ["TMPDIR"] = os.getcwd()
+    from rpy2 import rinterface
+    from rpy2.rinterface_lib import embedded, openrlib
+
+    assert embedded.is_r_externally_initialized()
+    assert {key: os.environ[key] for key in paths} == paths
+    assert openrlib.R_HOME == paths["R_HOME"]
+    assert rinterface.evalr is profile_evalr
+    assert rinterface.evalr("Sys.getpid()")[0] == os.getpid()
+    _ = rinterface.evalr("attached_value <- profile_value")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: attached_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

@@ -22,11 +22,7 @@ pub(super) enum Selection {
 }
 
 pub(crate) fn configure_worker_environment() -> std::io::Result<()> {
-    super::platform::set_environment(c"RETICULATE_REMAP_OUTPUT_STREAMS", c"0", true)?;
-    // R is already embedded. Keep the interoperability marker independently
-    // of Python selection, including Python startup hooks that import rpy2.
-    let marker = std::ffi::CString::new(format!("PID={}:NAME=\"reticulate\"", std::process::id()))?;
-    super::platform::set_environment(c"R_SESSION_INITIALIZED", &marker, true)
+    super::platform::set_environment(c"RETICULATE_REMAP_OUTPUT_STREAMS", c"0", true)
 }
 
 #[allow(clippy::result_large_err)]

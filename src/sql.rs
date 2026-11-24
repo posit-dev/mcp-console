@@ -32,13 +32,19 @@ pub(crate) struct Bridge {
 impl Bridge {
     pub(crate) fn initialize(&self) -> Result<(), String> {
         if crate::worker::r_available() {
-            self.r_backend()?.initialize_managed()
+            if crate::worker::ensure_r()?.ready_or_report() {
+                self.r_backend()?.initialize_managed()?;
+            }
+            Ok(())
         } else {
             crate::python::initialize_managed_sql()
         }
     }
 
     pub(crate) fn initialize_r_source(&self, source: &str) -> Result<bool, String> {
+        if !crate::worker::ensure_r()?.ready()? {
+            return Ok(false);
+        }
         self.r_backend()?.initialize_source(source)
     }
 
@@ -53,7 +59,6 @@ impl Bridge {
     }
 
     fn r_backend(&self) -> Result<std::rc::Rc<r_dbi::Backend>, String> {
-        crate::worker::ensure_r()?;
         R_BACKEND
             .with(|slot| slot.get().cloned())
             .ok_or("R SQL backend is unavailable".into())
@@ -76,6 +81,9 @@ impl Bridge {
         match py_dbapi::dispatch(source)? {
             py_dbapi::Provider::Handled => Ok(()),
             provider @ (py_dbapi::Provider::Managed | py_dbapi::Provider::R) => {
+                if !crate::worker::ensure_r()?.ready_or_report() {
+                    return Ok(());
+                }
                 let r_dbi = self.r_backend()?;
                 if matches!(provider, py_dbapi::Provider::Managed) {
                     r_dbi.restore_managed()?;

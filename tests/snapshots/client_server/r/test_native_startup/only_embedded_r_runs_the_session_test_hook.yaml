@@ -1,0 +1,18 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(
+      identical(readLines(marker), as.character(Sys.getpid())),
+      identical(
+        normalizePath(dirname(tempdir()), winslash = "/"),
+        normalizePath(Sys.getenv("TMP"), winslash = "/")
+      ),
+      normalizePath("project-library", winslash = "/") %in% .libPaths()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

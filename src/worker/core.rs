@@ -22,7 +22,7 @@ static EXECUTION_ERROR: Mutex<Option<crate::worker_protocol::ExecutionError>> = 
 static BOOTSTRAPPING: AtomicBool = AtomicBool::new(false);
 static BOOTSTRAP_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
-pub(crate) fn bootstrapping() -> bool {
+pub(super) fn bootstrapping() -> bool {
     BOOTSTRAPPING.load(Ordering::Relaxed)
 }
 

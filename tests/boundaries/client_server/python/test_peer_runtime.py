@@ -17,11 +17,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.python.test_setup import deferred_selection_client
 
 from support.progress import without_elapsed
-from support.requirements import NATIVE_FIXTURES, POSIX, R, SQL, command, requires
+from support.requirements import (
+    NATIVE_FIXTURES,
+    NATIVE_RETICULATE_PROFILE,
+    POSIX,
+    R,
+    SANDBOX,
+    SQL,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.assertions import (
     assert_result_content,
     last_result_text,
     wait_for_evaluation_output,
+    wait_for_idle_output,
 )
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
@@ -256,6 +267,234 @@ def test_late_r_preserves_python_runtime(
                     records = current
     assert records is not None
     return records
+
+
+@requires(R)
+@executions(RUNTIME)
+def test_starts_r_with_a_workspace_ctypes_module(
+    binary: Path, execution: Execution
+) -> Transcript:
+    environment, _ = r_test_environment()
+    environment["RETICULATE_PYTHON"] = sys.executable
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory).resolve()
+        (workspace / "ctypes.py").write_text("workspace_module = True\n")
+        modules = workspace / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environment["RETICULATE_PYTHONPATH"] = str(modules)
+        with McpClient(
+            binary,
+            execution.serve("-c", "python=" + json.dumps(sys.executable)),
+            environment,
+            workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            defer_r_bootstrap(client)
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import sys
+                    from pathlib import Path
+
+                    _ = sys.modules.pop("ctypes", None)
+                    assert Path(importlib.util.find_spec("ctypes").origin) == Path.cwd() / "ctypes.py"
+                    """)
+            )
+            client.expect("[1] 42\n", r="42L")
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import sys
+
+                    assert not getattr(sys.modules.get("ctypes"), "workspace_module", False)
+                    """)
+            )
+            return client.finish()
+
+
+def rpy2_environment(
+    root: Path, *, robjects: bool = False
+) -> tuple[dict[str, str], Path]:
+    environment, _ = r_test_environment()
+    environment["RPY2_CFFI_MODE"] = "ABI"
+    prefix = root / "venv"
+    subprocess.run(
+        ["uv", "venv", "--python", sys.executable, prefix],
+        check=True,
+        capture_output=True,
+    )
+    executable = virtualenv_python(prefix)
+    package = "rpy2-robjects" if robjects else "rpy2-rinterface"
+    subprocess.run(
+        ["uv", "pip", "install", "--python", executable, "numpy", package],
+        env=environment,
+        check=True,
+        capture_output=True,
+    )
+    environment["RETICULATE_PYTHON"] = str(executable)
+    profile = root / ".Rprofile"
+    # rpy2 also launches noninteractive Rscript children to discover R settings.
+    # Only the worker's interactive profile exercises reentrant attachment.
+    if robjects:
+        # fmt: python
+        source = code("""
+            from rpy2.robjects import r as profile_r
+
+            _ = profile_r("profile_value <- 42L")
+            """)
+    else:
+        # fmt: python
+        source = code("""
+            from rpy2 import rinterface
+            from rpy2.rinterface_lib import embedded
+
+            assert embedded.is_r_externally_initialized()
+            _ = rinterface.initr()
+            profile_evalr = rinterface.evalr
+            _ = profile_evalr("profile_value <- 42L")
+            """)
+    # robjects looks up the attached utils and methods packages. R normally
+    # attaches its default packages after the user profile returns.
+    setup = "library(utils)\nlibrary(methods)\n" if robjects else ""
+    profile.write_text(
+        f"if (interactive()) {{\n{setup}reticulate::py_run_string({json.dumps(source)})\n}}\n"
+    )
+    environment["R_PROFILE_USER"] = str(profile)
+    return environment, executable
+
+
+@requires(SANDBOX, command("uv"), posix_r_tempdir_whitespace(accepted=False))
+def test_r_attachment_waits_for_a_usable_interpreter(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        root = Path(directory).resolve()
+        (root / "private temp").mkdir()
+        environment, executable = rpy2_environment(root)
+        arguments = SANDBOXED.serve(
+            "--writable-root",
+            str(root),
+            "-c",
+            "python=" + json.dumps(str(executable)),
+            "-c",
+            'startup={language: r, code: "startup_completed <- TRUE"}',
+            "-c",
+            "sandbox.tempdir.managed.parent=" + json.dumps(str(root / "private temp")),
+        )
+        with McpClient(
+            binary, arguments, environment, root, use_r_startup_files=True
+        ) as client:
+            client.initialize_and_list_tools()
+            diagnostic = (
+                "R requires a temporary directory without whitespace. "
+                "Set sandbox.tempdir.managed.parent to a suitable directory and relaunch Console, "
+                "or set TMPDIR before starting R"
+            )
+            wait_for_idle_output(
+                client,
+                f"Error: {diagnostic}; SQL withheld; explicit restart required\n\n[idle]",
+                "configured R startup pause",
+                completion_timeout_seconds=client.response_timeout,
+            )
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import os
+
+                    assert importlib.util.find_spec("rpy2.rinterface") is not None
+                    assert f"PID={os.getpid()}" not in os.environ.get("R_SESSION_INITIALIZED", "").split(
+                        ":"
+                    )
+                    """)
+            )
+            client.expect(
+                f"{diagnostic}.\n",
+                # fmt: python
+                python=code("""
+                    try:
+                        from rpy2 import rinterface
+                    except RuntimeError as error:
+                        print(error)
+                    else:
+                        raise AssertionError("rpy2 attached while R was paused")
+                    """),
+            )
+            client.expect(
+                # fmt: python
+                python=code("""
+                    paths = {
+                        key: os.environ[key]
+                        for key in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
+                    }
+                    for key in paths:
+                        os.environ[key] = os.path.join(os.getcwd(), "missing-r", key)
+                    os.environ["TMPDIR"] = os.getcwd()
+                    from rpy2 import rinterface
+                    from rpy2.rinterface_lib import embedded, openrlib
+
+                    assert embedded.is_r_externally_initialized()
+                    assert {key: os.environ[key] for key in paths} == paths
+                    assert openrlib.R_HOME == paths["R_HOME"]
+                    assert rinterface.evalr is profile_evalr
+                    assert rinterface.evalr("Sys.getpid()")[0] == os.getpid()
+                    _ = rinterface.evalr("attached_value <- profile_value")
+                    """)
+            )
+            client.expect("[1] 42\n", r="attached_value")
+            return client.finish()
+
+
+@requires(R, command("uv"), NATIVE_RETICULATE_PROFILE)
+@executions(RUNTIME)
+def test_rpy2_robjects_import_can_run_a_profile_using_robjects(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        environment, executable = rpy2_environment(root, robjects=True)
+        modules = root / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environment["RETICULATE_PYTHONPATH"] = str(modules)
+        with McpClient(
+            binary,
+            execution.serve("-c", "python=" + json.dumps(str(executable))),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            defer_r_bootstrap(client)
+            client.expect(
+                # fmt: python
+                python=code("""
+                    from rpy2.robjects import r
+
+                    assert r is profile_r
+                    assert r("profile_value")[0] == 42
+                    _ = r("attached_value <- profile_value")
+                    """)
+            )
+            client.expect("[1] 42\n", r="attached_value")
+            return client.finish()
+
+
+@requires(R, command("uv"), NATIVE_RETICULATE_PROFILE)
+@executions(RUNTIME)
+def test_rpy2_attaches_from_a_native_r_profile(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        environment, executable = rpy2_environment(root)
+        arguments = execution.serve("-c", "python=" + json.dumps(str(executable)))
+        with McpClient(
+            binary, arguments, environment, root, use_r_startup_files=True
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("[1] 42\n", r="profile_value")
+            return client.finish()
 
 
 @requires(R, command("uv"))

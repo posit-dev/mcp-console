@@ -83,6 +83,17 @@ config_node <- function(class, fields, path) {
   do.call(class, config_node_fields(class, fields, path))
 }
 
+config_tagged_node <- function(class, tag, value, path) {
+  if (!is.list(value) || S7::S7_inherits(value, class)) {
+    return(value)
+  }
+  value <- config_mapping_fields(value, path)
+  if (!identical(names(value), tag) || is.null(value[[tag]])) {
+    stop(sprintf("`%s` must contain a `%s` mapping.", path, tag), call. = FALSE)
+  }
+  config_node(class, value[[tag]], paste0(path, ".", tag))
+}
+
 config_character_array <- function(value, path) {
   if (is.atomic(value) && !length(value)) {
     return(character())
@@ -274,26 +285,16 @@ config_coerce_value <- function(class, name, value, path) {
       value <- list(proxy = list(domains = list(allow = value)))
     }
   }
-  if (
-    class == "SandboxPolicy" &&
-      name == "profile" &&
-      !S7::S7_inherits(value, InheritCodexSandboxProfile) &&
-      is.list(value)
-  ) {
-    value <- config_mapping_fields(value, path)
-    if (
-      !identical(names(value), "inherit_codex") || is.null(value$inherit_codex)
-    ) {
-      stop(
-        sprintf("`%s` must contain an inherit_codex mapping.", path),
-        call. = FALSE
-      )
-    }
-    return(config_node(
+  if (class == "SandboxPolicy" && name == "profile") {
+    return(config_tagged_node(
       InheritCodexSandboxProfile,
-      value$inherit_codex,
-      paste0(path, ".inherit_codex")
+      "inherit_codex",
+      value,
+      path
     ))
+  }
+  if (class == "SandboxPolicy" && name == "tempdir") {
+    return(config_tagged_node(ManagedTempdir, "managed", value, path))
   }
   if (!is.null(child)) {
     return(config_node(child, value, path))

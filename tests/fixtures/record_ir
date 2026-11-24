@@ -63,7 +63,7 @@ def fixture_library(arguments: list[str]) -> Path | None:
         link = library / requirement
         if not link.exists():
             link.symlink_to(packages[0], target_is_directory=True)
-    return library.resolve()
+    return library
 
 
 def main() -> None:
@@ -105,8 +105,12 @@ def main() -> None:
         wait(os.environ["MCP_CONSOLE_TEST_IR_RELEASE"])
 
     if library := fixture_library(arguments):
-        print(library, end="")
-        return
+        # ir runs the selected Rscript with the resolved library in R_LIBS.
+        # Exercise Console's real probe, including native R startup expansion.
+        rscript = arguments[arguments.index("--rscript") + 1]
+        flags = arguments[arguments.index("--isolated") + 1 :]
+        os.environ.update(R_LIBS=str(library), R_LIBS_USER="NULL")
+        os.execv(rscript, [rscript, *flags])
 
     executable = os.environ["MCP_CONSOLE_TEST_REAL_IR"]
     base_value = os.environ.get("MCP_CONSOLE_TEST_IR_BASE_LIBRARY")

@@ -13,6 +13,7 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=src/r_graphics.c");
     println!("cargo:rerun-if-changed=src/r_repl.c");
+    println!("cargo:rerun-if-changed=src/worker/embedded_r/tempdir.c");
     println!("cargo:rerun-if-changed=src/worker/interrupt.c");
 
     if matches!(
@@ -31,6 +32,7 @@ fn main() {
         native
             .file("src/r_graphics.c")
             .file("src/r_repl.c")
+            .file("src/worker/embedded_r/tempdir.c")
             .compile("mcp_console_r_repl");
     }
 }

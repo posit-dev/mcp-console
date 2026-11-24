@@ -366,8 +366,8 @@ class WindowsRelay(unittest.TestCase):
             [events.get(timeout=15) for _ in range(3)],
             [
                 {"kind": "cell_started"},
-                {"kind": "r_initialization", "complete": False},
-                {"kind": "r_initialization", "complete": True},
+                {"kind": "r_initialization", "state": "entered"},
+                {"kind": "r_initialization", "state": "complete"},
             ],
         )
         self.assertEqual(events.get(timeout=15), {"kind": "completed"})
@@ -463,8 +463,8 @@ class WindowsRelay(unittest.TestCase):
             [events.get(timeout=15) for _ in range(3)],
             [
                 {"kind": "cell_started"},
-                {"kind": "r_initialization", "complete": False},
-                {"kind": "r_initialization", "complete": True},
+                {"kind": "r_initialization", "state": "entered"},
+                {"kind": "r_initialization", "state": "complete"},
             ],
         )
         self.assertEqual(events.get(timeout=15), {"kind": "completed"})

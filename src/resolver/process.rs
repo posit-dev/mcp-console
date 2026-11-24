@@ -15,6 +15,7 @@ use native::{interrupt_resolver, stop_resolver};
 
 use std::io;
 use std::io::{Read, Write};
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::process::ExitStatus;
 use std::process::{Command, Stdio};
@@ -23,6 +24,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
 use std::thread::{self, JoinHandle};
 
+use super::ResolverControlOutcome;
 use crate::process_exit::ChildExitWaiter;
 
 #[derive(Clone)]
@@ -105,6 +107,18 @@ enum ResolverInterrupt {
     Signaled,
     AlreadyExited,
 }
+
+/// Cancellation observed by the native wait, after successful retirement.
+#[derive(Debug)]
+pub(crate) struct ResolverCancelled(String);
+
+impl std::fmt::Display for ResolverCancelled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for ResolverCancelled {}
 
 pub(crate) struct ResolverOutput {
     pub(crate) status: ExitStatus,
@@ -257,17 +271,37 @@ impl ResolverProcess {
 
     pub(crate) fn collect(
         &self,
-        mut invocation: ResolverInvocation,
+        invocation: ResolverInvocation,
         program: &Path,
         kind: &str,
         on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<ResolverOutput, String> {
+        match self.collect_or_cancel(invocation, program, kind, on_started)? {
+            ControlFlow::Continue(output) => Ok(output),
+            ControlFlow::Break(cancelled) => Err(cancelled.0),
+        }
+    }
+
+    /// Return a cancellation separately only when it ended the wait and all
+    /// native retirement, observation and I/O work completed successfully.
+    pub(crate) fn collect_or_cancel(
+        &self,
+        mut invocation: ResolverInvocation,
+        program: &Path,
+        kind: &str,
+        on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
+    ) -> Result<ControlFlow<ResolverCancelled, ResolverOutput>, String> {
         let outcome = on_started(self.stop_handle())
             .and_then(|()| wait_for_resolver_exit(&mut invocation.child, self, program, kind));
         #[cfg(unix)]
-        let interrupted = matches!(outcome, Ok(true));
+        let interrupted = matches!(outcome, Ok(Some(ResolverControlOutcome::Interrupted)));
+        let mut cancelled = matches!(outcome, Ok(Some(ResolverControlOutcome::Cancelled)));
         let mut failure = ResolverFailure {
-            primary: outcome.err(),
+            primary: if cancelled {
+                Some(format!("{kind} resolution cancelled"))
+            } else {
+                outcome.err()
+            },
             cleanup: Vec::new(),
         };
         #[cfg(windows)]
@@ -297,6 +331,13 @@ impl ResolverProcess {
             ));
         }
         if let Err(error) = self.finish_wait(kind) {
+            // Cancellation can arrive between observing normal exit and
+            // finishing collection. An independent failure retains its cause.
+            if failure.primary.is_none()
+                && retirement.process.as_ref().is_ok_and(ExitStatus::success)
+            {
+                cancelled = true;
+            }
             failure.primary.get_or_insert(error);
         }
         let write_result = match retirement.input {
@@ -309,6 +350,7 @@ impl ResolverProcess {
         };
         let stdout = collect_output(retirement.stdout, "stdout", &mut failure);
         let stderr = collect_output(retirement.stderr, "stderr", &mut failure);
+        let clean_cancel = cancelled && failure.cleanup.is_empty() && write_result.is_ok();
         let result = if let Some(mut error) = failure.into_message() {
             // A cleanup error must not erase the operation's captured diagnostic.
             let diagnostic = String::from_utf8_lossy(&stderr);
@@ -322,20 +364,28 @@ impl ResolverProcess {
                 error.push_str(": ");
                 error.push_str(detail);
             }
-            Err(error)
+            if clean_cancel {
+                Ok(ControlFlow::Break(ResolverCancelled(error)))
+            } else {
+                Err(error)
+            }
         } else {
-            Ok(ResolverOutput {
+            Ok(ControlFlow::Continue(ResolverOutput {
                 status: retirement.process.expect("confirmed resolver status"),
                 write_result,
                 stdout,
                 stderr,
                 interrupted,
                 terminal: self.terminal.clone(),
-            })
+            }))
         };
         *self.terminal.lock().expect("resolver terminal report lock") =
             Some(super::ResolverTerminalReport {
-                result: result.as_ref().map(|_| ()).map_err(Clone::clone),
+                result: match &result {
+                    Ok(ControlFlow::Continue(_)) => Ok(()),
+                    Ok(ControlFlow::Break(cancelled)) => Err(cancelled.0.clone()),
+                    Err(error) => Err(error.clone()),
+                },
                 control: self.stop_handle().control_outcome(),
                 confirmed: self.cleanup.load(Ordering::SeqCst),
             });
@@ -546,14 +596,14 @@ fn wait_for_resolver_exit(
     resolver: &ResolverProcess,
     program: &Path,
     kind: &str,
-) -> Result<bool, String> {
+) -> Result<Option<ResolverControlOutcome>, String> {
     #[cfg(unix)]
-    let mut interrupted = false;
+    let mut outcome = None;
     #[cfg(windows)]
-    let interrupted = false;
+    let outcome = None;
     loop {
         match resolver.event_receiver.recv() {
-            Ok(ResolverEvent::Cancel) => return Err(format!("{kind} resolution cancelled")),
+            Ok(ResolverEvent::Cancel) => return Ok(Some(ResolverControlOutcome::Cancelled)),
             Ok(ResolverEvent::Interrupt {
                 reply,
                 clear_marker,
@@ -563,10 +613,12 @@ fn wait_for_resolver_exit(
                     // Windows terminates the owned Job. Retirement confirms
                     // exit before using the recorded root termination cause.
                     #[cfg(windows)]
-                    return Ok(child.interrupted());
+                    return Ok(child
+                        .interrupted()
+                        .then_some(ResolverControlOutcome::Interrupted));
                     #[cfg(unix)]
                     {
-                        interrupted = true;
+                        outcome = Some(ResolverControlOutcome::Interrupted);
                     }
                 }
                 Ok(ResolverInterrupt::AlreadyExited) => {
@@ -585,7 +637,7 @@ fn wait_for_resolver_exit(
                 }
             },
             Ok(ResolverEvent::Exited(result)) => {
-                return result.map(|()| interrupted).map_err(|error| {
+                return result.map(|()| outcome).map_err(|error| {
                     format!(
                         "failed to wait for {kind} resolver `{}`: {error}",
                         program.display()
