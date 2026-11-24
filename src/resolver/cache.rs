@@ -247,8 +247,12 @@ pub(super) fn validate_default_renv_cache(
     if modern_check.is_ok() && legacy_check.is_ok() {
         return Ok(());
     }
+    let expand = |path: &Path| match (path.strip_prefix("~"), &home) {
+        (Ok(suffix), Some(home)) => home.join(suffix),
+        _ => path.to_owned(),
+    };
     if let RenvLookup::Generated(raw) = lookup
-        && modern.as_ref().is_some_and(|path| path.is_absolute())
+        && let Some(modern) = &modern
     {
         let home = environment_path(raw, "HOME");
         #[cfg(windows)]
@@ -257,17 +261,23 @@ pub(super) fn validate_default_renv_cache(
             .or_else(|| environment_path(raw, "USERPROFILE"));
         if let Some(raw) = r_cache_base(raw, home.as_deref()) {
             let grant = crate::console_paths::expand_permission_home(&raw.join("R/renv"))?;
-            if !crate::settings::has_untrusted_symlink(&grant)? {
+            // R expands a leading tilde using its own home. The grant uses the launch home.
+            let selected = expand(modern);
+            let same_destination = modern.is_absolute()
+                || (selected.is_absolute()
+                    && (selected == grant
+                        || crate::console_paths::canonicalize_existing_prefix(&selected)
+                            .ok()
+                            .zip(crate::console_paths::canonicalize_existing_prefix(&grant).ok())
+                            .is_some_and(|(selected, grant)| selected == grant)));
+            if same_destination && !crate::settings::has_untrusted_symlink(&grant)? {
                 return modern_check;
             }
         }
     }
     // renv checks existence with tilde expansion but splits the original spelling.
     let visible = |path: &Path| {
-        let expanded = match (path.strip_prefix("~"), &home) {
-            (Ok(suffix), Some(home)) => home.join(suffix),
-            _ => path.to_owned(),
-        };
+        let expanded = expand(path);
         locate(&expanded)
             .map(|path| path.exists())
             .or_else(|| absent_in_fresh_directory(&expanded).then_some(false))

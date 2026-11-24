@@ -553,6 +553,8 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
         env = renv_test_environment(root, root / "caches")
         env.pop("RENV_PATHS_CACHE")
         env.pop("RENV_PATHS_ROOT")
+        valid = root / "data"
+        (valid / "renv").mkdir(parents=True)
         for separator in dict.fromkeys((";", os.pathsep)):
             workspace = root / f"study{separator}2026"
             workspace.mkdir()
@@ -571,6 +573,16 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                 {"read_only": ["/"], "deny": [str(modern)]}
             )
             for cwd, cache, variables, options in (
+                (
+                    root,
+                    Path("~") / workspace.name / "R/renv/cache",
+                    {
+                        "HOME": str(root / "account"),
+                        "R_USER_CACHE_DIR": f"~/{workspace.name}",
+                        "XDG_DATA_HOME": str(valid),
+                    },
+                    ("-c", "cache=host"),
+                ),
                 (
                     root,
                     legacy / "renv/cache",
@@ -647,11 +659,10 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                         expected_exit_status=1
                     )
                     assert errors == diagnostic + "\n", errors
+                assert not (root / "account" / workspace.name).exists()
                 assert not (workspace / "dependencies").exists()
                 assert not cache.exists(), cache
                 assert not Path(env["UV_CACHE_DIR"]).exists()
-            valid = root / "data"
-            (valid / "renv").mkdir(parents=True, exist_ok=True)
             with McpClient(
                 binary,
                 (
