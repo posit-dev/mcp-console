@@ -5,6 +5,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import sysconfig
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
@@ -51,6 +52,11 @@ R = Requirement(
         )
     ),
     "requires R_HOME or R on PATH",
+)
+NATIVE_RETICULATE_PROFILE = Requirement(
+    "native reticulate profile",
+    sysconfig.get_platform() != "win-arm64",
+    "reticulate 1.47.0 cannot attach Python in a native R profile on Windows ARM64",
 )
 SANDBOX = Requirement(
     "sandbox",

@@ -19,6 +19,7 @@ from boundaries.client_server.python.test_setup import deferred_selection_client
 from support.progress import without_elapsed
 from support.requirements import (
     NATIVE_FIXTURES,
+    NATIVE_RETICULATE_PROFILE,
     POSIX,
     R,
     SANDBOX,
@@ -444,7 +445,7 @@ def test_r_attachment_waits_for_a_usable_interpreter(binary: Path) -> Transcript
             return client.finish()
 
 
-@requires(R, command("uv"))
+@requires(R, command("uv"), NATIVE_RETICULATE_PROFILE)
 @executions(RUNTIME)
 def test_rpy2_robjects_import_can_run_a_profile_using_robjects(
     binary: Path, execution: Execution
@@ -479,7 +480,7 @@ def test_rpy2_robjects_import_can_run_a_profile_using_robjects(
             return client.finish()
 
 
-@requires(R, command("uv"))
+@requires(R, command("uv"), NATIVE_RETICULATE_PROFILE)
 @executions(RUNTIME)
 def test_rpy2_attaches_from_a_native_r_profile(
     binary: Path, execution: Execution
