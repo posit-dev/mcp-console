@@ -168,6 +168,7 @@ impl Coordinator {
             }
         };
         match result {
+            Ok(false) if core::is_shutting_down() => false,
             Ok(true) if !core::bootstrap_interrupted() => {
                 self.sql.withhold_startup(None);
                 true

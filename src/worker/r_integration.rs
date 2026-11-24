@@ -57,6 +57,7 @@ pub(crate) fn available() -> bool {
 pub(crate) enum RInitialization {
     Ready,
     TempdirWhitespace,
+    ShuttingDown,
 }
 
 const TEMPDIR_WHITESPACE: &str = "R requires a temporary directory without whitespace. \
@@ -64,16 +65,23 @@ const TEMPDIR_WHITESPACE: &str = "R requires a temporary directory without white
     or set TMPDIR before starting R.";
 
 impl RInitialization {
-    pub(crate) fn require(self) -> Result<(), String> {
+    pub(crate) fn ready(self) -> Result<bool, String> {
         match self {
-            Self::Ready => Ok(()),
+            Self::Ready => Ok(true),
             Self::TempdirWhitespace => Err(TEMPDIR_WHITESPACE.into()),
+            Self::ShuttingDown => Ok(false),
         }
+    }
+
+    pub(crate) fn require(self) -> Result<(), String> {
+        self.ready()?
+            .then_some(())
+            .ok_or_else(|| "worker is shutting down".into())
     }
 
     /// Optional eager initialization can defer the diagnostic until a cell needs R.
     pub(crate) fn ready_or_report(self) -> bool {
-        if let Err(error) = self.require() {
+        self.ready().unwrap_or_else(|error| {
             if !core::bootstrapping() {
                 core::emit_output(
                     crate::worker_protocol::ConsoleChannel::Diagnostic,
@@ -84,9 +92,8 @@ impl RInitialization {
                     error,
                 ));
             }
-            return false;
-        }
-        true
+            false
+        })
     }
 }
 
@@ -107,13 +114,14 @@ pub(crate) fn ensure_initialized() -> Result<RInitialization, String> {
     let result = initialize(installation);
     INITIALIZING.store(false, Ordering::SeqCst);
     let result = result.and_then(|outcome| {
-        if INTERRUPTED.load(Ordering::SeqCst) {
-            return Err("R initialization interrupted; explicit restart required".into());
-        }
         let state = match outcome {
             RInitialization::Ready => RInitializationState::Complete,
             RInitialization::TempdirWhitespace => RInitializationState::Paused,
+            RInitialization::ShuttingDown => return Ok(outcome),
         };
+        if INTERRUPTED.load(Ordering::SeqCst) {
+            return Err("R initialization interrupted; explicit restart required".into());
+        }
         core::send_worker_message(&WorkerMessage::RInitialization { state })?;
         Ok(outcome)
     });
@@ -146,9 +154,12 @@ fn initialize(installation: &RInstallation) -> Result<RInitialization, String> {
         // Python could change the installation paths while correcting TMPDIR.
         embedded_r::configure_installation(installation).map_err(|error| error.to_string())?;
     }
-    StartupLibraries::read()
-        .settle(installation)
-        .map_err(|error| error.to_string())?;
+    if let Err(error) = StartupLibraries::read().settle(installation) {
+        if core::is_shutting_down() && error.is::<crate::resolver::process::ResolverCancelled>() {
+            return Ok(RInitialization::ShuttingDown);
+        }
+        return Err(error.to_string());
+    }
     embedded_r::start_mainloop(libraries).map_err(|error| error.to_string())?;
     publish_r_session()?;
     let runtime = Rc::new(embedded_r::Runtime::initialize().map_err(|error| error.to_string())?);
@@ -572,8 +583,12 @@ fn project_glob_libraries(
         let invocation = resolver
             .spawn(&mut command, None)
             .map_err(|error| format!("cannot start Rscript library inspection: {error}"))?;
-        resolver.collect(invocation, &executable, "R library inspection", started)
+        resolver.collect_or_cancel(invocation, &executable, "R library inspection", started)
     })?;
+    let output = match output {
+        std::ops::ControlFlow::Continue(output) => output,
+        std::ops::ControlFlow::Break(cancelled) => return Err(cancelled.into()),
+    };
     if !output.status.success() {
         return Err(output
             .failure(format!(

@@ -145,9 +145,12 @@ pub(crate) fn ensure_initialized(purpose: InitializeFor) -> Result<bool, String>
     // R declarations and selection callbacks genuinely require R. Only an
     // unresolved compatibility selection enters this path.
     let r = crate::worker::ensure_r()?;
-    if matches!(purpose, InitializeFor::ConfiguredStartup) {
-        r.require()?;
-    } else if !r.ready_or_report() {
+    let ready = if matches!(purpose, InitializeFor::ConfiguredStartup) {
+        r.ready()?
+    } else {
+        r.ready_or_report()
+    };
+    if !ready {
         return Ok(false);
     }
     let optional = matches!(purpose, InitializeFor::Eager);
@@ -246,6 +249,9 @@ pub(crate) fn initialize_managed_sql() -> Result<(), String> {
 
 pub(crate) fn initialize_sql_source(source: &str) -> Result<bool, String> {
     if !ensure_initialized(InitializeFor::ConfiguredStartup)? {
+        if crate::worker::is_shutting_down() {
+            return Ok(false);
+        }
         return Err("Python initialization is incomplete".into());
     }
     library::initialize_sql_source(source)

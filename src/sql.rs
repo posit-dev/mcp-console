@@ -42,7 +42,9 @@ impl Bridge {
     }
 
     pub(crate) fn initialize_r_source(&self, source: &str) -> Result<bool, String> {
-        crate::worker::ensure_r()?.require()?;
+        if !crate::worker::ensure_r()?.ready()? {
+            return Ok(false);
+        }
         self.r_backend()?.initialize_source(source)
     }
 

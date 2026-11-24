@@ -124,8 +124,31 @@ def test_worker_reaps_library_probe_on_shutdown_frame(binary: Path) -> Transcrip
     return reap_library_probe(binary, "shutdown_frame")
 
 
+@requires(NATIVE_FIXTURES, R, WORKER)
+def test_eager_r_startup_reaps_library_probe_on_shutdown(binary: Path) -> Transcript:
+    return reap_library_probe(binary, "shutdown_frame", eager=True)
+
+
+@requires(NATIVE_FIXTURES, R, WORKER)
+def test_configured_r_startup_reaps_library_probe_on_shutdown(
+    binary: Path,
+) -> Transcript:
+    return reap_library_probe(binary, "shutdown_frame", eager=True, startup="r")
+
+
+@requires(NATIVE_FIXTURES, R, WORKER)
+def test_configured_python_startup_reaps_library_probe_on_shutdown(
+    binary: Path,
+) -> Transcript:
+    return reap_library_probe(binary, "shutdown_frame", eager=True, startup="python")
+
+
 def reap_library_probe(
-    binary: Path, shutdown: Literal["stdin_eof", "shutdown_frame"]
+    binary: Path,
+    shutdown: Literal["stdin_eof", "shutdown_frame"],
+    *,
+    eager: bool = False,
+    startup: Literal["r", "python"] | None = None,
 ) -> Transcript:
     with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
         root = Path(temporary).resolve()
@@ -145,6 +168,7 @@ def reap_library_probe(
             TMPDIR=str(root),
             R_LIBS=str(library),
             MCP_CONSOLE_R_LIBRARY=str(library),
+            MCP_CONSOLE_LANGUAGES="r",
             R_ENVIRON=os.devnull,
             R_ENVIRON_USER=str(environ),
             R_PROFILE=os.devnull,
@@ -152,13 +176,19 @@ def reap_library_probe(
             MCP_CONSOLE_SIDEBAND_READ_FD=str(worker_read),
             MCP_CONSOLE_SIDEBAND_WRITE_FD=str(worker_write),
         )
+        if startup:
+            transport = root / "startup.json"
+            transport.write_text(json.dumps({"language": startup, "code": "42"}))
+            environment["MCP_CONSOLE_STARTUP_FILE"] = str(transport)
+            # Configured Python can require R to select its interpreter.
+            environment.pop("RETICULATE_PYTHON", None)
         with (
             os.fdopen(worker_read) as incoming,
             os.fdopen(worker_write, "w") as outgoing,
             os.fdopen(relay_read) as output,
             os.fdopen(relay_write, "w") as commands,
             subprocess.Popen(
-                [binary, "worker"],
+                [binary, "worker", *(["--bootstrap-runtimes"] if eager else [])],
                 cwd=root,
                 env=environment,
                 stdin=subprocess.PIPE,
@@ -172,11 +202,14 @@ def reap_library_probe(
             outgoing.close()
             pid = None
             try:
-                assert json.loads(read_lines(output, 1, "worker ready")[0]) == {
-                    "kind": "ready"
-                }
-                commands.write('{"kind":"evaluate","language":"r","source":"42L"}\n')
-                commands.flush()
+                if not eager:
+                    assert json.loads(read_lines(output, 1, "worker ready")[0]) == {
+                        "kind": "ready"
+                    }
+                    commands.write(
+                        '{"kind":"evaluate","language":"r","source":"42L"}\n'
+                    )
+                    commands.flush()
                 marker = root / "probe.pid"
                 wait_for_path(marker, "Rscript library probe")
                 pid = int(marker.read_text())
@@ -186,12 +219,18 @@ def reap_library_probe(
                 else:
                     commands.write('{"kind":"shutdown"}\n')
                     commands.flush()
-                assert worker.wait(timeout=10) == 0
+                status = worker.wait(timeout=10)
                 assert not process_exists(pid), pid
-                assert worker.stdout.read() == worker.stderr.read() == ""
-                return [json.loads(line) for line in output] + [
-                    {f"{shutdown}_reaped_probe": True}
-                ]
+                stderr = worker.stderr.read()
+                assert status == 0, (status, stderr)
+                assert worker.stdout.read() == stderr == ""
+                messages = [json.loads(line) for line in output]
+                if eager:
+                    assert messages == [
+                        {"kind": "ready"},
+                        {"kind": "r_initialization", "state": "entered"},
+                    ], messages
+                return messages + [{f"{shutdown}_reaped_probe": True}]
             except BaseException:
                 stop_process_id(pid)
                 if worker.poll() is None:
