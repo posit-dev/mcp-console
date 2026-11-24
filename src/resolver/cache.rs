@@ -108,7 +108,11 @@ pub(crate) fn configure(
     // Joining a name normally folds existing '..' in verbatim Windows paths.
     grant.push("");
     grant.as_mut_os_string().push("dependencies");
-    prepare_directory(&grant)?;
+    // Eager provisioning skips symlinks. Leave an invalid concrete root
+    // untouched until launch reports its renv error through the session.
+    if renv_cache_entry(&crate::console_paths::normalize_permission_path(&grant)).is_ok() {
+        prepare_directory(&grant)?;
+    }
     let explicit_python = python.map_or_else(
         || {
             std::env::var_os("RETICULATE_PYTHON")
