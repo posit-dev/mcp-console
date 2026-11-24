@@ -1107,19 +1107,8 @@ fn is_broad_write_root(path: &Path) -> Result<bool, String> {
 /// Resolve the existing prefix while retaining absent suffixes. Comparing only
 /// the existing ancestor would conflate unrelated missing sibling directories.
 fn inspect_path_identity(path: &Path) -> std::io::Result<PathBuf> {
-    for ancestor in path.ancestors() {
-        match ancestor.canonicalize() {
-            Ok(canonical) => {
-                return Ok(normalize_permission_path(
-                    &canonical.join(path.strip_prefix(ancestor).expect("path ancestor")),
-                ));
-            }
-            Err(error)
-                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(normalize_permission_path(path))
+    crate::console_paths::canonicalize_existing_prefix(path)
+        .map(|path| normalize_permission_path(&path))
 }
 
 /// Capture launch-relative paths without hiding symlinks from runner validation.

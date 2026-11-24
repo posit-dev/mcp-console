@@ -4,6 +4,7 @@ use crate::resolver::ResolverStopHandle;
 #[derive(Clone)]
 pub(crate) struct Preparation {
     pub(crate) discovery: std::sync::Arc<super::Discovery>,
+    pub(crate) caches: super::PreparationCaches,
 }
 
 impl Preparation {

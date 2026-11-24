@@ -11,7 +11,6 @@ messages:
             python: managed
           local_r_home_bytes: <fixture R home bytes>
           local_has_uv: false
-          matplotlib_cache: <fixture font cache>
       control: ~
       confirmed: true
   - Completed:

@@ -100,6 +100,28 @@ pub(crate) fn normalize_permission_path(path: &Path) -> PathBuf {
     normalized
 }
 
+/// Resolve the existing prefix. Keep the rest as written, including a missing
+/// directory followed by `..` that the operating system cannot traverse.
+pub(crate) fn canonicalize_existing_prefix(path: &Path) -> std::io::Result<PathBuf> {
+    use std::io::ErrorKind;
+    for ancestor in path.ancestors() {
+        match ancestor.canonicalize() {
+            Ok(canonical) => {
+                let suffix = path.strip_prefix(ancestor).expect("path ancestor");
+                return Ok(if suffix.as_os_str().is_empty() {
+                    canonical
+                } else {
+                    canonical.join(suffix)
+                });
+            }
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(path.to_owned())
+}
+
 pub(crate) fn home_directory() -> Result<Option<PathBuf>, String> {
     let (home, name) = match std::env::var_os("HOME").filter(|value| !value.is_empty()) {
         Some(home) => (PathBuf::from(home), "HOME"),

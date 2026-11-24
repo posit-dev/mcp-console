@@ -19,6 +19,13 @@ pub(crate) use client::Preparation;
 #[cfg(not(any(unix, windows)))]
 pub(crate) use unsupported::Preparation;
 
+/// Cache locations selected when the controller launches this resolver.
+#[derive(Clone, Default)]
+pub(crate) struct PreparationCaches {
+    pub(crate) managed: Option<std::path::PathBuf>,
+    pub(crate) matplotlib: Option<std::path::PathBuf>,
+}
+
 const LIMIT: usize = 1024 * 1024;
 
 #[derive(Default, Clone, Deserialize, Serialize)]
@@ -40,8 +47,6 @@ pub(crate) struct Discovery {
     /// Effective path in the launched resolver's environment, shared by its workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duckdb_extension_directory: Option<std::ffi::OsString>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub matplotlib_cache: Option<std::ffi::OsString>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -119,6 +124,8 @@ enum Input {
         mode: Mode,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         installation: Option<crate::local_runtime::RInstallation>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        matplotlib_cache: Option<std::ffi::OsString>,
     },
     Run {
         id: u64,

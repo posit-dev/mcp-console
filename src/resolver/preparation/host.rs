@@ -23,6 +23,7 @@ impl Context {
     fn discover(
         mode: Mode,
         installation: Option<crate::local_runtime::RInstallation>,
+        matplotlib_cache: Option<std::ffi::OsString>,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<(Self, Discovery), String> {
         if let Some(installation) = &installation {
@@ -49,13 +50,9 @@ impl Context {
         let duckdb_extension_directory =
             std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
         let mut python = resolver::ManagedPythonResolverConfiguration::capture();
-        if let Some(cache) = &mut python.matplotlib_cache
-            && (std::env::var_os(crate::settings::SANDBOX_MARKER).is_some()
-                || crate::warmup::trusted_preparation())
-        {
-            *cache = resolver::cache::tool_directory(cache)?;
+        if let Some(cache) = matplotlib_cache {
+            python.matplotlib_cache = Some(cache.into());
         }
-        let matplotlib_cache = python.matplotlib_cache.clone().map(Into::into);
         if !matches!(mode, Mode::R) {
             let python = python.without_r_bootstrap();
             let has_uv = python.has_uv();
@@ -78,7 +75,6 @@ impl Context {
                     local_r_home_bytes: None,
                     local_has_uv: Some(has_uv),
                     duckdb_extension_directory,
-                    matplotlib_cache,
                 },
             ));
         }
@@ -108,7 +104,6 @@ impl Context {
             local_r_home_bytes: None,
             local_has_uv: Some(python.has_uv()),
             duckdb_extension_directory,
-            matplotlib_cache,
         };
         Ok((
             Self {
@@ -364,7 +359,12 @@ pub(super) fn run() -> Result<(), String> {
     #[cfg(windows)]
     let mut input = BufReader::new(io::stdin());
     let first: Input = super::read_jsonl(&mut input)?;
-    let Input::Open { mode, installation } = first else {
+    let Input::Open {
+        mode,
+        installation,
+        matplotlib_cache,
+    } = first
+    else {
         return Err("expected resolver open".into());
     };
     let (events, received) = mpsc::channel();
@@ -415,7 +415,7 @@ pub(super) fn run() -> Result<(), String> {
         let mut context = perform(
             0,
             &job_events,
-            |started| Context::discover(mode, installation, started),
+            |started| Context::discover(mode, installation, matplotlib_cache, started),
             |(_, discovery)| serde_json::to_value(discovery).expect("discovery serializes"),
         )?
         .0;

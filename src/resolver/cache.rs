@@ -157,7 +157,10 @@ fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> 
         settings.insert(HOST_RENV_CACHE_LIST.into(), list.into());
         return Ok(());
     }
-    retain_environment_path(settings, path, &[(name, "")])
+    if has_parent_traversal(path) {
+        retain_environment_path(settings, path, &[(name, "")])?;
+    }
+    Ok(())
 }
 
 /// Keep the shared root of managed cache variables so a link in a tool's own
@@ -167,15 +170,13 @@ fn retain_environment_path(
     path: &Path,
     variables: &[(&str, &str)],
 ) -> Result<(), String> {
-    if has_parent_traversal(path) {
-        let path = path.to_str().ok_or("Console cache paths must be UTF-8")?;
-        settings
-            .entry(CACHE_ENVIRONMENT_PATHS)
-            .or_insert_with(|| json!([]))
-            .as_array_mut()
-            .expect("captured cache environment paths")
-            .push(json!({"directory": path, "variables": variables}));
-    }
+    let path = path.to_str().ok_or("Console cache paths must be UTF-8")?;
+    settings
+        .entry(CACHE_ENVIRONMENT_PATHS)
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .expect("captured cache environment paths")
+        .push(json!({"directory": path, "variables": variables}));
     Ok(())
 }
 
@@ -207,7 +208,10 @@ fn set_cache_variable(
 
 /// The retained cache spelling also supplies filesystem grants. Only rewrite
 /// the environment for this launch, after its filesystem policy is captured.
-pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), String> {
+pub(crate) fn resolve_environment(
+    settings: &mut SandboxSettings,
+    managed_directory: Option<&Path>,
+) -> Result<(), String> {
     if let Some(Value::String(list)) = settings.remove(HOST_RENV_CACHE_LIST)
         && environment_path(settings, RENV_CACHE).as_deref() == Some(Path::new(&list))
     {
@@ -234,7 +238,10 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
     for path in
         serde_json::from_value::<Vec<EnvironmentPath>>(paths).map_err(|error| error.to_string())?
     {
-        let root = tool_directory(&path.directory)?;
+        let root = match managed_directory {
+            Some(directory) => directory.to_owned(),
+            None => tool_directory(&path.directory)?,
+        };
         for (name, relative) in path.variables {
             // A runtime selection may explicitly replace or remove one of the
             // environment variables before launch. Preserve that selection.
@@ -247,13 +254,36 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
             };
             if root != path.directory
                 && environment_path(settings, &name) == Some(value(&path.directory))
-                && !(name == "HOME" && path.directory.is_dir())
             {
                 set_cache_variable(settings, &name, &value(&root))?;
             }
         }
     }
     Ok(())
+}
+
+/// Share the resolver's selected directory with its workers. Keep the original
+/// declaration in settings for independent provisioning and permission checks.
+pub(super) fn select_managed_directory(
+    settings: &mut SandboxSettings,
+) -> Result<Option<PathBuf>, String> {
+    let Some(path) = settings.get(MANAGED_DIRECTORY) else {
+        return Ok(None);
+    };
+    let directory = tool_directory(Path::new(
+        path.as_str().expect("captured managed cache directory"),
+    ))?;
+    let directory = retained_cache_target(&directory)?;
+    resolve_environment(settings, Some(&directory))?;
+    Ok(Some(directory))
+}
+
+fn retained_cache_target(directory: &Path) -> Result<PathBuf, String> {
+    if crate::settings::has_untrusted_symlink(directory)? {
+        return crate::console_paths::canonicalize_existing_prefix(directory)
+            .map_err(|error| format!("cannot resolve cache '{}': {error}", directory.display()));
+    }
+    Ok(directory.to_owned())
 }
 
 pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
@@ -353,6 +383,30 @@ pub(crate) fn matplotlib_cache_override(settings: &SandboxSettings) -> Option<Pa
     path
 }
 
+fn default_matplotlib_cache(home: &Path) -> PathBuf {
+    home.join(if cfg!(target_os = "linux") {
+        ".cache/matplotlib"
+    } else {
+        ".matplotlib"
+    })
+}
+
+pub(super) fn matplotlib_directory(settings: &SandboxSettings) -> Result<Option<PathBuf>, String> {
+    matplotlib_cache_override(settings)
+        .or_else(|| {
+            environment_path(settings, "HOME")
+                .as_deref()
+                .map(default_matplotlib_cache)
+        })
+        .as_deref()
+        .map(|path| {
+            let directory = tool_directory(path)?;
+            // Matplotlib can use temporary storage when its font cache is inaccessible.
+            Ok(retained_cache_target(&directory).unwrap_or(directory))
+        })
+        .transpose()
+}
+
 #[cfg(any(unix, windows))]
 pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>, String> {
     // Cache selection uses the resolver's effective environment, including its
@@ -419,13 +473,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         // Keep configured cache roots relative until policy capture checks them.
         env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
             .unwrap_or_else(|| home.join(".duckdb/extensions")),
-        matplotlib_cache_override(settings).unwrap_or_else(|| {
-            home.join(if cfg!(target_os = "linux") {
-                ".cache/matplotlib"
-            } else {
-                ".matplotlib"
-            })
-        }),
+        matplotlib_cache_override(settings).unwrap_or_else(|| default_matplotlib_cache(&home)),
         env("RENV_PATHS_ROOT").unwrap_or_else(|| r_cache.join("R/renv")),
         r_cache.join("R/pkgcache"),
     ];

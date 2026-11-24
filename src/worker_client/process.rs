@@ -247,6 +247,7 @@ impl WorkerRuntime {
             sandbox_settings,
             startup_source,
             duckdb_extension_directory,
+            managed_cache_directory,
             resolver_matplotlib_cache,
             python,
             managed_r,
@@ -333,6 +334,7 @@ impl WorkerRuntime {
             if let Some(transport) = &startup_transport {
                 transport.preserve_access(&mut settings)?;
             }
+            crate::resolver::cache::resolve_environment(&mut settings, managed_cache_directory)?;
             crate::settings::preserve_environment(&mut settings, command.get_envs())?;
             command.env(
                 crate::settings::ENVIRONMENT,

@@ -20,6 +20,7 @@ use crate::resolver::{ResolverControl, ResolverControlOutcome, ResolverStopHandl
 pub(crate) struct Preparation {
     connection: Arc<Connection>,
     pub(crate) discovery: Arc<Discovery>,
+    pub(crate) caches: super::PreparationCaches,
 }
 
 struct Connection {
@@ -216,10 +217,11 @@ impl Preparation {
         let mut command = std::process::Command::new(&executable);
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
+        #[cfg(unix)]
+        if !no_sandbox {
+            crate::resolver::cache::resolve_environment(&mut settings, None)?;
+        }
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
-            if !no_sandbox {
-                crate::resolver::cache::resolve_environment(&mut settings)?;
-            }
             crate::settings::configure_environment(&mut command, &settings);
         } else {
             crate::settings::preserve_environment(
@@ -248,7 +250,9 @@ impl Preparation {
             Input::Open {
                 mode: Mode::PythonOnly,
                 installation: None,
+                matplotlib_cache: None,
             },
+            Default::default(),
             diagnostics,
             on_started,
         )?;
@@ -282,6 +286,15 @@ impl Preparation {
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<Self, String> {
+        let caches = if no_sandbox {
+            super::PreparationCaches::default()
+        } else {
+            let managed = crate::resolver::cache::select_managed_directory(&mut settings)?;
+            super::PreparationCaches {
+                managed,
+                matplotlib: crate::resolver::cache::matplotlib_directory(&settings)?,
+            }
+        };
         let mut command = if !no_sandbox {
             // Preparation and the retained worker must agree on whether Python
             // is managed, including with an isolated resolver environment.
@@ -309,14 +322,26 @@ impl Preparation {
             command.env_remove("RETICULATE_PYTHON");
         }
         command.arg("resolve");
-        let open = Input::Open { mode, installation };
-        Self::open_with(command, Arc::default(), open, diagnostics, on_started)
+        let open = Input::Open {
+            mode,
+            installation,
+            matplotlib_cache: caches.matplotlib.clone().map(Into::into),
+        };
+        Self::open_with(
+            command,
+            Arc::default(),
+            open,
+            caches,
+            diagnostics,
+            on_started,
+        )
     }
 
     fn open_with(
         mut command: std::process::Command,
         blocked: Arc<Mutex<Option<String>>>,
         open: Input,
+        caches: super::PreparationCaches,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<Self, String> {
@@ -555,6 +580,7 @@ impl Preparation {
             Ok(discovery) => Ok(Self {
                 connection,
                 discovery: Arc::new(discovery),
+                caches,
             }),
             Err(error) => {
                 // Startup has no Client to own shutdown after discovery fails.

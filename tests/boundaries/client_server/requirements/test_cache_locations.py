@@ -171,7 +171,7 @@ def test_configured_cache_directory_overrides_environment(binary: Path) -> Trans
     return cache_locations(
         binary,
         host=False,
-        sources=("path", "path_cli", "path_isolated"),
+        sources=("path", "path_cli", "path_isolated", "linked_path"),
         cache_override=True,
     )
 
@@ -781,10 +781,15 @@ def cache_locations(
                         "environment": {"MCP_CONSOLE_CACHE_DIR": str(console_base)}
                     }
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
-                elif source in ("path", "path_cli", "path_isolated"):
+                elif source in ("path", "path_cli", "path_isolated", "linked_path"):
                     settings["cache"] = {"directory": str(console_base)}
-                    if source == "path":
+                    if source in ("path", "linked_path"):
                         settings["cache"]["directory"] = "unused/../custom cache"
+                    if source == "linked_path":
+                        (root / "first").mkdir()
+                        (root / "unused").symlink_to(
+                            root / "first", target_is_directory=True
+                        )
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
             elif source == "empty":
                 env["MCP_CONSOLE_CACHE_DIR"] = ""
@@ -802,7 +807,7 @@ def cache_locations(
             if source == "without_home":
                 for name in ("HOME", "USERPROFILE", "LOCALAPPDATA", "XDG_CACHE_HOME"):
                     env.pop(name, None)
-            if source == "explicit_entries":
+            if source in ("explicit_entries", "linked_path"):
                 settings["resolver"] = {
                     "sandbox": {
                         "filesystem": {
@@ -812,6 +817,8 @@ def cache_locations(
                     }
                 }
                 assert not console_root.exists()
+                if source == "linked_path":
+                    console_root.mkdir(parents=True)
             config.write_text(json.dumps(settings))
             expected = {
                 name: env[name] if host else str(console_root)
@@ -846,6 +853,8 @@ def cache_locations(
                     expected = json.loads(os.environ["CACHE_TEST_EXPECTED"])
                     for name, value in expected.items():
                         actual = Path(os.environ[name])
+                        if {source == "linked_path"!r}:
+                            actual = actual.resolve()
                         assert actual == Path(value) if {host!r} else actual.is_relative_to(value), (name, actual, value)
                     cache = Path(os.environ["UV_CACHE_DIR"])
                     cache.mkdir(parents=True, exist_ok=True)
@@ -921,6 +930,14 @@ def cache_locations(
                         config.write_text(
                             "cache: host\n" if not host else "cache: console\n"
                         )
+                        if source in ("path", "linked_path"):
+                            if source == "linked_path":
+                                (root / "unused").unlink()
+                            nested = root / "other" / "nested"
+                            nested.mkdir(parents=True)
+                            (root / "unused").symlink_to(
+                                nested, target_is_directory=True
+                            )
                         client.send(control="restart")
                     # fmt: python
                     check = code(f"""
@@ -933,6 +950,8 @@ def cache_locations(
                         expected.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
                         for name, value in expected.items():
                             actual = Path(os.environ[name])
+                            if {source == "linked_path"!r}:
+                                actual = actual.resolve()
                             assert actual == Path(value) if {host!r} else actual.is_relative_to(value), (name, actual, value)
                         assert Path(os.environ["UV_CACHE_DIR"]).joinpath("resolver-probe").read_text() == "prepared"
                         if {metadata!r}:

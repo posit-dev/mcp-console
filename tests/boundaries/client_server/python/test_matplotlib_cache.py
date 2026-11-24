@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import json
 import os
 import sys
 import tempfile
@@ -34,8 +35,17 @@ def test_uses_resolver_font_cache_with_relative_xdg(binary: Path) -> Transcript:
     return uses_resolver_font_cache(binary, with_r=False, relative_xdg=True)
 
 
+@requires(SANDBOX)
+def test_uses_isolated_resolver_font_cache_after_restart(binary: Path) -> Transcript:
+    return uses_resolver_font_cache(binary, with_r=False, isolated_home=True)
+
+
 def uses_resolver_font_cache(
-    binary: Path, *, with_r: bool, relative_xdg: bool = False
+    binary: Path,
+    *,
+    with_r: bool,
+    relative_xdg: bool = False,
+    isolated_home: bool = False,
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory).resolve()
@@ -51,7 +61,7 @@ def uses_resolver_font_cache(
         # Reuse the prepared host R environment; rebuilding unrelated R packages
         # is independent of the shared font cache contract. The R-free case
         # also covers the default Console cache selection.
-        host_cache = with_r or relative_xdg
+        host_cache = with_r or relative_xdg or isolated_home
         if not host_cache:
             env["XDG_CACHE_HOME"] = str(root / "unused" / ".." / "cache")
         cache = root / (
@@ -61,13 +71,35 @@ def uses_resolver_font_cache(
         )
         if with_r:
             env["MPLCONFIGDIR"] = str(cache)
-        env["MCP_CONSOLE_TEST_FONT_CACHE"] = str(cache)
         config = root / "matplotlibrc"
         config.write_text("lines.linewidth: 7.25\n", encoding="utf-8")
         env["MATPLOTLIBRC"] = str(config)
         arguments = (
             SANDBOXED.serve("-c", "cache=host") if host_cache else SANDBOXED.serve()
         )
+        if isolated_home or relative_xdg:
+            resolver_env = {"PATH": env["PATH"], "HOME": str(root / "account")}
+            if relative_xdg:
+                resolver_env["XDG_CACHE_HOME"] = env["XDG_CACHE_HOME"]
+            else:
+                (root / "stage").mkdir()
+                resolver_env["HOME"] = str(root / "stage/../account")
+                cache = (
+                    root
+                    / "account"
+                    / (
+                        ".cache/matplotlib"
+                        if sys.platform == "linux"
+                        else ".matplotlib"
+                    )
+                )
+            arguments += (
+                "-c",
+                "resolver.inherit_environment=false",
+                "-c",
+                "resolver.environment=" + json.dumps(resolver_env),
+            )
+        env["MCP_CONSOLE_TEST_FONT_CACHE"] = str(cache)
         with McpClient(binary, arguments, env, root) as client:
             client.initialize_and_list_tools()
             wait_for_worker_ready(client, "resolver font cache readiness")
@@ -75,6 +107,8 @@ def uses_resolver_font_cache(
             assert list(cache.glob("fontlist-v*.json"))
             for restart in (False, True):
                 if restart:
+                    if isolated_home:
+                        (root / "stage").rmdir()
                     if not host_cache:
                         # The retained resolver already selected its font cache.
                         nested = root / "other" / "nested"
