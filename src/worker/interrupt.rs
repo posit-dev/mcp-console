@@ -606,12 +606,16 @@ fn inspection_interrupted(finished: &crate::windows::Event) -> Result<bool, Stri
     let shutdown = super::priority::shutdown_event();
     let handles = [
         finished.as_raw_handle(),
-        wakeup.as_raw_handle(),
         shutdown.as_raw_handle(),
+        wakeup.as_raw_handle(),
     ];
     match unsafe { WaitForMultipleObjects(handles.len() as u32, handles.as_ptr(), 0, INFINITE) } {
         WAIT_OBJECT_0 => Ok(false),
-        result if result == WAIT_OBJECT_0 + 1 || result == WAIT_OBJECT_0 + 2 => Ok(true),
+        result if result == WAIT_OBJECT_0 + 1 => {
+            super::core::mark_shutting_down();
+            Ok(true)
+        }
+        result if result == WAIT_OBJECT_0 + 2 => Ok(true),
         _ => Err(io::Error::last_os_error().to_string()),
     }
 }
