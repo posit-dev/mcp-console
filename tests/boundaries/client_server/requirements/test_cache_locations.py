@@ -429,26 +429,38 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
         root = Path(directory).resolve()
         env = renv_test_environment(root, root / "caches")
         env["RENV_PATHS_CACHE"] = "local"
-        arguments = (
-            "serve",
-            "-c",
-            "cache=host",
-            "-c",
-            f"python.existing={sys.executable}",
-        )
         for separator in dict.fromkeys((";", os.pathsep)):
             workspace = root / f"study{separator}2026"
             workspace.mkdir()
-            with McpClient(binary, arguments, env, workspace) as client:
-                client.initialize_and_list_tools()
-                result = client.send(python="21 + 21")
-                assert result.get("isError"), result
-                diagnostic = error.replace(
-                    "<expanded cache path>", str(workspace / "local")
+            alias = root / f"alias-{ord(separator)}"
+            alias.symlink_to(workspace, target_is_directory=True)
+            grant = "resolver.sandbox.filesystem=" + json.dumps(
+                {"read_only": ["/"], "read_write": [str(workspace)]}
+            )
+            for cwd, cache, options in (
+                (workspace, workspace / "local", ("-c", "cache=host")),
+                (
+                    root,
+                    workspace / "dependencies/renv/cache",
+                    ("-c", f"cache.directory={alias}", "-c", grant),
+                ),
+            ):
+                arguments = (
+                    "serve",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    *options,
                 )
-                assert result["content"][0]["text"] == diagnostic, result
-                _, errors = client.finish_with_standard_error(expected_exit_status=1)
-                assert errors == diagnostic + "\n", errors
+                with McpClient(binary, arguments, env, cwd) as client:
+                    client.initialize_and_list_tools()
+                    result = client.send(python="21 + 21")
+                    assert result.get("isError"), result
+                    diagnostic = error.replace("<expanded cache path>", str(cache))
+                    assert result["content"][0]["text"] == diagnostic, result
+                    _, errors = client.finish_with_standard_error(
+                        expected_exit_status=1
+                    )
+                    assert errors == diagnostic + "\n", errors
     return [{"error": error}]
 
 

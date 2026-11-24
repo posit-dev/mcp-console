@@ -153,7 +153,7 @@ Console resolves a home-relative R cache path containing `..` against the same l
 For a list in `RENV_PATHS_CACHE`, the default resolver policy grants each nonempty directory separately.
 The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Relative entries use the launch directory, and a leading `~` uses the launch home even when the resolver has its own `HOME`.
-Console reports an error if an expanded directory contains a renv list separator.
+Console reports an error if an expanded entry or the selected managed renv cache directory contains a list separator.
 Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
 Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
 

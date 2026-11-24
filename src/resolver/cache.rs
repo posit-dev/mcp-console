@@ -148,6 +148,18 @@ fn renv_separator(c: char) -> bool {
     c == ';' || (cfg!(unix) && c == ':')
 }
 
+fn renv_cache_entry(directory: &Path) -> Result<&str, String> {
+    let directory = directory
+        .to_str()
+        .ok_or("Console cache paths must be UTF-8")?;
+    if directory.contains(renv_separator) {
+        return Err(format!(
+            "{RENV_CACHE} cannot represent '{directory}': path contains a list separator"
+        ));
+    }
+    Ok(directory)
+}
+
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
     if name == RENV_CACHE
         && let Some(list) = path.to_str()
@@ -223,15 +235,7 @@ pub(crate) fn resolve_environment(
                 continue;
             }
             let directory = tool_directory(Path::new(path))?;
-            let directory = directory
-                .to_str()
-                .ok_or("Console cache paths must be UTF-8")?;
-            if directory.contains(renv_separator) {
-                return Err(format!(
-                    "{RENV_CACHE} cannot represent '{directory}': path contains a list separator"
-                ));
-            }
-            resolved.push_str(directory);
+            resolved.push_str(renv_cache_entry(&directory)?);
             resolved.push_str(&entry[path.len()..]);
         }
         set_cache_variable(settings, RENV_CACHE, Path::new(&resolved))?;
@@ -256,10 +260,14 @@ pub(crate) fn resolve_environment(
                     base.join(&relative)
                 }
             };
-            if root != path.directory
-                && environment_path(settings, &name) == Some(value(&path.directory))
-            {
-                set_cache_variable(settings, &name, &value(&root))?;
+            if environment_path(settings, &name) == Some(value(&path.directory)) {
+                let selected = value(&root);
+                if name == RENV_CACHE {
+                    renv_cache_entry(&selected)?;
+                }
+                if root != path.directory {
+                    set_cache_variable(settings, &name, &selected)?;
+                }
             }
         }
     }
