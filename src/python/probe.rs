@@ -156,7 +156,7 @@ fn parse_output(output: &[u8]) -> Result<serde_json::Value, Error> {
 #[cfg(windows)]
 pub(super) fn inspect(executable: &str) -> Result<serde_json::Value, Error> {
     use crate::resolver::process::ResolverProcess;
-    let output = crate::worker::with_python_interrupt(|started| {
+    let output = crate::worker::with_inspection_interrupt("Python inspection", |started| {
         let resolver = ResolverProcess::new();
         let mut command = Command::new(executable);
         command

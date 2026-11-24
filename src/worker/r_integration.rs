@@ -416,12 +416,14 @@ fn project_globs_supply_library(
     installation: &RInstallation,
     paths: &[PathBuf],
 ) -> Result<bool, Box<dyn std::error::Error>> {
+    use crate::resolver::process::{ResolverProcess, resolver_command};
+
     // Let the selected R expand just the project's R_LIBS in the worker's
     // startup directory. R's base library is always on the search path.
-    let mut command =
-        std::process::Command::new(crate::local_runtime::rscript_in(&installation.home));
+    let executable = crate::local_runtime::rscript_in(&installation.home);
+    let mut command = resolver_command(&executable);
     installation.configure(&mut command)?;
-    let output = command
+    command
         .args([
             "--vanilla",
             "--default-packages=NULL",

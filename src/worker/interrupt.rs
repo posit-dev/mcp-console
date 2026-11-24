@@ -304,41 +304,54 @@ pub(crate) fn install_python_interrupt(
 }
 
 pub(crate) fn check_python_selection_interrupt() -> Result<(), String> {
+    check_inspection_interrupt("Python inspection")
+}
+
+fn check_inspection_interrupt(kind: &str) -> Result<(), String> {
     if requested() {
-        Err("Python inspection interrupted".into())
+        Err(format!("{kind} interrupted"))
     } else {
         Ok(())
     }
 }
 
-/// Connect inspection cancellation to the worker's existing SIGINT wakeup.
-/// ResolverProcess continues to own termination, output collection and reaping.
-#[cfg(unix)]
 pub(crate) fn inspect_python(
     executable: &std::path::Path,
 ) -> Result<crate::python::NativePython, String> {
-    super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
-    let (finished, completion) = io::pipe().map_err(|error| error.to_string())?;
+    with_inspection_interrupt("Python inspection", |started| {
+        crate::python::inspect_native(executable, started)
+    })
+}
+
+/// Connect a worker-owned child to the worker's interrupt wakeup.
+/// ResolverProcess owns termination, output collection and reaping.
+pub(crate) fn with_inspection_interrupt<T>(
+    kind: &str,
+    operation: impl FnOnce(
+        &mut dyn FnMut(crate::resolver::ResolverStopHandle) -> Result<(), String>,
+    ) -> Result<T, String>,
+) -> Result<T, String> {
+    #[cfg(unix)]
+    let (finished, completion) = {
+        super::input::drain_interrupt_wakeup().map_err(|error| error.to_string())?;
+        io::pipe().map_err(|error| error.to_string())?
+    };
+    #[cfg(windows)]
+    let (finished, completion) =
+        crate::windows::notification().map_err(|error| error.to_string())?;
+    check_inspection_interrupt(kind)?;
     std::thread::scope(|scope| {
         let mut watcher = None;
-        let result = crate::python::inspect_native(executable, |handle| {
-            // Draining stale wakeups must not hide a queued request just
-            // because the calling R callback currently defers interrupts.
-            if requested() {
-                return Err("Python inspection interrupted".to_string());
-            }
-            watcher = Some(scope.spawn(move || {
-                match crate::readiness::wait_for_io(
-                    super::input::interrupt_wakeup_fd(),
-                    libc::POLLIN,
-                    Some(&finished),
-                ) {
-                    Ok(ready) if ready.stream => handle.stop(),
-                    Ok(_) => Ok(()),
-                    Err(error) => {
-                        let _ = handle.stop();
-                        Err(error.to_string())
-                    }
+        let result = operation(&mut |handle| {
+            // Preserve an interrupt delivered during spawn, even when R defers it.
+            check_inspection_interrupt(kind)?;
+            let finished = &finished;
+            watcher = Some(scope.spawn(move || match inspection_interrupted(finished) {
+                Ok(true) => handle.stop(),
+                Ok(false) => Ok(()),
+                Err(error) => {
+                    let _ = handle.stop();
+                    Err(error.to_string())
                 }
             }));
             Ok(())
@@ -347,10 +360,20 @@ pub(crate) fn inspect_python(
         if let Some(watcher) = watcher {
             watcher
                 .join()
-                .map_err(|_| "Python inspection interrupt watcher panicked")??;
+                .map_err(|_| format!("{kind} interrupt watcher panicked"))??;
         }
         result
     })
+}
+
+#[cfg(unix)]
+fn inspection_interrupted(finished: &io::PipeReader) -> io::Result<bool> {
+    let ready = crate::readiness::wait_for_io(
+        super::input::interrupt_wakeup_fd(),
+        libc::POLLIN,
+        Some(finished),
+    )?;
+    Ok(ready.stream)
 }
 
 thread_local! {
@@ -555,49 +578,15 @@ pub(crate) fn install_python_interrupt(
 }
 
 #[cfg(windows)]
-pub(crate) fn inspect_python(
-    executable: &std::path::Path,
-) -> Result<crate::python::NativePython, String> {
-    with_python_interrupt(|started| crate::python::inspect_native(executable, started))
-}
-
-#[cfg(windows)]
-pub(crate) fn with_python_interrupt<T>(
-    operation: impl FnOnce(
-        &dyn Fn(crate::resolver::ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<T, String>,
-) -> Result<T, String> {
+fn inspection_interrupted(finished: &crate::windows::Event) -> io::Result<bool> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
     use windows_sys::Win32::System::Threading::{INFINITE, WaitForMultipleObjects};
-    check_python_selection_interrupt()?;
     let wakeup = WINDOWS_WAKEUP.get().expect("interrupt initialized");
-    let (finished, completion) =
-        crate::windows::notification().map_err(|error| error.to_string())?;
-    std::thread::scope(|scope| {
-        let watcher = std::sync::Mutex::new(None);
-        let result = operation(&|handle| {
-            check_python_selection_interrupt()?;
-            let finished = finished.clone();
-            *watcher.lock().unwrap() = Some(scope.spawn(move || {
-                let handles = [finished.as_raw_handle(), wakeup.as_raw_handle()];
-                match unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) } {
-                    WAIT_OBJECT_0 => Ok(()),
-                    result if result == WAIT_OBJECT_0 + 1 => handle.stop(),
-                    _ => {
-                        let _ = handle.stop();
-                        Err(io::Error::last_os_error().to_string())
-                    }
-                }
-            }));
-            Ok(())
-        });
-        drop(completion);
-        if let Some(watcher) = watcher.into_inner().unwrap() {
-            watcher
-                .join()
-                .map_err(|_| "Python inspection watcher panicked")??;
-        }
-        result
-    })
+    let handles = [finished.as_raw_handle(), wakeup.as_raw_handle()];
+    match unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) } {
+        WAIT_OBJECT_0 => Ok(false),
+        result if result == WAIT_OBJECT_0 + 1 => Ok(true),
+        _ => Err(io::Error::last_os_error()),
+    }
 }

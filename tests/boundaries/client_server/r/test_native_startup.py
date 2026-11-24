@@ -20,8 +20,17 @@ from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
 from support.progress import RUNNING
-from support.processes import stop_process_id
-from support.requirements import POSIX, R, SANDBOX, posix_r_tempdir_whitespace, requires
+from support.processes import host_process_id, process_exists, stop_process_id
+from support.native import LOADER_VARIABLE, build_interposer
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    R,
+    SANDBOX,
+    command,
+    posix_r_tempdir_whitespace,
+    requires,
+)
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
 
@@ -735,6 +744,60 @@ def test_interrupted_profile_is_not_replayed(
             profile.write_text("native_repaired <- TRUE\n")
             client.send(control="restart")
             client.expect("[1] TRUE\n", r="native_repaired")
+            return client.finish()
+
+
+@requires(R, NATIVE_FIXTURES, command("ir"))
+@executions(DIRECT, SANDBOXED)
+@execution_snapshots
+def test_interrupted_library_probe_requires_restart(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
+        root = Path(temporary).resolve()
+        environment = startup_environment(root, managed=True)
+        fixture = build_interposer(root, "r_library_probe")
+        ready = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "probe-ready"))
+        )
+        environ = root / ".Renviron"
+        environ.write_text(
+            f'{LOADER_VARIABLE}="{fixture}"\nR_LIBS="${{R_LIBS}}:project-*"\n'
+        )
+        with McpClient(
+            binary,
+            writable_arguments(execution, root),
+            environment,
+            current_directory=root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.send(r='stop("interrupted startup ran cell")', timeout_ms=0)
+            ready.wait(
+                "Rscript library probe", timeout=client.response_timeout, client=client
+            )
+            pid = host_process_id(
+                int((root / "probe.pid").read_text()), client.process.pid
+            )
+            try:
+                output = wait_for_evaluation_output(
+                    client,
+                    None,
+                    "interrupted Rscript library probe",
+                    expected_error=True,
+                    completion_timeout_seconds=client.response_timeout,
+                    control="interrupt",
+                )
+                assert "restart required" in output, output
+                assert not process_exists(pid), pid
+            except BaseException:
+                stop_process_id(pid)
+                raise
+            environ.unlink()
+            result = client.send(r='stop("incomplete R startup retried")')
+            assert "restart required" in result["content"][0]["text"], result
+            client.send(control="restart")
+            client.expect("[1] 42\n", r="6L * 7L")
             return client.finish()
 
 

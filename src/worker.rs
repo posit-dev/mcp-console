@@ -37,7 +37,7 @@ pub(crate) use input::python_interrupt_wakeup;
 #[cfg(any(unix, windows))]
 pub(crate) use input::{PythonInput, read_python_input};
 #[cfg(windows)]
-pub(crate) use interrupt::with_python_interrupt;
+pub(crate) use interrupt::with_inspection_interrupt;
 #[cfg(any(unix, windows))]
 pub(crate) use interrupt::{
     acknowledge_python_interrupt, begin_python_commit, check_python_selection_interrupt,
