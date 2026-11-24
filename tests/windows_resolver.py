@@ -12,6 +12,7 @@ import tempfile
 from threading import Thread
 import unittest
 
+from support.r import r_test_environment
 from windows_gate import Gate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,6 +181,60 @@ class WindowsResolver(unittest.TestCase):
         self.assertEqual(invocation[:2], ["run", "--rscript"])
         self.assertEqual(Path(invocation[2]), self.r_home / "bin/Rscript.exe")
         self.assertEqual(invocation[3:5], ["--with", "jsonlite"])
+
+    def test_rejects_r_library_with_path_separator(self):
+        from windows import Session
+
+        environment, _ = r_test_environment()
+        uv = shutil.which("uv")
+        self.assertIsNotNone(uv)
+        tools = self.root / "bin"
+        tools.mkdir()
+        shutil.copyfile(self.fixture, tools / "ir.exe")
+        library = self.root / "R;cache"
+        shutil.copytree(
+            Path(environment["R_HOME"]) / "library/compiler", library / "compiler"
+        )
+        environment.update(
+            PATH=os.pathsep.join((str(tools), environment["PATH"])),
+            TEST_RESOLVER_REAL_UV=uv,
+            TEST_RESOLVER_RECORD=str(self.record),
+            TEST_RESOLVER_LIBRARY=str(library),
+        )
+        session = Session(
+            environment,
+            python=sys.executable,
+            overrides=("languages=[r]", "r.packages=[jsonlite]", "cache=host"),
+        )
+        self.addCleanup(session.close)
+        session.initialize()
+        session.expect(
+            "saved worker",
+            r="worker_pid <- Sys.getpid(); libraries <- .libPaths(); cat('saved worker')",
+        )
+        result = session.send(
+            control="restart",
+            requirements={"action": "set", "r": ["compiler"], "duckdb": []},
+        )
+        self.assertTrue(result.get("isError"), result)
+        self.assertEqual(
+            result["content"],
+            [
+                {
+                    "type": "text",
+                    "text": "resolved R library path contains the R_LIBS separator ';'. "
+                    "Use a library directory without a semicolon",
+                }
+            ],
+        )
+        inspected = session.send(requirements={"action": "get"})
+        self.assertEqual(
+            inspected["structuredContent"]["requirements"]["r"], ["jsonlite"]
+        )
+        session.expect(
+            "retained worker",
+            r="stopifnot(identical(Sys.getpid(), worker_pid), identical(.libPaths(), libraries)); cat('retained worker')",
+        )
 
     def test_resolver_failure_preserves_diagnostics(self):
         self.environment["TEST_RESOLVER_MODE"] = "failed"

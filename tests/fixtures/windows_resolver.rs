@@ -52,6 +52,24 @@ fn main() {
             std::process::exit(code);
         }
         if program.file_stem().unwrap() == "ir" || args.iter().any(|arg| arg == "ir") {
+            if let Some(uv) = std::env::var_os("TEST_RESOLVER_REAL_UV") {
+                let status = if args.windows(2).any(|pair| pair == ["--with", "compiler"]) {
+                    // Mirror ir's isolated Rscript invocation for the new manifest.
+                    let isolated = args.iter().position(|arg| arg == "--isolated").unwrap();
+                    Command::new(&args[2])
+                        .args(&args[isolated + 1..])
+                        .env("R_LIBS", std::env::var_os("TEST_RESOLVER_LIBRARY").unwrap())
+                        .env("R_LIBS_USER", "NULL")
+                        .status()
+                } else {
+                    Command::new(uv)
+                        .args(["tool", "run", "--from", "r-lib-ir", "ir"])
+                        .args(&args)
+                        .status()
+                }
+                .unwrap();
+                std::process::exit(status.code().unwrap_or(1));
+            }
             print!("{}", std::env::var("TEST_RESOLVER_LIBRARY").unwrap());
         } else {
             std::fs::write(
