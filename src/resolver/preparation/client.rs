@@ -219,7 +219,7 @@ impl Preparation {
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
         if cfg!(unix) && !no_sandbox {
-            crate::resolver::cache::apply_worker_environment(&mut settings, cache_environment)?;
+            crate::resolver::cache::resolve_environment(&mut settings, cache_environment)?;
         }
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
             crate::settings::configure_environment(&mut command, &settings);
@@ -230,7 +230,13 @@ impl Preparation {
             )?;
             #[cfg(windows)]
             {
-                command = crate::resolver::sandbox::command(settings, std::process::id(), None)?.0;
+                command = crate::resolver::sandbox::command(
+                    settings,
+                    std::process::id(),
+                    None,
+                    cache_environment,
+                )?
+                .0;
             }
             #[cfg(unix)]
             command
@@ -296,7 +302,7 @@ impl Preparation {
                 &mut settings,
                 [("RETICULATE_PYTHON".as_ref(), python)],
             )?;
-            crate::resolver::sandbox::command(settings, std::process::id(), captured_duckdb)?
+            crate::resolver::sandbox::command(settings, std::process::id(), captured_duckdb, None)?
         } else {
             let mut command = std::process::Command::new(
                 std::env::current_exe().map_err(|error| error.to_string())?,

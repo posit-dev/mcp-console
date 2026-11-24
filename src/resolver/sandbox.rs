@@ -9,11 +9,12 @@ pub(crate) fn command(
     declared: SandboxSettings,
     parent: u32,
     captured_duckdb: Option<&Path>,
+    retained_environment: Option<&super::cache::Environment>,
 ) -> Result<(Command, super::preparation::PreparationCaches), String> {
     // Validate the tool environment before provisioning any directories.
     // Filesystem permissions still come from the original path spellings.
     let mut settings = declared.clone();
-    let environment = super::cache::resolve_environment(&mut settings)?;
+    let environment = super::cache::resolve_environment(&mut settings, retained_environment)?;
     let directory = match captured_duckdb {
         Some(directory) => directory.to_owned(),
         None => {

@@ -276,19 +276,16 @@ impl Environment {
     }
 }
 
-/// Inspections and workers attached to a resolver share its selected cache paths.
-pub(crate) fn apply_worker_environment(
+/// A resolver selects cache paths for its inspections and workers. Each launch
+/// still checks the filesystem permissions from its own declaration.
+pub(crate) fn resolve_environment(
     settings: &mut SandboxSettings,
     retained: Option<&Environment>,
-) -> Result<(), String> {
-    match retained {
-        Some(environment) => environment.apply(settings),
-        None => resolve_environment(settings).map(drop),
+) -> Result<Environment, String> {
+    if let Some(environment) = retained {
+        environment.apply(settings)?;
+        return Ok(environment.clone());
     }
-}
-
-/// Resolve the launch environment independently of the declared filesystem grants.
-pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<Environment, String> {
     let mut environment = Environment::default();
     if let Some(Value::String(list)) = settings.get(HOST_RENV_CACHE_LIST)
         && environment_path(settings, RENV_CACHE).as_deref() == Some(Path::new(list))
