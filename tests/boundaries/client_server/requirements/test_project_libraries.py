@@ -265,6 +265,86 @@ def test_preserves_project_copy_of_candidate_across_requirement_changes(
 
 @requires(POSIX, R, command("ir"))
 @executions(DIRECT, SANDBOXED)
+def test_renviron_reselects_a_former_managed_library(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return reselect_project_library(binary, execution, relative_alias=False)
+
+
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_renviron_selects_the_absolute_path_in_place_of_a_relative_alias(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return reselect_project_library(binary, execution, relative_alias=True)
+
+
+def reselect_project_library(
+    binary: Path, execution: Execution, *, relative_alias: bool
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(
+            root, ("consolefirst", "consolesecond")
+        )
+        modules = root / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environ = root / ".Renviron"
+        environ.write_text('R_LIBS="${PROJECT_LIBRARY}:${MCP_CONSOLE_R_LIBRARY}"\n')
+        environment.update(
+            RETICULATE_PYTHON=sys.executable,
+            RETICULATE_PYTHONPATH=str(modules),
+            R_ENVIRON_USER=str(environ),
+        )
+        with McpClient(
+            binary,
+            execution.serve("-c", "cache=host"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            defer_r_bootstrap(client)
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+
+                    old = os.environ["MCP_CONSOLE_R_LIBRARY"]
+                    os.environ["PROJECT_LIBRARY"] = old
+                    """),
+            )
+            if relative_alias:
+                client.expect(
+                    python='os.environ["R_LIBS"] = os.pathsep.join((old, os.path.relpath(old)))'
+                )
+            else:
+                client.expect(
+                    python='os.environ["R_LIBS"] = os.pathsep.join((old, old))'
+                )
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    old <- normalizePath(Sys.getenv("PROJECT_LIBRARY"))
+                    new <- dirname(find.package("consolefirst"))
+                    paths <- .libPaths()
+                    stopifnot(identical(paths[paths %in% c(old, new)], c(old, new)))
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    stopifnot(old %in% .libPaths(), !new %in% .libPaths(), consolesecond::fixture())
+                    """),
+            )
+            return client.finish()
+
+
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
 def test_replaces_library_prepared_before_r_initialization(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -519,10 +599,22 @@ def test_later_project_alias_survives_two_preparations_before_r_startup(
 def test_replaced_library_expires_when_relative_alias_points_elsewhere(
     binary: Path,
 ) -> Transcript:
+    return expire_replaced_library(binary, absolute_alias=False)
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_replaced_library_expires_when_absolute_symlink_is_retargeted(
+    binary: Path,
+) -> Transcript:
+    return expire_replaced_library(binary, absolute_alias=True)
+
+
+def expire_replaced_library(binary: Path, *, absolute_alias: bool) -> Transcript:
     with TemporaryDirectory(dir="/tmp") as temporary:
         root = Path(temporary).resolve()
         (root / "child/local").mkdir(parents=True)
-        with paused_project_library(binary, root, "local") as client:
+        alias = str(root / "local") if absolute_alias else "local"
+        with paused_project_library(binary, root, alias) as client:
             client.expect(
                 # fmt: python
                 python=code("""
@@ -537,6 +629,15 @@ def test_replaced_library_expires_when_relative_alias_points_elsewhere(
             )
             client.expect("[prepared]", requirements={"r": ["consolefirst"]})
             client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            if absolute_alias:
+                client.expect(
+                    # fmt: python
+                    python=code("""
+                        alias = Path("local")
+                        alias.unlink()
+                        alias.symlink_to("child/local")
+                        """),
+                )
             client.expect(
                 # fmt: python
                 python=code("""

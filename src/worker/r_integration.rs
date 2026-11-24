@@ -303,8 +303,14 @@ struct PreparedLibrary {
     resolved: PathBuf,
     // These project spellings can start supplying the candidate after a chdir.
     relative_entries: Vec<PathBuf>,
-    // Former managed entries kept in place while project aliases supply them.
-    retained: Vec<PathBuf>,
+    retained: Vec<RetainedLibrary>,
+}
+
+#[derive(Clone)]
+struct RetainedLibrary {
+    path: PathBuf,
+    // Later project spellings that supplied this slot at preparation.
+    aliases: Vec<PathBuf>,
 }
 
 const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
@@ -312,7 +318,7 @@ const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
 struct StartupLibraries {
     paths: Vec<PathBuf>,
     owned: Option<usize>,
-    retained: Vec<PathBuf>,
+    retained: Vec<RetainedLibrary>,
 }
 
 impl StartupLibraries {
@@ -379,19 +385,24 @@ impl StartupLibraries {
 
     fn recheck_retained_libraries(
         &mut self,
-        retained: &[PathBuf],
+        retained: &[RetainedLibrary],
     ) -> Result<(), Box<dyn std::error::Error>> {
         let count = self.paths.len();
-        for path in retained {
-            let Some(index) = self.paths.iter().position(|entry| entry == path) else {
+        for library in retained {
+            let Some(index) = self.paths.iter().position(|entry| *entry == library.path) else {
                 continue;
             };
-            if self.owned == Some(index) {
+            // .Renviron may replace the aliases with the absolute path itself.
+            // Only the earlier slot inherited with a later alias is conditional.
+            if self.owned == Some(index)
+                || !self.paths[index + 1..]
+                    .iter()
+                    .any(|entry| library.aliases.contains(entry))
+            {
                 continue;
             }
-            // R resolves relative spellings in its final directory. Keep the
-            // old absolute slot only while another project entry supplies it.
-            if path.canonicalize().is_ok_and(|target| {
+            // A chdir or a symlink change can give the same spelling a new target.
+            if library.path.canonicalize().is_ok_and(|target| {
                 self.paths
                     .iter()
                     .enumerate()
@@ -424,20 +435,29 @@ impl StartupLibraries {
         let previous = self.owned;
         if let Some(index) = previous
             && let Ok(current) = self.paths[index].canonicalize()
-            && self.paths[index + 1..].iter().any(|entry| {
-                // A retained relative entry can now resolve in a different
-                // directory. Drop its old fallback so it keeps its project slot.
-                !prepared.is_some_and(|p| {
-                    p.resolved == self.paths[index] && p.relative_entries.contains(entry)
-                }) && is_literal_library(entry, &current)
-            })
         {
-            // A later spelling introduced by the project makes the first
-            // occurrence project-owned too. Keep native R's search order.
-            if !self.retained.contains(&self.paths[index]) {
-                self.retained.push(self.paths[index].clone());
+            let aliases: Vec<_> = self.paths[index + 1..]
+                .iter()
+                .filter(|path| {
+                    // A relative entry that starts matching after a chdir keeps
+                    // its project slot when we remove the earlier fallback.
+                    !prepared.is_some_and(|p| {
+                        p.resolved == self.paths[index] && p.relative_entries.contains(path)
+                    }) && is_literal_library(path, &current)
+                })
+                .cloned()
+                .collect();
+            if !aliases.is_empty() {
+                // Native R keeps the first occurrence. Remember which later
+                // project spellings supplied it so startup can recheck them.
+                self.retained
+                    .retain(|library| library.path != self.paths[index]);
+                self.retained.push(RetainedLibrary {
+                    path: self.paths[index].clone(),
+                    aliases,
+                });
+                self.owned = None;
             }
-            self.owned = None;
         }
         let project = self
             .paths
