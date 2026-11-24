@@ -2,13 +2,33 @@
 
 use crate::settings::SandboxSettings;
 use serde_json::{Value, json};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command, String> {
-    let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
-        "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
-    )?;
-    let mut settings = materialize(settings)?;
+pub(crate) fn command(
+    declared: SandboxSettings,
+    parent: u32,
+    captured_duckdb: Option<&Path>,
+    retained_environment: Option<&super::cache::Environment>,
+) -> Result<(Command, super::preparation::PreparationCaches), String> {
+    // Validate the tool environment before provisioning any directories.
+    // Filesystem permissions still come from the original path spellings.
+    let mut settings = declared.clone();
+    let environment = super::cache::resolve_environment(&mut settings, retained_environment)?;
+    let directory = match captured_duckdb {
+        Some(directory) => directory.to_owned(),
+        None => {
+            let directory = super::cache::duckdb_extension_directory(&settings)?.ok_or(
+                "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
+            )?;
+            super::cache::selected_tool_directory(&directory)?
+        }
+    };
+    let caches = super::preparation::PreparationCaches {
+        environment,
+        matplotlib: super::cache::matplotlib_directory(&settings)?,
+    };
+    materialize(&mut settings, &declared)?;
     #[cfg(windows)]
     // MXC denies renv's junctions and Robocopy's restartable-copy operations.
     // Use R's copier within the same cache grants, without privileged setup.
@@ -51,19 +71,24 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
     command
         .env("RENV_CONFIG_CACHE_SYMLINKS", "FALSE")
         .env("RENV_CONFIG_COPY_METHOD", "r");
-    Ok(command)
+    Ok((command, caches))
 }
 
-fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String> {
+fn materialize(settings: &mut SandboxSettings, declared: &SandboxSettings) -> Result<(), String> {
     let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
-    // Explicit entries already define the write grants, including Console caches.
+    let managed = declared
+        .get(super::cache::MANAGED_DIRECTORY)
+        .map(|path| PathBuf::from(path.as_str().expect("captured managed cache directory")));
+    // Explicit entries replace the default permissions for both cache modes.
     let caches = if settings
         .get("filesystem")
         .is_some_and(|filesystem| filesystem.get("entries").is_some())
     {
         Vec::new()
+    } else if let Some(directory) = &managed {
+        vec![directory.clone()]
     } else {
-        super::cache::writable_roots(&settings)?
+        super::cache::writable_roots(declared)?
     };
     let create_caches = !caches.is_empty();
     let filesystem = settings.entry("filesystem").or_insert_with(|| json!({}));
@@ -75,17 +100,25 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
             })];
             for path in caches {
                 // Retain relative spelling until the shared guard has checked it.
-                entries.push(super::cache::writable_cache_entry(&path)?);
+                let path = path.to_str().ok_or("resolver policy paths must be UTF-8")?;
+                entries.push(json!({"path": {"type": "path", "path": path}, "access": "write"}));
             }
             filesystem.insert("entries".into(), entries.into());
         }
     }
     crate::settings::capture_filesystem_paths(
-        &mut settings,
+        settings,
         &workspace,
         crate::settings::PolicyContext::Launch,
     )?;
-    if create_caches {
+    if let Some(directory) = managed {
+        // A managed cache may have been missing or symlinked at server startup.
+        super::cache::prepare_directory(&directory)?;
+    } else if create_caches {
+        super::cache::validate_default_renv_cache(
+            settings,
+            super::cache::RenvLookup::Generated(declared),
+        )?;
         // Linux cannot bind absent roots. Create only the surviving cache grants.
         for entry in settings["filesystem"]["entries"]
             .as_array()
@@ -93,8 +126,7 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
         {
             if entry["access"] == "write" {
                 let path = entry["path"]["path"].as_str().expect("captured cache path");
-                std::fs::create_dir_all(path)
-                    .map_err(|error| format!("cannot create resolver cache '{path}': {error}"))?;
+                super::cache::prepare_directory(path.as_ref())?;
             }
         }
     }
@@ -104,5 +136,5 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
             .entry("macos_seatbelt_profile_extension")
             .or_insert_with(|| include_str!("../sandbox/policy_extensions.sbpl").into());
     }
-    Ok(settings)
+    Ok(())
 }

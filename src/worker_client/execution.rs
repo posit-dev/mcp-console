@@ -499,6 +499,38 @@ impl Client {
             let managed_r = environment
                 .as_ref()
                 .and_then(|environment| environment.r.as_ref());
+            // Preparation may have attached during setup. The worker must use
+            // the directory selected by that resolver for this session.
+            let preparation = self
+                .0
+                .resolver_preparation
+                .lock()
+                .map_err(|_| "preparation lock poisoned".to_string())?
+                .clone();
+            let duckdb_extension_directory = match &preparation {
+                Some(preparation) => preparation
+                    .discovery
+                    .duckdb_extension_directory
+                    .clone()
+                    .map(Into::into),
+                None => self.0.custom_worker_duckdb_directory.clone(),
+            };
+            let resolver_matplotlib_cache = if cfg!(unix)
+                && !self.0.no_sandbox
+                && python.is_none_or(|python| python.managed().is_some())
+            {
+                match &preparation {
+                    Some(preparation) => preparation.caches.matplotlib.clone(),
+                    None => {
+                        crate::resolver::cache::matplotlib_cache_override(&self.0.resolver_settings)
+                            .as_deref()
+                            .map(crate::resolver::cache::tool_directory)
+                            .transpose()?
+                    }
+                }
+            } else {
+                None
+            };
             let spec = WorkerSpec {
                 builtin: environment
                     .as_ref()
@@ -513,13 +545,9 @@ impl Client {
                 no_sandbox: self.0.no_sandbox,
                 sandbox_settings: &self.0.sandbox_settings,
                 startup_source: self.0.startup_source.as_ref(),
-                duckdb_extension_directory: self.0.duckdb_extension_directory.as_deref(),
-                resolver_matplotlib_cache: self
-                    .0
-                    .resolver_settings
-                    .get("environment")
-                    .and_then(|environment| environment.get("MPLCONFIGDIR"))
-                    .and_then(serde_json::Value::as_str),
+                duckdb_extension_directory: duckdb_extension_directory.as_deref(),
+                cache_environment: preparation.as_ref().map(|p| &p.caches.environment),
+                resolver_matplotlib_cache,
                 python,
                 managed_r,
                 dynamic_resolution: self.0.dynamic_resolution,

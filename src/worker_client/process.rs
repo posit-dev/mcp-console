@@ -247,6 +247,7 @@ impl WorkerRuntime {
             sandbox_settings,
             startup_source,
             duckdb_extension_directory,
+            cache_environment,
             resolver_matplotlib_cache,
             python,
             managed_r,
@@ -295,11 +296,7 @@ impl WorkerRuntime {
             None
         };
         command.env_remove("MCP_CONSOLE_MATPLOTLIB_CACHE");
-        if !no_sandbox
-            && cfg!(unix)
-            && python.is_none_or(|python| python.managed().is_some())
-            && let Some(cache) = resolver_matplotlib_cache
-        {
+        if let Some(cache) = resolver_matplotlib_cache {
             command.env("MCP_CONSOLE_MATPLOTLIB_CACHE", cache);
         }
         // Never accept an ambient internal selection for custom workers.
@@ -317,10 +314,13 @@ impl WorkerRuntime {
         // Managed Python carries its prepared cache in the runtime selection.
         // Managed R and custom workers need the startup-captured cache;
         // a custom worker may accept its first R layer after launch.
-        if (!builtin || managed_r.is_some())
-            && let Some(directory) = duckdb_extension_directory
-        {
+        let directory = duckdb_extension_directory
+            .filter(|_| !builtin || managed_r.is_some())
+            .or_else(|| local_runtime.and_then(|runtime| runtime.duckdb_extension_directory()));
+        if let Some(directory) = directory {
             command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+        } else if local_runtime.is_some_and(|runtime| runtime.python.is_some()) {
+            command.env_remove(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
         }
         command.env(
             "MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION",
@@ -334,6 +334,7 @@ impl WorkerRuntime {
             if let Some(transport) = &startup_transport {
                 transport.preserve_access(&mut settings)?;
             }
+            crate::resolver::cache::resolve_environment(&mut settings, cache_environment)?;
             crate::settings::preserve_environment(&mut settings, command.get_envs())?;
             command.env(
                 crate::settings::ENVIRONMENT,

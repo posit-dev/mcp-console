@@ -1,0 +1,36 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.yaml
+---
+send:
+  python: print('first session ready')
+result:
+  content:
+    - type: text
+      text: |
+        Warning: ignoring symlinked writable root '<workspace>/cache/unused/../storage/dependencies'. Grant writes using the target path.
+        [output produced while idle]
+        first session ready
+  isError: false
+---
+send:
+  session: second
+  python: |
+    import os
+    from pathlib import Path
+
+    directory = Path.cwd() / "cache/storage/dependencies"
+    assert (
+        Path(os.environ["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"])
+        == directory / "duckdb/extensions"
+    )
+    assert Path(os.environ["UV_CACHE_DIR"]) == directory / "uv/cache"
+    assert (directory / "uv/cache/prepared").read_text() == "ready"
+    prepared = Path(os.environ["XDG_DATA_HOME"]).parent / "prepared"
+    assert prepared.read_text() == "ready"
+    print("second session ready")
+result:
+  content:
+    - type: text
+      text: |
+        second session ready
+  isError: false

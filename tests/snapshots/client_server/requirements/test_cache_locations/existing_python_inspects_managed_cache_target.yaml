@@ -1,0 +1,18 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-writable.yaml
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    print(
+        Path(os.environ["RENV_PATHS_CACHE"])
+        == Path.cwd() / "storage/dependencies/renv/cache"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false

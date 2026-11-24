@@ -129,7 +129,6 @@ pub(crate) fn resolve_python_duckdb_extensions(
     python: &ManagedPython,
     extensions: &[String],
     defaults: &[String],
-    extension_directory: &std::path::Path,
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
 ) -> Result<Vec<String>, String> {
     configuration.preparation.call(
@@ -137,7 +136,6 @@ pub(crate) fn resolve_python_duckdb_extensions(
             python: python.clone(),
             extensions: extensions.to_vec(),
             defaults: defaults.to_vec(),
-            extension_directory: extension_directory.to_path_buf(),
         },
         on_started,
     )

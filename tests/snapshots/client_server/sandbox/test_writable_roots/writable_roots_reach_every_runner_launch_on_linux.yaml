@@ -73,10 +73,11 @@ result:
 
 
         Evaluated code can read host files subject to configured restrictions
-        and cannot directly access the network. Writable locations: private
-        `TMPDIR`, `"<writable-root>"`, `"<writable-root 2>"`, `"<writable-root
-        3>"`; subject to more specific read/deny rules. Package preparation may
-        execute installation or build code with separate filesystem and network
+        and cannot directly access the network. Configured write locations
+        include private `TMPDIR`, `"<writable-root>"`, `"<writable-root 2>"`,
+        `"<writable-root 3>"`. Console checks these grants at each launch and
+        applies more specific read/deny rules. Package preparation may execute
+        installation or build code with separate filesystem and network
         permissions; use only trusted dependencies.
       inputSchema:
         $schema: https://json-schema.org/draft/2020-12/schema

@@ -23,9 +23,9 @@ pub(crate) struct Transport {
 impl Transport {
     /// Preserve access to private handoff storage in the captured native policy.
     pub fn preserve_access(&self, policy: &mut super::SandboxSettings) -> Result<(), String> {
-        let directory = std::path::absolute(self.directory.path())
-            .map_err(|error| format!("cannot resolve startup transport directory: {error}"))?;
-        let directory = directory
+        let directory = self
+            .directory
+            .path()
             .to_str()
             .ok_or("startup transport directory must be UTF-8")?;
         // Leave malformed native policy values intact for launcher validation.
@@ -82,8 +82,12 @@ impl Startup {
             use std::os::unix::fs::PermissionsExt;
             builder.permissions(std::fs::Permissions::from_mode(0o700));
         }
+        // A symlink in the host temp path would cause the worker's private grant to be ignored.
+        let parent = tempfile::env::temp_dir()
+            .canonicalize()
+            .map_err(|error| format!("cannot resolve startup transport parent: {error}"))?;
         let directory = builder
-            .tempdir()
+            .tempdir_in(parent)
             .map_err(|error| format!("cannot create startup transport directory: {error}"))?;
         let mut file = tempfile::NamedTempFile::new_in(directory.path())
             .map_err(|error| format!("cannot create startup transport file: {error}"))?;

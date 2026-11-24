@@ -15,7 +15,7 @@ pub(crate) struct ClientConfiguration {
     pub(super) startup_source: Option<crate::settings::startup::Startup>,
     pub(super) startup_permitted: AtomicBool,
     pub(super) resolver_settings: crate::settings::SandboxSettings,
-    pub(super) duckdb_extension_directory: Option<PathBuf>,
+    pub(super) custom_worker_duckdb_directory: Option<PathBuf>,
     pub(super) worker: Mutex<WorkerState>,
     pub(super) environment: Option<Mutex<Environment>>,
     pub(super) requirements_snapshot: Mutex<serde_json::Value>,
@@ -60,8 +60,16 @@ impl ClientConfiguration {
         mut self,
         settings: crate::settings::SandboxSettings,
     ) -> Result<Self, String> {
-        self.duckdb_extension_directory =
-            crate::resolver::cache::duckdb_extension_directory(&settings)?;
+        // A custom worker can launch before it requests any preparation.
+        let directory = crate::resolver::cache::duckdb_extension_directory(&settings)?;
+        self.custom_worker_duckdb_directory = if self.no_sandbox {
+            directory
+        } else {
+            directory
+                .as_deref()
+                .map(crate::resolver::cache::selected_tool_directory)
+                .transpose()?
+        };
         self.resolver_settings = settings;
         Ok(self)
     }
@@ -102,8 +110,6 @@ impl ClientConfiguration {
     ) -> Result<Self, String> {
         #[cfg(windows)]
         let _ = &diagnostics;
-        let duckdb_extension_directory =
-            crate::resolver::cache::duckdb_extension_directory(&resolver_settings)?;
         let languages = crate::cell::Languages::from_environment()?;
         let legacy_python = python.is_none();
         let mut startup = super::environment::StartupRequirements {
@@ -147,6 +153,7 @@ impl ClientConfiguration {
                         executable: executable.clone(),
                     },
                     inspection_settings.clone(),
+                    None,
                     no_sandbox,
                     diagnostics.clone(),
                     on_started,
@@ -157,15 +164,15 @@ impl ClientConfiguration {
         #[cfg(any(unix, windows))]
         let resolver_preparation;
         #[cfg(any(unix, windows))]
-        let (preparation, discovery) = crate::resolver::preparation::Preparation::open_local(
-            crate::resolver::preparation::Mode::Auto,
+        let preparation = crate::resolver::preparation::Preparation::open_local(
+            crate::resolver::preparation::Worker::Builtin(installation.clone()),
             resolver_settings.clone(),
             no_sandbox,
             configured_python.as_deref(),
-            installation.clone(),
             diagnostics.clone(),
             on_started,
         )?;
+        let discovery = &preparation.discovery;
         if discovery.selections.r_home.is_some()
             && !discovery.managed
             && matches!(
@@ -204,6 +211,7 @@ impl ClientConfiguration {
                     Some(PathBuf::from(OsString::from_vec(
                         discovery
                             .local_r_home_bytes
+                            .clone()
                             .ok_or("local R discovery has no R home")?,
                     )))
                 } else {
@@ -239,13 +247,17 @@ impl ClientConfiguration {
                     Vec::new()
                 },
                 &resolver,
-                duckdb_extension_directory.clone(),
+                discovery
+                    .duckdb_extension_directory
+                    .as_ref()
+                    .map(PathBuf::from),
                 |executable, started| {
                     crate::resolver::preparation::Preparation::inspect(
                         crate::resolver::preparation::Operation::InspectPython {
                             executable: executable.to_owned(),
                         },
                         inspection_settings.clone(),
+                        Some(&preparation.caches.environment),
                         no_sandbox,
                         diagnostics.clone(),
                         started,
@@ -320,10 +332,10 @@ impl ClientConfiguration {
                     RResolver::Pending(BuiltinSetup {
                         bootstrap: preparation.clone(),
                         python_resolver: crate::resolver::execution::PythonConfiguration {
-                            preparation,
                             has_uv: discovery
                                 .local_has_uv
                                 .ok_or("local R discovery has no uv result")?,
+                            preparation,
                         },
                         configured_python: configured_python.clone(),
                     }),
@@ -364,6 +376,7 @@ impl ClientConfiguration {
                         crate::resolver::preparation::Preparation::inspect(
                             crate::resolver::preparation::Operation::InspectPython { executable },
                             inspection_settings.clone(),
+                            Some(&preparation.caches.environment),
                             no_sandbox,
                             diagnostics.clone(),
                             on_started,
@@ -401,7 +414,6 @@ impl ClientConfiguration {
                 r_resolver,
             },
         );
-        configuration.duckdb_extension_directory = duckdb_extension_directory;
         configuration.resolver_settings = resolver_settings;
         configuration.resolver_preparation = Mutex::new(resolver_preparation);
         configuration.languages = Some(languages);
@@ -437,7 +449,7 @@ impl ClientConfiguration {
             startup_source: None,
             startup_permitted: AtomicBool::new(true),
             resolver_settings: Default::default(),
-            duckdb_extension_directory: None,
+            custom_worker_duckdb_directory: None,
             worker: Mutex::new(WorkerState::Initial),
             requirements_snapshot: Mutex::new(environment.inspection()),
             runtime_r_requirements: environment

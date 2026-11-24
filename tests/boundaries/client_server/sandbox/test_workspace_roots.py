@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.assertions import wait_for_idle_output
 from support.client import McpClient
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
@@ -321,6 +322,10 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
         project = home / "project"
         grant = project / "grant"
         grant.mkdir(parents=True)
+        pending = home / "pending"
+        pending.symlink_to(home, target_is_directory=True)
+        output = root / "output"
+        output.mkdir()
         (home / "probe").write_text("unchanged")
         config = root / "config.json"
         config.write_text(
@@ -331,7 +336,9 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     "cache": "host",
                     "sandbox": {
                         "profile": "workspace",
-                        "filesystem": {"read_write": ["grant"]},
+                        "filesystem": {
+                            "read_write": ["grant", str(output), "../pending"]
+                        },
                     },
                 }
             )
@@ -345,24 +352,49 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
         ) as client:
             client.initialize_and_list_tools()
             description = client.transcript[-1]["result"]["tools"][0]["description"]
+            assert "Configured write locations include" in description, description
             assert json.dumps(str(grant)) in description, description
+            assert json.dumps(str(project / "../pending")) in description, description
+            assert "checks these grants at each launch" in description, description
+            warning = (
+                f"Warning: ignoring symlinked writable root '{project / '../pending'}'. "
+                "Grant writes using the target path.\n"
+            )
+            wait_for_idle_output(
+                client,
+                warning * 2 + "\n[idle]",
+                "writable root warnings before the first cell",
+                completion_timeout_seconds=client.response_timeout,
+                timeout_ms=int(client.response_timeout * 1_000),
+            )
             client.expect(
                 "relative grant used\n",
                 # fmt: python
                 python=code("""
+                    import errno
                     from pathlib import Path
 
                     grant = Path("grant")
                     initial = grant / "initial"
                     _ = initial.write_text("allowed")
                     initial.unlink()
+                    try:
+                        _ = Path("../pending/probe").write_text("blocked")
+                    except OSError as error:
+                        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                    else:
+                        raise AssertionError("initial symlink granted writes to home")
                     print("relative grant used")
                     """),
             )
-            # Keep the old root available until its running worker has retired.
-            # The next launch must inspect the replacement symlink's target.
+            # Keep both old roots available until their running worker retires.
+            # The replacement should use the new targets' existing permissions.
             grant.rename(project / "original-grant")
             grant.symlink_to(home, target_is_directory=True)
+            output.rename(root / "original-output")
+            output.symlink_to(project, target_is_directory=True)
+            pending.unlink()
+            pending.mkdir()
             client.send(control="restart")
             result = client.send(
                 # fmt: python
@@ -379,6 +411,9 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     else:
                         raise AssertionError("retargeted relative grant made home writable")
                     assert probe.read_text() == "unchanged"
+                    output = Path(os.environ["HOME"]).parent / "output"
+                    _ = (output / "result").write_text("allowed")
+                    _ = Path("../pending/result").write_text("restored")
                     print("home remains read-only after restart")
                     """),
             )
@@ -389,6 +424,8 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
             ), result
             transcript, stderr = client.finish_with_standard_error()
         assert (home / "probe").read_text() == "unchanged"
+        assert (project / "result").read_text() == "allowed"
+        assert (pending / "result").read_text() == "restored"
         if stderr:
             transcript.append({"stderr": stderr})
         return json.loads(

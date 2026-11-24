@@ -12,7 +12,15 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import POSIX, R, SANDBOX, SQL, command, requires
+from support.requirements import (
+    NON_UTF8_FILENAMES,
+    POSIX,
+    R,
+    SANDBOX,
+    SQL,
+    command,
+    requires,
+)
 from support.assertions import (
     last_result_text,
     last_tool_text,
@@ -221,7 +229,12 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
     binary: Path, execution: Execution
 ) -> Transcript:
     zod = Path(__file__).resolve().parents[3] / "fixtures/zod"
-    for explicit in (False, True):
+    overrides = (
+        ("default", "relative", "link")
+        if execution is SANDBOXED
+        else ("default", "absolute")
+    )
+    for override in overrides:
         with TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             env, _ = r_test_environment()
@@ -229,18 +242,32 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
             env["MCP_CONSOLE_TEST_ZOD_PYTHON_CELLS"] = str(root / "cells.jsonl")
             home = root / "resolver-home"
             home.mkdir()
-            cache = root / "extensions" if explicit else home / ".duckdb/extensions"
-            resolver_env = {
-                "HOME": str(home),
-                **r_library_cache_environment(env),
-            }
-            if explicit:
+            cache = (
+                home / ".duckdb/extensions"
+                if override == "default"
+                else root / "extensions"
+            )
+            r_caches = r_library_cache_environment(env)
+            resolver_env = {"HOME": str(home), **r_caches}
+            stage = root / "stage"
+            resolver = {"environment": resolver_env}
+            if override in ("relative", "link"):
+                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "stage/../extensions"
+                )
+                resolver["sandbox"] = {
+                    "filesystem": {
+                        "read_only": ["/"],
+                        "read_write": [str(root), *r_caches.values()],
+                    }
+                }
+                if override == "link":
+                    stage.symlink_to(home, target_is_directory=True)
+            elif override == "absolute":
                 resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
             config = root / ".agents/console/config.yaml"
             config.parent.mkdir(parents=True)
-            config.write_text(
-                json.dumps({"cache": "host", "resolver": {"environment": resolver_env}})
-            )
+            config.write_text(json.dumps({"cache": "host", "resolver": resolver}))
             with McpClient(
                 binary,
                 execution.serve(
@@ -256,10 +283,14 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
                 # use the same cache selection captured at Console startup.
                 for phase in ("launch", "live R", "restart"):
                     if phase == "live R":
-                        prepared = client.send(
-                            requirements={"r": ["praise"], "duckdb": ["sqlite"]}
+                        if override in ("relative", "link"):
+                            nested = root / "other" / "nested"
+                            nested.mkdir(parents=True)
+                            stage.unlink(missing_ok=True)
+                            stage.symlink_to(nested, target_is_directory=True)
+                        client.expect(
+                            None, requirements={"r": ["praise"], "duckdb": ["sqlite"]}
                         )
-                        assert not prepared.get("isError"), prepared
                         assert list(cache.glob("v*/**/sqlite_scanner.duckdb_extension"))
                     elif phase == "restart":
                         client.send(control="restart")
@@ -293,7 +324,9 @@ def duckdb_cache(
             if r:
                 resolver_env.update(r_library_cache_environment(env))
             if explicit:
-                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
+                resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "missing/../extensions"
+                )
             config = root / ".agents/console/config.yaml"
             config.parent.mkdir(parents=True)
             settings = {"cache": "host", "resolver": {"environment": resolver_env}}
@@ -341,6 +374,12 @@ def duckdb_cache(
                     client
                 ) and "missing" not in last_tool_text(client), last_tool_text(client)
                 config.write_text("resolver: {environment: {HOME: /missing}}\n")
+                assert not (root / "missing").exists()
+                if explicit:
+                    # A retained resolver keeps the directory used for preparation.
+                    nested = home / "nested"
+                    nested.mkdir()
+                    (root / "missing").symlink_to(nested, target_is_directory=True)
                 client.send(control="restart")
                 wait_for_evaluation_output(
                     client,
@@ -509,16 +548,65 @@ def test_omits_r_removed_by_resolver_environment(binary: Path) -> Transcript:
         return [{"ambient_r_removed": True, "python_prepared": True}]
 
 
+@requires(SANDBOX, NON_UTF8_FILENAMES)
+def test_isolated_resolver_keeps_encodable_duckdb_alias(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / os.fsdecode(b"extensions-\xff")
+        (target / "stage").mkdir(parents=True)
+        (root / "shortcut").symlink_to(target)
+        override = {"MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY": "shortcut/stage/.."}
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "cache=host",
+                "-c",
+                f"python.existing={sys.executable}",
+                "-c",
+                "resolver.inherit_environment=false",
+                "-c",
+                "resolver.environment=" + json.dumps(override),
+                "-c",
+                'resolver.sandbox.filesystem={"read_only":["/"]}',
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("42\n", python="21 + 21")
+            return client.finish()
+
+
 @requires(SANDBOX)
 def test_rejects_non_utf8_cache_paths(binary: Path) -> Transcript:
-    for name in ("UV_CACHE_DIR", "HOME"):
+    for name, spelling, overrides in (
+        ("UV_CACHE_DIR", b"unused/../cache-\xff", {}),
+        ("UV_CACHE_DIR", b"cache-\xff", {}),
+        ("HOME", b"cache-\xff", {}),
+        (
+            "HOME",
+            b"cache-\xff",
+            {"RENV_PATHS_CACHE": "~/cache", "IR_CACHE_DIR": "~/stage/../ir"},
+        ),
+    ):
         with TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             tools = root / "bin"
             tools.mkdir()
             (tools / "uv").symlink_to(shutil.which("uv"))
             invalid = root / os.fsdecode(b"cache-\xff")
-            env = dict(environment(tools), **{name: str(invalid)})
+            env = environment(tools)
+            for override in (
+                "R_USER_CACHE_DIR",
+                "XDG_CACHE_HOME",
+                "RENV_PATHS_ROOT",
+                "RENV_PATHS_CACHE",
+            ):
+                env.pop(override, None)
+            env.update(overrides)
+            env[name] = str(root / os.fsdecode(spelling))
             with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
                 client.initialize_and_list_tools()
                 failure = client.send(requirements={"action": "get"})
@@ -581,7 +669,107 @@ def test_ignores_relative_uv_xdg_directories(binary: Path) -> Transcript:
 
 
 @requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
+    return r_user_cache_lookup(binary, relative_xdg=True)
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_uses_provisioned_home_base(binary: Path) -> Transcript:
+    return r_user_cache_lookup(binary, relative_xdg=False)
+
+
+def r_user_cache_lookup(binary: Path, *, relative_xdg: bool) -> Transcript:
+    # The host tempdir is writable. Keep the cache fixture outside that grant.
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        env, _ = r_test_environment()
+        env.update(r_library_cache_environment(env))
+        env.pop("R_USER_CACHE_DIR", None)
+        env["MCP_CONSOLE_LANGUAGES"] = "r"
+        arguments = ("serve", "-c", "cache=host", "-c", "sandbox.tempdir=read_write")
+        if relative_xdg:
+            env["XDG_CACHE_HOME"] = "unused/../rcache"
+            base = Path("rcache")
+        else:
+            env.pop("XDG_CACHE_HOME", None)
+            workload = json.dumps({"HOME": str(root / "unused/../account")})
+            arguments += ("-c", "environment=" + workload)
+            base = Path("account") / (
+                "Library/Caches/org.R-project.R"
+                if sys.platform == "darwin"
+                else ".cache"
+            )
+        env["EXPECTED_R_CACHE"] = str(base / "R/reticulate")
+        env["EXPECTED_XDG"] = env.get("XDG_CACHE_HOME", "")
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    cache <- tools::R_user_dir("reticulate", "cache")
+                    stopifnot(
+                      Sys.getenv("XDG_CACHE_HOME") == Sys.getenv("EXPECTED_XDG"),
+                      dir.exists(cache),
+                      normalizePath(cache) == normalizePath(Sys.getenv("EXPECTED_R_CACHE"))
+                    )
+                    """),
+            )
+            client.finish()
+        assert not (root / "unused").exists()
+        return [
+            {
+                "r_cache_found": "rcache/R/reticulate"
+                if relative_xdg
+                else "platform default",
+                "xdg_cache_home": env.get("XDG_CACHE_HOME", ""),
+            }
+        ]
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_resolves_home_before_parents(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        (root / "existing").mkdir()
+        env, _ = r_test_environment()
+        env.update(r_library_cache_environment(env))
+        env.update(
+            R_USER_CACHE_DIR=f"~/{root.name}/existing/../rcache",
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        arguments = (
+            "serve",
+            "-c",
+            "cache=host",
+            "-c",
+            "resolver.environment=" + json.dumps({"HOME": str(root / "resolver-home")}),
+        )
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    actual <- tools::R_user_dir("reticulate", "cache")
+                    expected <- normalizePath("rcache/R/reticulate", mustWork = TRUE)
+                    stopifnot(normalizePath(actual, mustWork = TRUE) == expected)
+                    """),
+            )
+            client.finish()
+        assert not (root / "~").exists()
+        return [{"r_cache_found": "~/.../rcache/R/reticulate"}]
+
+
+@requires(SANDBOX, R, command("ir"))
 def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transcript:
+    return bootstrap_reticulate_uv(binary, relative_xdg=False)
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_bootstraps_reticulate_uv_with_relative_xdg_cache(binary: Path) -> Transcript:
+    return bootstrap_reticulate_uv(binary, relative_xdg=True)
+
+
+def bootstrap_reticulate_uv(binary: Path, *, relative_xdg: bool) -> Transcript:
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env, _ = r_test_environment()
@@ -595,8 +783,15 @@ def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transc
             "UV_PYTHON_INSTALL_DIR",
         ):
             env.pop(name, None)
+        if relative_xdg:
+            env.update(
+                XDG_CACHE_HOME="unused/../cache",
+                UV_CACHE_DIR=str(root / "uv-cache"),
+                UV_TOOL_DIR=str(root / "uv-tools"),
+                UV_PYTHON_INSTALL_DIR=str(root / "uv-python"),
+            )
         # Cold shell installation on macOS needs the host policy's Darwin temp
-        # grant. The redirected XDG cache keeps this fixture's artifacts private.
+        # grant. Both reticulate and uv use private fixture caches.
         with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -604,11 +799,104 @@ def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transc
                 requirements={"python": ["six"]},
                 python="import six; print('managed uv prepared')",
             )
+            client.expect(
+                "TRUE\n",
+                # fmt: r
+                r=code(r"""
+                    private <- file.path(Sys.getenv("TMPDIR"), "cache", "R", "reticulate")
+                    cat(tools::R_user_dir("reticulate", "cache") == private, "\n", sep = "")
+                    """),
+            )
             client.finish()
         cache = root / "cache"
+        assert not (root / "unused").exists()
         assert (cache / "R/reticulate/uv/bin/uv").is_file()
         assert not (cache / "reticulate").exists()
     return [{"reticulate_managed_uv": "R/reticulate", "cache_write_granted": True}]
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_r_prepares_packages_in_the_declared_renv_cache(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        env, _ = r_test_environment()
+        env.update(
+            IR_CACHE_DIR=str(root / "ir"),
+            RENV_PATHS_CACHE=f"local;~/{root.name}/shared",
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        resolver_env = json.dumps({"HOME": str(root / "resolver-home")})
+        arguments = (
+            "serve",
+            "-c",
+            "cache=host",
+            "-c",
+            f"resolver.environment={resolver_env}",
+        )
+        with McpClient(binary, arguments, env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                requirements={"action": "set", "r": ["utf8"]},
+                # fmt: r
+                r=code(r"""
+                    stopifnot(
+                      utf8::utf8_valid("prepared"),
+                      strsplit(Sys.getenv("RENV_PATHS_CACHE"), ";", fixed = TRUE)[[1L]] ==
+                        file.path(getwd(), c("local", "shared"))
+                    )
+                    """),
+            )
+            client.finish()
+        assert list((root / "local").rglob("utf8/DESCRIPTION"))
+        assert (root / "shared").is_dir()
+        assert not (root / "resolver-home" / root.name).exists()
+        return [{"prepared_r_package": "utf8", "renv_cache": "local"}]
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_r_preparation_selects_legacy_renv_cache_outside_project(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        caches = root / "caches"
+        legacy = caches / "data/renv"
+        legacy.mkdir(parents=True)
+        modern = Path("modern;unused")
+        (root / modern / "R/renv").mkdir(parents=True)
+        env, _ = r_test_environment()
+        for name in ("RENV_PATHS_ROOT", "RENV_PATHS_CACHE", "IR_LIBRARY_ROOT"):
+            env.pop(name, None)
+        env.update(
+            R_USER_CACHE_DIR=str(modern),
+            XDG_DATA_HOME=str(legacy.parent),
+            IR_CACHE_DIR=str(caches / "ir"),
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        filesystem = json.dumps({"read_only": ["/"], "read_write": [str(caches)]})
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "cache=host",
+                "-c",
+                f"python.existing={sys.executable}",
+                "-c",
+                f"resolver.sandbox.filesystem={filesystem}",
+            ),
+            env,
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "TRUE\n",
+                requirements={"action": "set", "r": ["utf8"]},
+                r='cat(utf8::utf8_valid("ok"), "\\n", sep = "")',
+            )
+            client.finish()
+        assert list((legacy / "cache").rglob("utf8/DESCRIPTION"))
+        return [{"prepared_r_package": "utf8", "renv_cache": "legacy"}]
 
 
 @requires(SANDBOX, R, command("ir"))

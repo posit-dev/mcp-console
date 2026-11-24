@@ -97,6 +97,8 @@ A custom directory must be nonempty; a bare path string is not a cache selector.
 Leading `~` follows the [configuration path rules](CONFIGURATION.md#paths).
 
 For managed caches, an explicit directory wins over `MCP_CONSOLE_CACHE_DIR`; otherwise Console uses that variable or the platform cache directory.
+If a symlink prevents Console from creating its dependency cache, the next resolver launch checks the path again and creates the cache if it can.
+Workers use the directory selected by their own resolver, including after a worker restart.
 The [environment reference](ENVIRONMENT.md#cache-and-data-locations) owns the cache paths, redirected variables, and precedence.
 `MCP_CONSOLE_HOME` moves configuration and fallback recordings, not dependencies.
 Existing Python environments continue to use their installed packages.
@@ -124,6 +126,7 @@ The selection rules live in [resolver cache selection](../src/resolver/cache.rs)
 `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` selects a host-mode extension directory; a relative nonempty value uses the launch directory.
 Otherwise extensions use the resolver home's `.duckdb/extensions`.
 The choice is captured before execution, and changing a cell's environment does not move it or grant additional access.
+When a worker restarts, it uses the extension directory selected by its retained resolver.
 
 `--no-sandbox` requires host caches and rejects explicit worker/resolver sandbox mappings.
 Clear inherited selections when opting out:

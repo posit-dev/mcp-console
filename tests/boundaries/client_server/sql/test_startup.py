@@ -554,11 +554,18 @@ def test_python_startup_without_r(binary: Path, execution: Execution) -> Transcr
         settings["python"] = sys.executable
         config.write_text(json.dumps(settings))
         configuration = captured_configuration(config, python=sys.executable)
-        with sql_client(binary, execution, environment(workspace), workspace) as client:
+        # A parent traversal through a link selects the link target's parent.
+        host_temp = workspace / "host-temp"
+        (host_temp / "child").mkdir(parents=True)
+        alias = workspace / "temp-link"
+        alias.symlink_to(host_temp / "child", target_is_directory=True)
+        env = environment(workspace) | {"TMPDIR": str(alias / "..")}
+        with sql_client(binary, execution, env, workspace) as client:
             client.expect("answer\n------\n42\n", sql="SELECT answer FROM selected")
             client.expect(
                 python="assert_startup_transport_consumed(); assert _console.sql_connection() is native; assert native.execute('SELECT answer FROM selected').fetchone() == (42,)"
             )
+            assert not list(host_temp.glob("mcp-console-startup-*"))
             transcript = client.finish()
     return [
         configuration,

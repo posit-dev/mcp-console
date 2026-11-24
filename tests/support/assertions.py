@@ -219,7 +219,14 @@ def wait_for_evaluation_output(
     assert received is None or not send_arguments, (
         "a received call must not be resubmitted"
     )
-    selected_arguments = received["send"] if received is not None else send_arguments
+    selected_arguments = send_arguments
+    if received is not None:
+        # Metadata-bearing calls retain their complete JSON-RPC input.
+        selected_arguments = (
+            received["send"]
+            if "send" in received
+            else received["input"]["params"]["arguments"]
+        )
     session = selected_arguments.get("session", "default")
     if received is None and send_arguments.keys() <= {"timeout_ms"}:
         send_arguments["session"] = session

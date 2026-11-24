@@ -1,0 +1,10 @@
+---
+stdout: |
+  wrote through shortcut and preserved target restrictions
+stderr: |
+  Warning: ignoring symlinked writable root '<host>/shortcut'. Grant writes using the target path.
+  Warning: ignoring symlinked writable root '<host>/shortcut/locked'. Grant writes using the target path.
+  Warning: ignoring symlinked writable root '<host>/other-shortcut'. Grant writes using the target path.
+  Warning: ignoring symlinked writable root '<host>/shortcut/../output'. Grant writes using the target path.
+  Warning: ignoring symlinked writable root '<host>/missing/../shortcut/../output'. Grant writes using the target path.
+  Warning: ignoring symlinked writable root '<host>/siblings/first'. Grant writes using the target path.

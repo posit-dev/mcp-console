@@ -74,8 +74,9 @@ result:
 
         Evaluated code can read host files subject to configured restrictions
         and can access the network subject to the launcher's proxy settings.
-        Writable locations: private `TMPDIR`, `"<workspace>/output café 雪"`,
-        `"<writable-root>"`; subject to more specific read/deny rules. Package
+        Configured write locations include private `TMPDIR`,
+        `"<workspace>/output café 雪"`, `"<writable-root>"`. Console checks these
+        grants at each launch and applies more specific read/deny rules. Package
         preparation may execute installation or build code with separate
         filesystem and network permissions; use only trusted dependencies.
       inputSchema:

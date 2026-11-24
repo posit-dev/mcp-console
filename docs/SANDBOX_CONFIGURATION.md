@@ -94,10 +94,33 @@ An explicit resolver filesystem instead **replaces** its default entries, includ
 
 Relative `read_write` paths and `--writable-root` arguments that resolve to a filesystem root, the user's home directory, or a parent of home are ignored with a warning.
 This applies to both worker and resolver filesystem settings.
-This includes `.` when Console starts from one of those directories, parent paths such as `..`, and symlinks to those roots.
+This includes `.` when Console starts from one of those directories and parent paths such as `..`.
 To grant writes there explicitly, supply an absolute path.
-The check includes absent paths and is repeated at native launch so a changed symlink cannot widen a relative grant.
-Absolute paths retain their explicit authority and undergo native validation.
+Console checks absent paths too and repeats the check before each native launch.
+
+If a `read_write` entry or `--writable-root` contains a symlink, Console warns and ignores that grant for the current launch.
+It checks each component as written, including a directory followed by `..` and a final link spelled with a trailing slash.
+The server retains the declared path for later launches.
+If the link becomes an ordinary directory, a restarted worker can use the grant.
+Code can still use the link with the target's existing permissions.
+For example, if `shortcut` points to `output`, granting writes to `output` lets code write through `shortcut`.
+Listing only `shortcut` under the `read_only` profile leaves `output` read-only.
+If a `read_only` or `deny` exception is named through the ignored root, Console rejects the launch.
+This also applies when the exception reaches the ignored root through another symlink or spelling, even if a subsequent symlink or `..` leaves the root.
+If both paths cross the same link and their missing components leave the relationship uncertain, Console rejects the launch.
+Name the exception using the target path, for example `output/locked`.
+The same rule applies to directory junctions on Windows.
+Use backslashes throughout verbatim Windows permission paths (`\\?\...`) so Console and the native runner inspect the same components.
+On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.
+Console also checks write grants for host temporary directories and dependency caches.
+
+For a locally configured worker profile, the tool description lists the worker's configured write locations.
+With `inherit_codex`, it describes how the client selects the worker profile.
+Resolver grants apply separately to package preparation.
+
+Console passes checked paths to the native runner by name.
+On Linux the runner resolves each path again when it sets up the writable mount.
+Choose a location where untrusted processes cannot replace the granted path or any parent directory between the check and mount setup, including during worker restarts.
 
 Narrower native rules take precedence.
 At equal paths, deny wins over write, then read.
@@ -334,6 +357,8 @@ Console translates the current `permissionProfile` and uses `sandboxCwd` to reso
 | Restricted or enabled network      | Apply that worker network mode unless `sandbox.network` is explicitly configured.                                                               |
 
 Symbolic project roots use the client's sandbox working directory, which may differ from Console's launch directory; inheritance does not change the worker's working directory.
+An inherited `:tmpdir` write grant uses the native launcher's `TMPDIR` on Unix and the workload's absolute `TEMP` and `TMP` paths on Windows.
+The [same symlink check](#filesystem) applies to these paths.
 Local grants and denials retain their normal precedence.
 Console's host-read baseline and temporary-storage settings still apply to restricted profiles, so inheritance does not reproduce every Codex restriction.
 

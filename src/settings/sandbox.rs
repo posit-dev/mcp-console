@@ -1,11 +1,14 @@
 //! Human-facing permissions and execution-host additions after configuration layering.
 
+use std::collections::HashSet;
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::{Value, json};
 
 use super::SandboxSettings;
+use crate::console_paths::normalize_permission_path;
 
 // Option means omitted, not an explicit YAML null.
 pub(super) fn supplied<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -381,7 +384,11 @@ impl Sandbox {
             .into_iter()
             .flat_map(|(paths, access)| {
                 paths.into_iter().map(move |path| {
-                    let path = crate::console_paths::expand_home(std::path::Path::new(&path))
+                    let path =
+                        crate::console_paths::expand_permission_home(std::path::Path::new(&path))
+                            .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
+                    #[cfg(windows)]
+                    crate::console_paths::validate_verbatim_path(&path)
                         .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
                     let path = path.to_str().ok_or_else(|| {
                         format!("{prefix}.filesystem: expanded path must be UTF-8")
@@ -653,10 +660,15 @@ fn capture_writable_root(
     workspace: &Path,
     context: PolicyContext,
 ) -> Result<Option<WritableRoot>, String> {
-    let path = crate::console_paths::expand_home(&path)?;
+    let path = crate::console_paths::expand_permission_home(&path)?;
     let root = resolve_writable_root(path.clone(), workspace)?;
     let guarded = context == PolicyContext::Launch && !path.is_absolute();
-    if guarded && is_broad_write_root(Path::new(&root))? {
+    // A symlink can become an ordinary directory before a later launch.
+    // Keep the declared path and its relative-grant marker for that generation.
+    if guarded
+        && !has_untrusted_symlink(Path::new(&root))?
+        && is_broad_write_root(Path::new(&root))?
+    {
         eprintln!(
             "Warning: refusing relative writable root '{}'; use an absolute path to grant writes to the home directory or filesystem root",
             path.display()
@@ -669,33 +681,408 @@ fn capture_writable_root(
     }))
 }
 
-/// Check relative grants again after the previous generation has retired. The
+/// Check write grants again after the previous generation has retired. The
 /// native runner receives ordinary entries without Console's private markers.
-pub(crate) fn revalidate_writable_roots(settings: &mut SandboxSettings) -> Result<(), String> {
+pub(crate) fn revalidate_writable_roots(
+    settings: &mut SandboxSettings,
+    tmpdirs: &[PathBuf],
+) -> Result<(), String> {
     if let Some(Value::Array(entries)) = settings
         .get_mut("filesystem")
         .and_then(|filesystem| filesystem.get_mut("entries"))
     {
         let mut checked = Vec::with_capacity(entries.len());
+        let slash_tmp = PathBuf::from("/tmp");
+        let tmpdirs = tmpdirs
+            .iter()
+            .map(|path| {
+                crate::console_paths::absolute_preserving_parents(Path::new("."), path).map_err(
+                    |error| {
+                        format!(
+                            "cannot resolve temporary directory '{}': {error}",
+                            path.display()
+                        )
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let temporary_paths = |entry: &Value| -> &[PathBuf] {
+            match entry.pointer("/path/value/kind").and_then(Value::as_str) {
+                Some("tmpdir") => &tmpdirs,
+                Some("slash_tmp") if cfg!(unix) && slash_tmp.is_dir() => {
+                    std::slice::from_ref(&slash_tmp)
+                }
+                _ => &[],
+            }
+        };
+        let mut restrictions = Vec::new();
+        for entry in entries
+            .iter()
+            .filter(|entry| matches!(entry["access"].as_str(), Some("read" | "deny")))
+        {
+            if let Some(path) = entry.pointer("/path/path").and_then(Value::as_str) {
+                restrictions.push(PathBuf::from(path));
+            } else {
+                restrictions.extend_from_slice(temporary_paths(entry));
+            }
+        }
         for mut entry in entries.drain(..) {
             let guarded = entry
                 .as_object_mut()
                 .and_then(|entry| entry.remove(RELATIVE_WRITE_ROOT))
                 == Some(Value::Bool(true));
-            if guarded
+            if entry["access"] == "write" && entry["path"]["type"] == "special" {
+                let paths = temporary_paths(&entry);
+                let mut allowed = Vec::new();
+                for path in paths {
+                    if !ignore_symlinked_write_root(path, &restrictions)? {
+                        allowed.push(path);
+                    }
+                }
+                // Keep the native symbol unless it would also grant a symlink.
+                // Windows TEMP and TMP may select different directories.
+                if allowed.len() != paths.len() {
+                    for path in allowed {
+                        let mut grant = entry.clone();
+                        let path = path
+                            .to_str()
+                            .ok_or("temporary write grant is not valid UTF-8")?;
+                        grant["path"] = json!({"type": "path", "path": path});
+                        checked.push(grant);
+                    }
+                    continue;
+                }
+            }
+            if entry["access"] == "write"
                 && let Some(path) = entry.pointer("/path/path").and_then(Value::as_str)
-                && is_broad_write_root(Path::new(path))?
             {
-                eprintln!(
-                    "Warning: refusing changed writable root '{path}'; broad writes require an explicit absolute grant"
-                );
-                continue;
+                if ignore_symlinked_write_root(Path::new(path), &restrictions)? {
+                    continue;
+                }
+                if guarded && is_broad_write_root(Path::new(path))? {
+                    eprintln!(
+                        "Warning: refusing changed writable root '{path}'; broad writes require an explicit absolute grant"
+                    );
+                    continue;
+                }
             }
             checked.push(entry);
         }
         *entries = checked;
     }
     Ok(())
+}
+
+fn ignore_symlinked_write_root(path: &Path, restrictions: &[PathBuf]) -> Result<bool, String> {
+    if !has_untrusted_symlink(path)? {
+        return Ok(false);
+    }
+    let mut root_traversal = None;
+    for restriction in restrictions {
+        if restriction.starts_with(path)
+            || exception_uses_alias(path, &mut root_traversal, restriction).map_err(|error| {
+                format!(
+                    "cannot compare restriction '{}' with writable root '{}': {error}",
+                    restriction.display(),
+                    path.display()
+                )
+            })?
+        {
+            return Err(format!(
+                "cannot enforce restriction '{}' beneath ignored writable root '{}'. Specify the restriction using the target path.",
+                restriction.display(),
+                path.display()
+            ));
+        }
+    }
+    eprintln!(
+        "Warning: ignoring symlinked writable root '{}'. Grant writes using the target path.",
+        path.display()
+    );
+    Ok(true)
+}
+
+/// Both paths must traverse the same link. A restriction named directly by
+/// its target remains attached to that target when the alias grant is dropped.
+fn exception_uses_alias(
+    root: &Path,
+    root_traversal: &mut Option<AliasTraversal>,
+    child: &Path,
+) -> std::io::Result<bool> {
+    let child_traversal = AliasTraversal::inspect(child)?;
+    if child_traversal.links.is_empty() {
+        return Ok(false);
+    }
+    let root_traversal = match root_traversal {
+        Some(traversal) => traversal,
+        slot @ None => slot.insert(AliasTraversal::inspect(root)?),
+    };
+    let mut first_shared = None;
+    for (index, (path, metadata)) in child_traversal.links.iter().enumerate() {
+        if root_traversal.contains_link(path, metadata)? {
+            // There is no existing target under which we could distinguish
+            // these paths. Require the target spelling for the restriction.
+            if !path.try_exists()? {
+                return Ok(true);
+            }
+            first_shared.get_or_insert(index);
+        }
+    }
+    let Some(first_shared) = first_shared else {
+        return Ok(false);
+    };
+    // Either the declared traversal or the runner's lexical spelling may
+    // place the exception below this grant. Compare equivalent existing paths
+    // by filesystem identity even when the volume preserves caller casing.
+    if might_be_within(root, child)? {
+        return Ok(true);
+    }
+    let native_root = normalize_permission_path(root);
+    let native_child = normalize_permission_path(child);
+    if (native_root != root || native_child != child)
+        && might_be_within(&native_root, &native_child)?
+    {
+        return Ok(true);
+    }
+    // Check the directory reached before '..' or a symlink redirects lookup.
+    // A shared link later in the path cannot turn an earlier visit through
+    // the target itself into an alias.
+    for (departed, links_seen) in child_traversal.departed {
+        if first_shared < links_seen
+            && (might_be_within(root, &departed)?
+                || (root != native_root && might_be_within(&native_root, &departed)?))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+#[derive(Default)]
+struct AliasTraversal {
+    links: Vec<(PathBuf, std::fs::Metadata)>,
+    // The number of links seen on entry distinguishes earlier direct visits.
+    departed: Vec<(PathBuf, usize)>,
+}
+
+impl AliasTraversal {
+    fn inspect(path: &Path) -> std::io::Result<Self> {
+        let mut traversal = Self::default();
+        let mut seen = HashSet::new();
+        let mut pending = Vec::new();
+        PermissionPath::Declared(path).push_steps(&mut pending)?;
+        while let Some(step) = pending.pop() {
+            match step {
+                AliasStep::Enter(prefix, metadata) => {
+                    // Resolve the parent only. Identity belongs to the link, and a
+                    // relative link target starts in its physical parent directory.
+                    let parent = prefix.parent().expect("link has a parent").canonicalize()?;
+                    traversal
+                        .departed
+                        .push((parent.clone(), traversal.links.len()));
+                    let link = parent.join(prefix.file_name().expect("link has a name"));
+                    if seen.insert(link.clone()) {
+                        let target = crate::console_paths::absolute_preserving_parents(
+                            &parent,
+                            &std::fs::read_link(&link)?,
+                        )?;
+                        traversal.links.push((link, metadata));
+                        PermissionPath::LinkTarget(&target).push_steps(&mut pending)?;
+                    }
+                }
+                AliasStep::Leave(prefix) => {
+                    traversal.departed.push((prefix, traversal.links.len()));
+                }
+            }
+        }
+        Ok(traversal)
+    }
+
+    fn contains_link(&self, path: &Path, metadata: &std::fs::Metadata) -> std::io::Result<bool> {
+        for (other, other_metadata) in &self.links {
+            if same_entry(path, metadata, other, other_metadata)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+fn might_be_within(root: &Path, child: &Path) -> std::io::Result<bool> {
+    let root = inspect_path_identity(root)?;
+    let child = inspect_path_identity(child)?;
+    if child.starts_with(&root) {
+        return Ok(true);
+    }
+    for (missing, base) in root.ancestors().enumerate() {
+        let Some(root_entry) = existing_entry(base)? else {
+            continue;
+        };
+        // A volume can expose the same directory at different mount depths.
+        for (suffix, ancestor) in child.ancestors().enumerate() {
+            let Some(entry) = existing_entry(ancestor)? else {
+                continue;
+            };
+            if missing != 0 {
+                // A missing root could contain the child only if both lookups
+                // stopped at the same directory and the child's suffix is long enough.
+                return Ok(suffix >= missing && same_entry(base, &root_entry, ancestor, &entry)?);
+            }
+            if same_entry(base, &root_entry, ancestor, &entry)? {
+                return Ok(true);
+            }
+        }
+        break;
+    }
+    Ok(false)
+}
+
+pub(crate) fn has_untrusted_symlink(path: &Path) -> Result<bool, String> {
+    PermissionPath::Declared(path)
+        .any_step(|step| matches!(step, AliasStep::Enter(..)))
+        .map_err(|error| format!("cannot inspect writable root '{}': {error}", path.display()))
+}
+
+#[cfg(unix)]
+fn same_entry(
+    _: &Path,
+    left: &std::fs::Metadata,
+    _: &Path,
+    right: &std::fs::Metadata,
+) -> std::io::Result<bool> {
+    use std::os::unix::fs::MetadataExt as _;
+    Ok((left.dev(), left.ino()) == (right.dev(), right.ino()))
+}
+
+#[cfg(windows)]
+fn same_entry(
+    left: &Path,
+    _: &std::fs::Metadata,
+    right: &Path,
+    _: &std::fs::Metadata,
+) -> std::io::Result<bool> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    };
+    let handle = |path: &Path| {
+        let file = std::fs::File::options()
+            .access_mode(0)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path)?;
+        same_file::Handle::from_file(file)
+    };
+    Ok(handle(left)? == handle(right)?)
+}
+
+fn existing_entry(path: &Path) -> std::io::Result<Option<std::fs::Metadata>> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn untrusted_link(prefix: &Path, leaving: bool) -> std::io::Result<Option<std::fs::Metadata>> {
+    let Some(metadata) = existing_entry(prefix)?.filter(|metadata| metadata.is_symlink()) else {
+        return Ok(None);
+    };
+    #[cfg(target_os = "macos")]
+    let system_alias = is_macos_system_alias(prefix, &metadata);
+    #[cfg(not(target_os = "macos"))]
+    let system_alias = false;
+    // Normal links are inspected when entered. The standard macOS
+    // aliases become ambiguous only when '..' leaves the alias.
+    Ok((leaving == system_alias).then_some(metadata))
+}
+
+enum PermissionPath<'a> {
+    Declared(&'a Path),
+    LinkTarget(&'a Path),
+}
+
+enum AliasStep {
+    Enter(PathBuf, std::fs::Metadata),
+    Leave(PathBuf),
+}
+
+impl PermissionPath<'_> {
+    fn push_steps(self, pending: &mut Vec<AliasStep>) -> std::io::Result<()> {
+        let start = pending.len();
+        self.any_step(|step| {
+            pending.push(step);
+            false
+        })?;
+        pending[start..].reverse();
+        Ok(())
+    }
+
+    fn any_step(self, mut matches: impl FnMut(AliasStep) -> bool) -> std::io::Result<bool> {
+        // Walk both the original spelling and the native lexical prefixes. After
+        // link/.. they can be different directories; after missing/.. only the
+        // lexical prefix may exist. The OS alone resolves components inside a link.
+        let (path, declared_path) = match self {
+            Self::Declared(path) => (path, true),
+            Self::LinkTarget(path) => (path, false),
+        };
+        #[cfg(windows)]
+        crate::console_paths::validate_verbatim_path(path)?;
+        // lstat("link/") follows the link. Strip trailing separators and '.'
+        // while preserving every '..' for the component checks below.
+        let mut prefixes: Vec<_> = path.components().as_path().ancestors().collect();
+        let mut lexical = prefixes.pop().expect("path has an ancestor").to_owned();
+        for declared in prefixes.into_iter().rev() {
+            let (written, leaving) = match declared.components().next_back() {
+                Some(Component::Normal(name)) => {
+                    lexical.push(name);
+                    (declared, false)
+                }
+                Some(Component::ParentDir) => (
+                    declared.parent().expect("parent traversal has a prefix"),
+                    true,
+                ),
+                _ => continue,
+            };
+            for prefix in (declared_path && written != lexical)
+                .then_some(lexical.as_path())
+                .into_iter()
+                .chain(std::iter::once(written))
+            {
+                if let Some(metadata) = untrusted_link(prefix, leaving)?
+                    && matches(AliasStep::Enter(prefix.to_owned(), metadata))
+                {
+                    return Ok(true);
+                }
+                if leaving && matches(AliasStep::Leave(prefix.to_owned())) {
+                    return Ok(true);
+                }
+            }
+            if leaving {
+                lexical.pop();
+            }
+        }
+        Ok(false)
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn is_macos_system_alias(path: &Path, metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+
+    // Require the system link itself, in the physical root directory. A hard
+    // link to that symlink in another directory can resolve differently.
+    ["/tmp", "/var", "/etc"].iter().any(|alias| {
+        std::fs::symlink_metadata(alias)
+            .is_ok_and(|system| (system.dev(), system.ino()) == (metadata.dev(), metadata.ino()))
+    }) && path.parent().is_some_and(|parent| {
+        let root = Path::new("/");
+        parent == root
+            || parent
+                .canonicalize()
+                .is_ok_and(|directory| directory == root)
+    })
 }
 
 /// A launch directory must not implicitly authorize the host or the entire home.
@@ -720,42 +1107,11 @@ fn is_broad_write_root(path: &Path) -> Result<bool, String> {
     Ok(home.starts_with(root))
 }
 
-fn normalize_permission_path(path: &Path) -> PathBuf {
-    // Match the runner's lexical normalization, including absent/.. paths.
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
-                normalized.push(component.as_os_str());
-            }
-        }
-    }
-    normalized
-}
-
 /// Resolve the existing prefix while retaining absent suffixes. Comparing only
 /// the existing ancestor would conflate unrelated missing sibling directories.
 fn inspect_path_identity(path: &Path) -> std::io::Result<PathBuf> {
-    for ancestor in path.ancestors() {
-        match ancestor.canonicalize() {
-            Ok(canonical) => {
-                return Ok(normalize_permission_path(
-                    &canonical.join(path.strip_prefix(ancestor).expect("path ancestor")),
-                ));
-            }
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-                ) => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(normalize_permission_path(path))
+    crate::console_paths::canonicalize_existing_prefix(path)
+        .map(|path| normalize_permission_path(&path))
 }
 
 /// Capture launch-relative paths without hiding symlinks from runner validation.
@@ -763,7 +1119,7 @@ pub(crate) fn resolve_writable_root(
     path: PathBuf,
     workspace: &std::path::Path,
 ) -> Result<String, String> {
-    let root = std::path::absolute(workspace.join(&path))
+    let root = crate::console_paths::absolute_preserving_parents(workspace, &path)
         .map_err(|error| format!("cannot resolve writable root '{}': {error}", path.display()))?;
     // The runner configuration carries paths as JSON strings.
     root.into_os_string()

@@ -250,17 +250,22 @@ class Session:
             )
             assert "running;" not in json.dumps(result), result
 
-    def send(self, *, response_deadline: float | None = None, **arguments):
+    def send(
+        self,
+        *,
+        metadata: dict | None = None,
+        response_deadline: float | None = None,
+        **arguments,
+    ):
         if response_deadline is None:
             response_deadline = time.monotonic() + self.timeout
         observe_once = "timeout_ms" in arguments
         arguments.setdefault("session", "default")
         arguments.setdefault("timeout_ms", 10000)
-        result = self.request(
-            "tools/call",
-            {"name": "send", "arguments": arguments},
-            deadline=response_deadline,
-        )
+        params = {"name": "send", "arguments": arguments}
+        if metadata is not None:
+            params["_meta"] = metadata
+        result = self.request("tools/call", params, deadline=response_deadline)
         if observe_once:
             return result
         return self._collect(result, arguments, response_deadline)
@@ -761,6 +766,27 @@ class WindowsPackaging(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "native Windows acceptance")
 class WindowsConsole(unittest.TestCase):
+    def test_cache_directory_with_verbatim_parent_traversal(self):
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = Path(_getfinalpathname(root)) / "scratch" / ".." / "cache"
+            session = Session(
+                sandbox=True,
+                python=sys.executable,
+                overrides=(
+                    "languages=[python]",
+                    "cache.directory=" + json.dumps(str(cache)),
+                ),
+            )
+            try:
+                session.initialize()
+                self.assertTrue((root / "cache/dependencies").is_dir())
+                self.assertFalse((root / "scratch").exists())
+            finally:
+                session.close()
+
     def test_collects_streamed_output_before_starting_the_next_cell(self):
         from concurrent.futures import ThreadPoolExecutor
 
@@ -919,6 +945,77 @@ class WindowsConsole(unittest.TestCase):
                         settings["sandbox"]["filesystem"]["deny"],
                         [str(home / "private")],
                     )
+
+    def test_verbatim_permission_paths_require_backslashes(self):
+        from itertools import product
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bases = (_getfinalpathname(temporary), r"\\?\UNC\localhost\share")
+            for base, scope in product(bases, ("sandbox", "resolver.sandbox")):
+                path = base + r"\ordinary/child"
+                with self.subTest(path=path, scope=scope):
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "config",
+                            "resolve",
+                            "--no-config",
+                            "-c",
+                            f"{scope}.filesystem.read_write=" + json.dumps([path]),
+                        ],
+                        cwd=temporary,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(result.returncode, 1, result)
+                    self.assertEqual(result.stdout, "", result)
+                    self.assertIn(
+                        "verbatim Windows paths must use backslashes", result.stderr
+                    )
+
+    def test_verbatim_home_opens_config_and_retains_policy_parent_traversals(self):
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home = Path(_getfinalpathname(root))
+            declared = Path("~") / "unused" / ".." / "output"
+            (root / "policy.yaml").write_text(
+                json.dumps(
+                    {
+                        "cache": {"directory": str(declared)},
+                        "sandbox": {"filesystem": {"read_write": [str(declared)]}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    BINARY,
+                    "config",
+                    "resolve",
+                    "--format",
+                    "json",
+                    "--config-file",
+                    r"~\unused\..\policy.yaml",
+                ],
+                cwd=root,
+                env=os.environ
+                | {"HOME": str(home), "MCP_CONSOLE_HOME": str(root / "console")},
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result)
+            self.assertEqual(result.stderr, "", result)
+            configuration = json.loads(result.stdout)
+            expected = str(home / declared.relative_to("~"))
+            self.assertEqual(configuration["cache"]["directory"], expected)
+            self.assertEqual(
+                configuration["sandbox"]["filesystem"]["read_write"], [expected]
+            )
 
     def test_native_home_configuration_discovery(self):
         with tempfile.TemporaryDirectory() as temporary:

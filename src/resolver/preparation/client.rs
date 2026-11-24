@@ -17,7 +17,11 @@ use crate::process_io::Io;
 use crate::resolver::{ResolverControl, ResolverControlOutcome, ResolverStopHandle};
 
 #[derive(Clone)]
-pub(crate) struct Preparation(Arc<Connection>);
+pub(crate) struct Preparation {
+    connection: Arc<Connection>,
+    pub(crate) discovery: Arc<Discovery>,
+    pub(crate) caches: super::PreparationCaches,
+}
 
 struct Connection {
     events: mpsc::Sender<Event>,
@@ -205,6 +209,7 @@ impl Preparation {
     pub(crate) fn inspect<T: serde::de::DeserializeOwned>(
         operation: Operation,
         mut settings: crate::settings::SandboxSettings,
+        cache_environment: Option<&crate::resolver::cache::Environment>,
         no_sandbox: bool,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
@@ -213,6 +218,9 @@ impl Preparation {
         let mut command = std::process::Command::new(&executable);
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
+        if cfg!(unix) && !no_sandbox {
+            crate::resolver::cache::resolve_environment(&mut settings, cache_environment)?;
+        }
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
             crate::settings::configure_environment(&mut command, &settings);
         } else {
@@ -222,7 +230,13 @@ impl Preparation {
             )?;
             #[cfg(windows)]
             {
-                command = crate::resolver::sandbox::command(settings, std::process::id())?;
+                command = crate::resolver::sandbox::command(
+                    settings,
+                    std::process::id(),
+                    None,
+                    cache_environment,
+                )?
+                .0;
             }
             #[cfg(unix)]
             command
@@ -236,13 +250,16 @@ impl Preparation {
                 );
         }
         command.arg("resolve").env_remove("RETICULATE_PYTHON");
-        let (preparation, _) = Self::open_with(
+        let preparation = Self::open_with(
             command,
             Arc::default(),
             Input::Open {
                 mode: Mode::PythonOnly,
                 installation: None,
+                matplotlib_cache: None,
+                check_renv_cache: false,
             },
+            Default::default(),
             diagnostics,
             on_started,
         )?;
@@ -257,7 +274,7 @@ impl Preparation {
 
     pub(crate) fn check_ready(&self) -> Result<(), String> {
         if let Some(error) = &*self
-            .0
+            .connection
             .blocked
             .lock()
             .map_err(|_| "preparation session lock")?
@@ -268,28 +285,40 @@ impl Preparation {
     }
 
     pub(crate) fn open_local(
-        mode: Mode,
+        worker: super::Worker<'_>,
         mut settings: crate::settings::SandboxSettings,
         no_sandbox: bool,
         python: Option<&std::ffi::OsStr>,
-        installation: Option<crate::local_runtime::RInstallation>,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<(Self, Discovery), String> {
-        let mut command = if !no_sandbox {
+    ) -> Result<Self, String> {
+        let (mode, installation, captured_duckdb) = match worker {
+            super::Worker::Builtin(installation) => (Mode::Auto, installation, None),
+            super::Worker::Custom(directory) => (Mode::Custom, None, directory),
+        };
+        let (mut command, caches) = if !no_sandbox {
             // Preparation and the retained worker must agree on whether Python
             // is managed, including with an isolated resolver environment.
             crate::settings::preserve_environment(
                 &mut settings,
                 [("RETICULATE_PYTHON".as_ref(), python)],
             )?;
-            crate::resolver::sandbox::command(settings, std::process::id())?
+            crate::resolver::sandbox::command(settings, std::process::id(), captured_duckdb, None)?
         } else {
             let mut command = std::process::Command::new(
                 std::env::current_exe().map_err(|error| error.to_string())?,
             );
             crate::settings::configure_environment(&mut command, &settings);
-            command
+            let directory = match captured_duckdb {
+                Some(path) => Some(path.to_owned()),
+                None => crate::resolver::cache::duckdb_extension_directory(&settings)?,
+            };
+            if let Some(directory) = directory {
+                command.env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+            } else {
+                command.env_remove(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
+            }
+            (command, Default::default())
         };
         if let Some(python) = python {
             command.env("RETICULATE_PYTHON", python);
@@ -297,17 +326,30 @@ impl Preparation {
             command.env_remove("RETICULATE_PYTHON");
         }
         command.arg("resolve");
-        let open = Input::Open { mode, installation };
-        Self::open_with(command, Arc::default(), open, diagnostics, on_started)
+        let open = Input::Open {
+            mode,
+            installation,
+            matplotlib_cache: caches.matplotlib.clone().map(Into::into),
+            check_renv_cache: !no_sandbox,
+        };
+        Self::open_with(
+            command,
+            Arc::default(),
+            open,
+            caches,
+            diagnostics,
+            on_started,
+        )
     }
 
     fn open_with(
         mut command: std::process::Command,
         blocked: Arc<Mutex<Option<String>>>,
         open: Input,
+        caches: super::PreparationCaches,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<(Self, Discovery), String> {
+    ) -> Result<Self, String> {
         // The trusted-warmup hint belongs to the controller, not the resolver
         // or any installation/build subprocess it starts.
         command.env_remove(crate::warmup::PREPARATION_ENVIRONMENT);
@@ -512,19 +554,19 @@ impl Preparation {
             owner_retired.store(result.is_ok(), Ordering::SeqCst);
             result
         });
-        let connection = Self(Arc::new(Connection {
+        let connection = Arc::new(Connection {
             events: events.clone(),
             sequence: AtomicU64::new(1),
             owner: Mutex::new(Some(owner)),
             unconfirmed,
             blocked,
             retired,
-        }));
+        });
         let handle = ResolverStopHandle::new(Control {
             id: 0,
             events,
             state,
-            retired: connection.0.retired.clone(),
+            retired: connection.retired.clone(),
         });
         if let Err(error) = on_started(handle.clone()) {
             let _ = handle.stop();
@@ -540,7 +582,11 @@ impl Preparation {
                     .map_err(|error| format!("invalid local resolver capability result: {error}"))
             });
         match discovery {
-            Ok(discovery) => Ok((connection, discovery)),
+            Ok(discovery) => Ok(Self {
+                connection,
+                discovery: Arc::new(discovery),
+                caches,
+            }),
             Err(error) => {
                 // Startup has no Client to own shutdown after discovery fails.
                 // Join preparation cleanup before the MCP process can exit.
@@ -558,7 +604,7 @@ impl Preparation {
         on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<T, String> {
         self.check_ready()?;
-        let id = self.0.sequence.fetch_add(1, Ordering::SeqCst);
+        let id = self.connection.sequence.fetch_add(1, Ordering::SeqCst);
         let request = Input::Run {
             id,
             operation: Box::new(operation),
@@ -569,12 +615,12 @@ impl Preparation {
         let state = Arc::new(State::default());
         let handle = ResolverStopHandle::new(Control {
             id,
-            events: self.0.events.clone(),
+            events: self.connection.events.clone(),
             state: state.clone(),
-            retired: self.0.retired.clone(),
+            retired: self.connection.retired.clone(),
         });
         let (reply, response) = mpsc::channel();
-        self.0
+        self.connection
             .events
             .send(Event::Run {
                 id,
@@ -593,23 +639,32 @@ impl Preparation {
             .map_err(|_| format!("{} owner stopped", LABEL))??;
         serde_json::from_value(value).map_err(|error| {
             let error = format!("invalid local resolver result: {error}");
-            *self.0.blocked.lock().expect("preparation session lock") = Some(error.clone());
+            *self
+                .connection
+                .blocked
+                .lock()
+                .expect("preparation session lock") = Some(error.clone());
             error
         })
     }
 
     pub(crate) fn close(&self) -> Result<(), String> {
+        self.connection.close()
+    }
+}
+
+impl Connection {
+    fn close(&self) -> Result<(), String> {
         // Hold the lock through the join so every close caller waits for the
         // owner to reap its child, even after Closed and EOF arrive.
-        let mut owner = self.0.owner.lock().map_err(|_| "preparation owner lock")?;
-        let _ = self.0.events.send(Event::Close);
+        let mut owner = self.owner.lock().map_err(|_| "preparation owner lock")?;
+        let _ = self.events.send(Event::Close);
         let result = owner.take().map_or(Ok(()), |owner| {
             owner
                 .join()
                 .map_err(|_| format!("{} owner panicked", LABEL))?
         });
         let retry = self
-            .0
             .unconfirmed
             .lock()
             .map_err(|_| "preparation retirement lock")?

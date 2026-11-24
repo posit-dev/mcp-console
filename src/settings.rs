@@ -10,12 +10,14 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
-#[cfg(any(unix, windows))]
-pub(crate) use sandbox::capture_filesystem_paths;
+#[cfg(target_os = "macos")]
+pub(crate) use sandbox::is_macos_system_alias;
 pub(crate) use sandbox::{
     PolicyContext, Profile, ProfileSelection, Tempdir, apply_workspace_profile,
     materialize_settings as materialize_sandbox, resolve_writable_root, revalidate_writable_roots,
 };
+#[cfg(any(unix, windows))]
+pub(crate) use sandbox::{capture_filesystem_paths, has_untrusted_symlink};
 pub(crate) const SANDBOX_MARKER: &str = "MCP_CONSOLE_SANDBOX";
 pub(crate) const MANAGED_TEMPDIR_ENVIRONMENT: &str = "MCP_CONSOLE_MANAGED_TEMPDIR";
 mod tool;
@@ -46,6 +48,10 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
 pub type SandboxSettings = Map<String, Value>;
 
 pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
+    environment_path_value(settings, name).filter(|path| !path.as_os_str().is_empty())
+}
+
+pub(crate) fn environment_path_value(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
     let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));
     settings
         .get("environment")
@@ -67,7 +73,6 @@ pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option
                 .then(|| std::env::var_os(name).map(PathBuf::from))
                 .flatten()
         })
-        .filter(|path| !path.as_os_str().is_empty())
 }
 
 #[derive(Clone)]
@@ -355,9 +360,9 @@ fn capture(
         if path.as_os_str().is_empty() {
             return Err(format!("{name}: cache.directory must not be empty"));
         }
-        let expanded = crate::console_paths::expand_home(path)
+        let expanded = crate::console_paths::expand_permission_home(path)
             .map_err(|error| format!("{name}: cache.directory: {error}"))?;
-        *path = std::path::absolute(directory.join(expanded))
+        *path = crate::console_paths::absolute_preserving_parents(directory, &expanded)
             .map_err(|error| format!("{name}: cannot locate cache.directory: {error}"))?;
     }
     if let Some(packages) = project.r.as_ref().and_then(|r| r.packages.as_ref()) {

@@ -12,8 +12,291 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import SANDBOX, requires
+from support.requirements import (
+    MACOS_DATA_VOLUME_TMP,
+    MACOS_TMP_CASE_ALIAS,
+    SANDBOX,
+    requires,
+)
 from support.suites import run_this_suite
+
+
+@requires(SANDBOX)
+def test_symlinked_writable_roots_use_target_permissions(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        host = Path(directory).resolve()
+        output = host / "output"
+        output.mkdir()
+        (output / "locked").write_text("original")
+        (output / "secret").write_text("private")
+        (host / "other" / "first").mkdir(parents=True)
+        (host / "other" / "second").mkdir()
+        (host / "shortcut").symlink_to("output", target_is_directory=True)
+        (host / "other-shortcut").symlink_to("other", target_is_directory=True)
+        (host / "siblings").symlink_to("other", target_is_directory=True)
+        aliases = [
+            "shortcut",
+            "shortcut/locked",
+            "other-shortcut",
+            "shortcut/../output",
+            "missing/../shortcut/../output",
+            "siblings/first",
+        ]
+        config = {
+            "sandbox": {
+                "profile": "read_only",
+                "filesystem": {
+                    "read_write": aliases,
+                    "read_only": ["output/locked", "siblings/second"],
+                    "deny": ["output/secret"],
+                },
+            }
+        }
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "--config-env",
+                "TEST_POLICY",
+                "--writable-root",
+                "output",
+                "--",
+                sys.executable,
+                "-c",
+                # fmt: python
+                code("""
+                    import errno
+                    from pathlib import Path
+
+                    _ = Path("shortcut/created").write_text("allowed")
+                    for operation, *args in (
+                        (Path("shortcut/locked").write_text, "blocked"),
+                        (Path("other-shortcut/created").write_text, "blocked"),
+                        (Path("shortcut/secret").read_text,),
+                    ):
+                        try:
+                            _ = operation(*args)
+                        except OSError as error:
+                            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                        else:
+                            raise AssertionError(operation)
+                    print("wrote through shortcut and preserved target restrictions")
+                    """),
+            ],
+            cwd=host,
+            env=dict(os.environ, TEST_POLICY=json.dumps(config)),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result
+        assert (output / "created").read_text() == "allowed"
+        assert (output / "locked").read_text() == "original"
+        assert not (host / "other" / "created").exists()
+        assert result.stderr == "".join(
+            f"Warning: ignoring symlinked writable root '{host / alias}'. "
+            "Grant writes using the target path.\n"
+            for alias in aliases
+        ), result
+        return [
+            {
+                "stdout": result.stdout,
+                "stderr": result.stderr.replace(str(host), "<host>"),
+            }
+        ]
+
+
+@requires(SANDBOX)
+def test_restrictions_under_an_ignored_write_alias_require_target_paths(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as directory:
+        host = Path(directory).resolve()
+        target = host / "output"
+        target.mkdir()
+        (target / "child").mkdir()
+        (host / "nested" / "start").mkdir(parents=True)
+        (host / "nested" / "same-link").symlink_to(target, target_is_directory=True)
+        (host / "crossing").symlink_to("nested/start", target_is_directory=True)
+        (host / "shortcut").symlink_to(target, target_is_directory=True)
+        (host / "parent-alias").symlink_to(".", target_is_directory=True)
+        (host / "nested" / "indirect").symlink_to(
+            "../shortcut", target_is_directory=True
+        )
+        (host / "second-link").symlink_to(
+            host / "nested" / "indirect", target_is_directory=True
+        )
+        (host / "leaving").symlink_to("crossing/../sibling", target_is_directory=True)
+        (host / "dangling").symlink_to("missing", target_is_directory=True)
+        (host / "via-dangling").symlink_to("dangling", target_is_directory=True)
+        (target / "child" / "elsewhere").symlink_to(
+            host / "nested", target_is_directory=True
+        )
+        transcript = []
+        for scenario, access, grant, restriction in (
+            ("read exception", "read_only", "shortcut", "shortcut/child"),
+            (
+                "trailing slash on a write alias",
+                "read_only",
+                "shortcut/",
+                "shortcut/child",
+            ),
+            ("chained dangling alias", "deny", "dangling", "via-dangling/locked"),
+            (
+                "leaving an ignored root through a nested link",
+                "read_only",
+                "shortcut/child",
+                "parent-alias/shortcut/child/elsewhere/start",
+            ),
+            ("deny exception", "deny", "shortcut", "shortcut/child"),
+            (
+                "declared parent traversal",
+                "read_only",
+                "shortcut/../output",
+                "shortcut/../output/child",
+            ),
+            ("parent alias", "deny", "shortcut", "parent-alias/shortcut/child"),
+            ("symlink chain", "deny", "shortcut", "second-link/child"),
+            (
+                "leaving an equivalent spelling of the write root",
+                "read_only",
+                "crossing",
+                "parent-alias/crossing/../sibling",
+            ),
+            ("parent traversal inside a link", "deny", "crossing", "leaving"),
+            (
+                "physical parent traversal",
+                "deny",
+                "nested/same-link",
+                "crossing/../same-link/child",
+            ),
+            (
+                "system temporary path",
+                "read_only",
+                str(Path(directory) / "shortcut"),
+                "shortcut/child",
+            ),
+        ):
+            config = {
+                "sandbox": {
+                    "filesystem": {
+                        "read_write": ["output", grant],
+                        access: [restriction],
+                    }
+                }
+            }
+            result = subprocess.run(
+                [
+                    binary,
+                    "sandbox",
+                    "--config-env",
+                    "POLICY",
+                    "--",
+                    "/bin/echo",
+                    "started",
+                ],
+                env=dict(os.environ, POLICY=json.dumps(config)),
+                cwd=host,
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 1, result
+            assert result.stdout == "", result
+            assert result.stderr == (
+                "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
+                f"cannot enforce restriction '{host / restriction}' beneath ignored "
+                f"writable root '{os.path.join(host, grant)}'. Specify the restriction using the target path.\n"
+            ), result
+            transcript.append(
+                {
+                    "scenario": scenario,
+                    "access": access,
+                    "stderr": result.stderr.replace(str(host), "<host>").replace(
+                        directory, "<host>"
+                    ),
+                }
+            )
+        return transcript
+
+
+@requires(MACOS_DATA_VOLUME_TMP)
+def test_restrictions_match_across_data_volume_paths(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir="/private/tmp") as directory:
+        host = Path(directory)
+        mounted = Path("/System/Volumes/Data") / host.relative_to("/")
+        (host / "output").mkdir()
+        (host / "link").symlink_to("output", target_is_directory=True)
+        transcript = []
+        for grant_base, child_base in ((host, mounted), (mounted, host)):
+            for suffix in ("link", "link/pending"):
+                grant = grant_base / suffix
+                child = child_base / suffix / "locked"
+                policy = {"sandbox": {"filesystem": {"read_only": [str(child)]}}}
+                result = subprocess.run(
+                    [
+                        binary,
+                        "sandbox",
+                        "--config-env",
+                        "POLICY",
+                        "--writable-root",
+                        grant,
+                        "--",
+                        "/usr/bin/true",
+                    ],
+                    cwd=host,
+                    env=dict(os.environ, POLICY=json.dumps(policy)),
+                    capture_output=True,
+                    text=True,
+                )
+                assert result.returncode == 1 and not result.stdout, result
+                assert result.stderr == (
+                    "configuration environment 'POLICY': sandbox preflight failed (exit status: 1): "
+                    f"cannot enforce restriction '{child}' beneath ignored writable root '{grant}'. "
+                    "Specify the restriction using the target path.\n"
+                ), result
+                transcript.append(
+                    {"stderr": result.stderr.replace(host.name, "<directory>")}
+                )
+        return transcript
+
+
+@requires(MACOS_TMP_CASE_ALIAS)
+def test_system_tmp_alias_accepts_equivalent_spelling(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as directory:
+        host = Path(directory)
+        alias = Path("/TMP") / host.name
+        (host / "child").mkdir()
+        allowed = Path("/private/../TMP") / host.name / "child" / ".."
+        ignored = alias / ".." / ".." / host.name
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "--no-config",
+                "--writable-root",
+                allowed,
+                "--writable-root",
+                ignored,
+                "--",
+                "/usr/bin/touch",
+                host / "created",
+            ],
+            cwd=host,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result
+        assert result.stderr == (
+            f"Warning: ignoring symlinked writable root '{ignored}'. "
+            "Grant writes using the target path.\n"
+        ), result
+        assert (host / "created").is_file()
+        return [
+            {
+                "writable_root": str(allowed).replace(host.name, "<directory>"),
+                "exit_code": result.returncode,
+                "stderr": result.stderr.replace(host.name, "<directory>"),
+            }
+        ]
 
 
 @requires(SANDBOX)

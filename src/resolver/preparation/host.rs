@@ -23,6 +23,7 @@ impl Context {
     fn discover(
         mode: Mode,
         installation: Option<crate::local_runtime::RInstallation>,
+        matplotlib_cache: Option<std::ffi::OsString>,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<(Self, Discovery), String> {
         if let Some(installation) = &installation {
@@ -46,9 +47,14 @@ impl Context {
             .as_deref()
             .is_some_and(|python| !python.is_empty() && python != OsStr::new("managed"));
         let configured_python = configured_python.and_then(|python| python.into_string().ok());
+        let duckdb_extension_directory =
+            std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY);
+        let mut python = resolver::ManagedPythonResolverConfiguration::capture();
+        if let Some(cache) = matplotlib_cache {
+            python.matplotlib_cache = Some(cache.into());
+        }
         if !matches!(mode, Mode::R) {
-            let python =
-                resolver::ManagedPythonResolverConfiguration::capture().without_r_bootstrap();
+            let python = python.without_r_bootstrap();
             let has_uv = python.has_uv();
             return Ok((
                 Self {
@@ -68,10 +74,10 @@ impl Context {
                     },
                     local_r_home_bytes: None,
                     local_has_uv: Some(has_uv),
+                    duckdb_extension_directory,
                 },
             ));
         }
-        let python = resolver::ManagedPythonResolverConfiguration::capture();
         let (bootstrap, rscript) = resolver::discover(&python, on_started)?;
         let home = rscript
             .parent()
@@ -97,6 +103,7 @@ impl Context {
             #[cfg(windows)]
             local_r_home_bytes: None,
             local_has_uv: Some(python.has_uv()),
+            duckdb_extension_directory,
         };
         Ok((
             Self {
@@ -115,6 +122,7 @@ impl Context {
     fn execute(
         &mut self,
         operation: Operation,
+        check_renv_cache: bool,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
         report: &dyn Fn(String) -> Result<(), String>,
     ) -> Result<serde_json::Value, String> {
@@ -147,7 +155,12 @@ impl Context {
                     requirements,
                     defaults,
                     |requirements, started| {
-                        resolver::resolve_r_with(configuration, requirements, started)
+                        resolver::resolve_r_with(
+                            configuration,
+                            requirements,
+                            check_renv_cache,
+                            started,
+                        )
                     },
                     on_started,
                     report,
@@ -156,11 +169,21 @@ impl Context {
             }
             Operation::ResolveRStandalone { requirements } => {
                 let r = if let Some(configuration) = &self.r {
-                    resolver::resolve_r_with(configuration, requirements, on_started)?
+                    resolver::resolve_r_with(
+                        configuration,
+                        requirements,
+                        check_renv_cache,
+                        on_started,
+                    )?
                 } else {
-                    resolver::resolve_r(requirements, on_started, |configuration| {
-                        self.r = Some(configuration);
-                    })?
+                    resolver::resolve_r(
+                        requirements,
+                        check_renv_cache,
+                        on_started,
+                        |configuration| {
+                            self.r = Some(configuration);
+                        },
+                    )?
                 };
                 self.rscript = Some(r.rscript().to_path_buf());
                 serde_json::to_value(r).map_err(|error| error.to_string())
@@ -246,7 +269,6 @@ impl Context {
                 python,
                 extensions,
                 defaults,
-                extension_directory,
             } => {
                 if !matches!(self.mode, Mode::PythonOnly) || !self.managed_python {
                     return Err("Python-backed DuckDB preparation requires managed Python".into());
@@ -259,10 +281,12 @@ impl Context {
                         if extensions.is_empty() {
                             return Ok(());
                         }
+                        let directory = std::env::var_os(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
+                            .ok_or("DuckDB extension preparation requires an absolute HOME at server startup")?;
                         resolver::resolve_python_duckdb_extensions(
                             &python,
                             &extensions,
-                            &extension_directory,
+                            std::path::Path::new(&directory),
                             started,
                         )
                     },
@@ -351,7 +375,13 @@ pub(super) fn run() -> Result<(), String> {
     #[cfg(windows)]
     let mut input = BufReader::new(io::stdin());
     let first: Input = super::read_jsonl(&mut input)?;
-    let Input::Open { mode, installation } = first else {
+    let Input::Open {
+        mode,
+        installation,
+        matplotlib_cache,
+        check_renv_cache,
+    } = first
+    else {
         return Err("expected resolver open".into());
     };
     let (events, received) = mpsc::channel();
@@ -402,7 +432,15 @@ pub(super) fn run() -> Result<(), String> {
         let mut context = perform(
             0,
             &job_events,
-            |started| Context::discover(mode, installation, started),
+            |started| {
+                if check_renv_cache {
+                    resolver::cache::validate_default_renv_cache(
+                        &crate::settings::SandboxSettings::default(),
+                        resolver::cache::RenvLookup::Resolver,
+                    )?;
+                }
+                Context::discover(mode, installation, matplotlib_cache, started)
+            },
             |(_, discovery)| serde_json::to_value(discovery).expect("discovery serializes"),
         )?
         .0;
@@ -411,7 +449,7 @@ pub(super) fn run() -> Result<(), String> {
                 id,
                 &job_events,
                 |started| {
-                    context.execute(operation, started, &|text| {
+                    context.execute(operation, check_renv_cache, started, &|text| {
                         job_events
                             .send(Event::Diagnostic { id, text })
                             .map_err(|_| "preparation owner stopped".into())

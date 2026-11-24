@@ -1,0 +1,6 @@
+---
+renv_cache_order:
+  - shared
+  - local
+  - last
+explicit_grants_respected: true

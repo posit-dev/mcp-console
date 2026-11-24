@@ -45,6 +45,7 @@ def preparation(
         env={
             **os.environ,
             "MCP_CONSOLE_HOME": str(root / "home"),
+            "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY": str(root),
             "RETICULATE_PYTHON": "managed",
             "RETICULATE_UV": str(root / "uv"),
             **environment,
@@ -402,7 +403,6 @@ def test_stdin_failure_retires_live_materializer_and_preserves_diagnostic(
                                         "requirements": {"packages": []},
                                     },
                                     "extensions": ["x" * 512_000],
-                                    "extension_directory": str(root),
                                 }
                             },
                         }
@@ -631,7 +631,6 @@ def inherited_output(
                                 "requirements": {"packages": []},
                             },
                             "extensions": ["x" * 512_000],
-                            "extension_directory": str(root),
                         }
                     }
                 send({"Run": {"id": 1, "operation": request}})

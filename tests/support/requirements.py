@@ -57,6 +57,20 @@ MACOS_SANDBOX = Requirement(
     sys.platform == "darwin",
     "requires Seatbelt policy or kqueue supervision",
 )
+MACOS_TMP_CASE_ALIAS = Requirement(
+    "macOS case alias for /tmp",
+    sys.platform == "darwin"
+    and Path("/TMP").is_symlink()
+    and os.path.samestat(Path("/TMP").lstat(), Path("/tmp").lstat()),
+    "requires /TMP and /tmp to name the same system symlink",
+)
+MACOS_DATA_VOLUME_TMP = Requirement(
+    "macOS data volume",
+    sys.platform == "darwin"
+    and Path("/System/Volumes/Data/private/tmp").is_dir()
+    and Path("/System/Volumes/Data/private/tmp").samefile("/private/tmp"),
+    "requires two mount paths for the same temporary directory",
+)
 LINUX_SANDBOX = Requirement(
     "Linux sandbox",
     sys.platform == "linux",

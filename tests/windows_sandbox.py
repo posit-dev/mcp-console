@@ -794,6 +794,215 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.strip(), "launched")
 
+    def test_exceptions_through_ignored_junction_are_rejected_at_preflight(self):
+        from nt import _getfinalpathname
+
+        with workspace() as root:
+            target = root / "output"
+            target.mkdir()
+            (target / "locked").mkdir()
+            alias = root / "shortcut"
+            chain = root / "second"
+            sibling = root / "sibling"
+            sibling.mkdir()
+            (sibling / "locked").mkdir()
+            dangling = root / "dangling"
+            for name, destination in (
+                (alias, target),
+                (chain, alias),
+                (target / "to-sibling", sibling),
+                (dangling, root / "missing"),
+                (root / "to-dangling", dangling),
+            ):
+                subprocess.run(
+                    [
+                        os.environ["COMSPEC"],
+                        "/d",
+                        "/c",
+                        "mklink",
+                        "/j",
+                        name,
+                        destination,
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
+            # Resolve the parent only, leaving the junction in the restriction.
+            verbatim = Path(_getfinalpathname(root)) / alias.name
+            ordinary = root / "ordinary"
+            ordinary.mkdir()
+            for grant, locked in (
+                (alias, verbatim / "locked"),
+                (alias, chain / "locked"),
+                (alias, ordinary / ".." / alias.name / ".." / "sibling"),
+                (alias, chain / "to-sibling" / "locked"),
+                (dangling, root / "to-dangling" / "locked"),
+            ):
+                with self.subTest(locked=locked):
+                    policy = {
+                        "sandbox": {
+                            "filesystem": {
+                                "read_write": [str(target), str(grant)],
+                                "read_only": [str(locked)],
+                            }
+                        }
+                    }
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "sandbox",
+                            "--config-env",
+                            "POLICY",
+                            "--",
+                            sys.executable,
+                            "-c",
+                            "print('started')",
+                        ],
+                        cwd=root,
+                        env=os.environ | {"POLICY": json.dumps(policy)},
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 1, result)
+                    self.assertEqual(result.stdout, "", result)
+                    self.assertEqual(
+                        result.stderr,
+                        "configuration environment 'POLICY': sandbox preflight failed (exit code: 1): "
+                        f"cannot enforce restriction '{locked}' beneath ignored writable root '{grant}'. "
+                        "Specify the restriction using the target path.\n",
+                    )
+
+    @requires_mxc(BINARY)
+    def test_junction_write_grant_uses_target_permissions(self):
+        # fmt: python
+        program = code(r"""
+            from pathlib import Path
+
+            try:
+                _ = Path("output/alias/value").write_text("updated")
+            except PermissionError:
+                print("read-only")
+            else:
+                print("writable")
+            """)
+        with workspace() as root:
+            output = root / "output"
+            target = output / "target"
+            target.mkdir(parents=True)
+            alias = output / "alias"
+            subprocess.run(
+                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
+                check=True,
+                capture_output=True,
+            )
+            value = target / "value"
+            (alias / "value").write_text("original")
+            self.assertEqual(value.read_text(), "original")
+            for ignored, direct_grants, expected in (
+                (alias, [], "read-only"),
+                (alias / ".." / "target", [str(target)], "writable"),
+            ):
+                grants = [str(ignored), *direct_grants]
+                with self.subTest(grants=grants):
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "sandbox",
+                            "--no-config",
+                            "-c",
+                            "sandbox.filesystem.read_write=" + json.dumps(grants),
+                            "--",
+                            sys.executable,
+                            "-c",
+                            program,
+                        ],
+                        cwd=root,
+                        env=dict(os.environ, MCP_CONSOLE_HOME=str(root / "home")),
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), expected)
+                    self.assertEqual(
+                        result.stderr,
+                        f"Warning: ignoring symlinked writable root '{ignored}'. "
+                        "Grant writes using the target path.\n",
+                    )
+                    self.assertEqual(
+                        value.read_text(),
+                        "updated" if expected == "writable" else "original",
+                    )
+
+    @requires_mxc(BINARY)
+    def test_inherited_tmpdir_checks_target_temp_and_tmp_individually(self):
+        with workspace() as root:
+            allowed, target, alias = (
+                root / name for name in ("allowed", "target", "alias")
+            )
+            allowed.mkdir()
+            target.mkdir()
+            subprocess.run(
+                [os.environ["COMSPEC"], "/d", "/c", "mklink", "/j", alias, target],
+                check=True,
+                capture_output=True,
+            )
+            session = worker_session(
+                sandbox=True,
+                python=sys.executable,
+                overrides=(
+                    "languages=[python]",
+                    "sandbox.profile=inherit_codex",
+                    "sandbox.tempdir=read_only",
+                    "environment="
+                    + json.dumps({"Temp": str(alias), "tMp": str(allowed)}),
+                ),
+            )
+            try:
+                session.initialize()
+                state = {
+                    "permissionProfile": {
+                        "type": "managed",
+                        "network": "enabled",
+                        "file_system": {
+                            "type": "restricted",
+                            "entries": [
+                                {
+                                    "path": {
+                                        "type": "special",
+                                        "value": {"kind": "tmpdir"},
+                                    },
+                                    "access": "write",
+                                }
+                            ],
+                        },
+                    }
+                }
+                # fmt: python
+                program = code("""
+                    import os
+                    from pathlib import Path
+
+                    _ = (Path(os.environ["TMP"]) / "result").write_text("allowed")
+                    try:
+                        _ = (Path(os.environ["TEMP"]) / "result").write_text("blocked")
+                    except PermissionError:
+                        pass
+                    else:
+                        raise AssertionError("junction granted writes")
+                    print("checked both target directories")
+                    """)
+                session.expect(
+                    "checked both target directories",
+                    python=program,
+                    metadata={"codex/sandbox-state": state},
+                )
+                self.assertEqual((allowed / "result").read_text(), "allowed")
+                self.assertFalse((target / "result").exists())
+            finally:
+                session.close()
+
     @requires_mxc(BINARY)
     def test_tempdir_modes(self):
         # fmt: python

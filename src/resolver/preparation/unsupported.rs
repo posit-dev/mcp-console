@@ -2,17 +2,20 @@ use super::Operation;
 use crate::resolver::ResolverStopHandle;
 
 #[derive(Clone)]
-pub(crate) struct Preparation;
+pub(crate) struct Preparation {
+    pub(crate) discovery: std::sync::Arc<super::Discovery>,
+    pub(crate) caches: super::PreparationCaches,
+}
 
 impl Preparation {
     pub(crate) fn open_local(
-        _: super::Mode,
-        _: Option<crate::settings::SandboxSettings>,
+        _: super::Worker<'_>,
+        _: crate::settings::SandboxSettings,
+        _: bool,
         _: Option<&std::ffi::OsStr>,
-        _: Option<crate::local_runtime::RInstallation>,
         _: crate::process_output::Diagnostics,
         _: &dyn Fn(crate::resolver::ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<(Self, super::Discovery), String> {
+    ) -> Result<Self, String> {
         Err("host resolution requires macOS, Linux, or Windows".into())
     }
 

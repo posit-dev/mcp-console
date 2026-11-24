@@ -326,6 +326,67 @@ class WindowsPreparation(unittest.TestCase):
         self.assertIn("Host cache profile fallback", json.dumps(result))
 
     @requires_mxc(BINARY)
+    def test_renv_checks_relative_local_app_data(self):
+        for key in (
+            "RENV_PATHS_ROOT",
+            "RENV_PATHS_CACHE",
+            "R_USER_CACHE_DIR",
+            "XDG_CACHE_HOME",
+        ):
+            self.environment.pop(key, None)
+        session = self.session(
+            overrides=(
+                "cache=host",
+                "r.resolution=disabled",
+                "python=" + json.dumps(sys.executable),
+                "resolver.sandbox.filesystem="
+                + json.dumps({"read_only": [self.root.anchor]}),
+                'resolver.environment.LOCALAPPDATA="modern;unused"',
+            )
+        )
+        result = session.send(python="print(42)")
+        self.assertTrue(result.get("isError"), result)
+        self.assertEqual(
+            result["content"][0]["text"].replace("\\", "/"),
+            "RENV_PATHS_CACHE cannot represent 'modern;unused/R/cache/R/renv/cache': path contains a list separator",
+        )
+
+    @requires_mxc(BINARY)
+    def test_host_cache_with_verbatim_parent_traversal(self):
+        from nt import _getfinalpathname
+
+        cache = self.root / "selected uv cache"
+        spelling = Path(_getfinalpathname(self.root)) / "unused" / ".." / cache.name
+        resolver_environment = {
+            "Uv_Cache_Dir": str(spelling),
+            "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY": str(spelling),
+            "HOME": str(self.root / "account"),
+            "LOCALAPPDATA": str(self.root / "local"),
+            "APPDATA": str(self.root / "roaming"),
+        }
+        session = self.session(
+            overrides=(
+                "cache=host",
+                "r=null",
+                "resolver.environment=" + json.dumps(resolver_environment),
+            )
+        )
+        # fmt: python
+        program = code("""
+            import os
+            from pathlib import Path
+
+            import six
+
+            extensions = Path(os.environ["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"])
+            assert (extensions / "cache-refresh").read_text() == "cache refresh"
+            print(six.__version__)
+            """)
+        session.expect("1.17.0", python=program)
+        self.assertTrue(list(cache.glob("probe-*.json")))
+        self.assertFalse((self.root / "unused").exists())
+
+    @requires_mxc(BINARY)
     def test_explicit_filesystem_restriction_blocks_cache_writes(self):
         session = self.session(
             overrides=(

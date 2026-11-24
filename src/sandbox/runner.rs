@@ -7,9 +7,84 @@ use serde_json::{Value, json};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
+use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 const CONFIGURATION: &str = "MCP_CONSOLE_SANDBOX_CONFIG";
+
+/// Select the directories the pinned runner binds for an inherited :tmpdir.
+fn inherited_temporary_directories(
+    settings: &SandboxSettings,
+    runner: &Command,
+) -> Result<Vec<PathBuf>, String> {
+    let entries = settings
+        .get("filesystem")
+        .and_then(|fs| fs["entries"].as_array());
+    if !entries.is_some_and(|entries| {
+        entries.iter().any(|entry| {
+            entry.pointer("/path/value/kind").and_then(Value::as_str) == Some("tmpdir")
+        })
+    }) {
+        return Ok(Vec::new());
+    }
+
+    let removed = |name: &str| {
+        runner.get_envs().any(|(key, value)| {
+            value.is_none()
+                && if cfg!(windows) {
+                    key.eq_ignore_ascii_case(name)
+                } else {
+                    key == name
+                }
+        })
+    };
+    #[cfg(unix)]
+    {
+        // Unix uses the launcher's TMPDIR, independently of the workload
+        // environment. AbsolutePathBuf expands ~ only in Unicode paths.
+        let Some(path) = std::env::var_os("TMPDIR").filter(|p| !p.is_empty() && !removed("TMPDIR"))
+        else {
+            return Ok(Vec::new());
+        };
+        let path = PathBuf::from(path);
+        if path.to_str().is_some()
+            && let Ok(suffix) = path.strip_prefix("~")
+        {
+            if removed("HOME") {
+                return Err("cannot inspect a home-relative inherited temporary directory after removing HOME from the native launch environment".into());
+            }
+            if let Some(home) = std::env::home_dir().filter(|home| !home.as_os_str().is_empty()) {
+                return Ok(vec![home.join(suffix)]);
+            }
+        }
+        Ok(vec![path])
+    }
+    #[cfg(windows)]
+    {
+        // MXC uses absolute target TEMP and TMP after managed storage replaces
+        // both variables with its independently granted private directory.
+        if settings
+            .get("lifecycle")
+            .and_then(|l| l.get("private_tmp"))
+            .is_some()
+        {
+            return Ok(Vec::new());
+        }
+        Ok(["TEMP", "TMP"]
+            .into_iter()
+            .filter_map(|name| {
+                let configured = settings
+                    .get("environment")
+                    .and_then(Value::as_object)
+                    .is_some_and(|env| env.keys().any(|key| key.eq_ignore_ascii_case(name)));
+                if removed(name) && !configured {
+                    return None;
+                }
+                crate::settings::environment_path(settings, name).filter(|path| path.is_absolute())
+            })
+            .collect())
+    }
+}
 
 pub(super) fn run(
     command: &[OsString],
@@ -25,9 +100,6 @@ pub(super) fn run(
         return Err(format!(
             "sandbox owner {pid} is not the launcher's current parent"
         ));
-    }
-    if runner_config_env.is_none() {
-        crate::settings::revalidate_writable_roots(&mut settings)?;
     }
     // Unix exec preserves the caller. Windows waits while the native runner
     // watches both this frontend and the supplied generation owner.
@@ -120,6 +192,10 @@ pub(super) fn run(
             lifecycle["sigterm"] = "retire".into();
         }
         settings.insert("lifecycle".into(), lifecycle);
+        let tmpdirs = inherited_temporary_directories(&settings, &runner)?;
+        // The native runner binds these roots by name. Their directory entries
+        // must stay stable from this check through native sandbox setup.
+        crate::settings::revalidate_writable_roots(&mut settings, &tmpdirs)?;
         runner.env(CONFIGURATION, Value::Object(settings).to_string());
     } else if runner_config_env != Some(CONFIGURATION) {
         runner.env_remove(CONFIGURATION);

@@ -292,6 +292,7 @@ def test_cache_directory_round_trips_without_creating_storage(
             ("managed", root / "managed"),
             (str(root / "custom cache"), root / "custom cache"),
             ("~/cache", root / "home/cache"),
+            ("scratch/../cache", root / "scratch" / ".." / "cache"),
         ):
             config.write_text(json.dumps({"cache": {"directory": directory}}))
             for arguments in ((), ("--full",)):

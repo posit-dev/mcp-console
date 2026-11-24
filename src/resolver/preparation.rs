@@ -19,6 +19,13 @@ pub(crate) use client::Preparation;
 #[cfg(not(any(unix, windows)))]
 pub(crate) use unsupported::Preparation;
 
+/// Cache locations selected when the controller launches this resolver.
+#[derive(Clone, Default)]
+pub(crate) struct PreparationCaches {
+    pub(crate) environment: super::cache::Environment,
+    pub(crate) matplotlib: Option<std::path::PathBuf>,
+}
+
 const LIMIT: usize = 1024 * 1024;
 
 #[derive(Default, Clone, Deserialize, Serialize)]
@@ -37,6 +44,9 @@ pub(crate) struct Discovery {
     pub local_r_home_bytes: Option<Vec<u8>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_has_uv: Option<bool>,
+    /// Effective path in the launched resolver's environment, shared by its workers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duckdb_extension_directory: Option<std::ffi::OsString>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -85,11 +95,16 @@ pub(crate) enum Operation {
         extensions: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         defaults: Vec<String>,
-        extension_directory: std::path::PathBuf,
     },
     PythonDuckdbAvailable {
         python: ManagedPython,
     },
+}
+
+/// Local startup inputs available before opening the preparation process.
+pub(crate) enum Worker<'a> {
+    Builtin(Option<crate::local_runtime::RInstallation>),
+    Custom(Option<&'a std::path::Path>),
 }
 
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
@@ -115,6 +130,10 @@ enum Input {
         mode: Mode,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         installation: Option<crate::local_runtime::RInstallation>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        matplotlib_cache: Option<std::ffi::OsString>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        check_renv_cache: bool,
     },
     Run {
         id: u64,

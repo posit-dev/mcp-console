@@ -465,7 +465,9 @@ fn description_for_launch(
             _ => unreachable!("normalized worker network choice"),
         }
     };
-    let mut writable = match crate::settings::Tempdir::from_settings(policy) {
+    let tempdir = crate::settings::Tempdir::from_settings(policy);
+    let mut has_conditional_grants = tempdir == crate::settings::Tempdir::ReadWrite;
+    let mut writable = match tempdir {
         crate::settings::Tempdir::Managed => vec![if cfg!(windows) {
             "private `TMPDIR` (also `TEMP` and `TMP`)".to_string()
         } else {
@@ -490,17 +492,22 @@ fn description_for_launch(
                 && let Some(path) = entry.get("path").and_then(|path| path.get("path"))
             {
                 writable.push(format!("`{path}`"));
+                has_conditional_grants = true;
             }
         }
     }
-    let writable = format!(
-        "Writable locations: {}; subject to more specific read/deny rules",
-        if writable.is_empty() {
-            "none".to_string()
-        } else {
-            writable.join(", ")
-        }
-    );
+    let locations = if writable.is_empty() {
+        "none".to_string()
+    } else {
+        writable.join(", ")
+    };
+    let writable = if has_conditional_grants {
+        format!(
+            "Configured write locations include {locations}. Console checks these grants at each launch and applies more specific read/deny rules"
+        )
+    } else {
+        format!("Writable locations: {locations}; subject to more specific read/deny rules")
+    };
     format!(
         "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}. Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies."
     )

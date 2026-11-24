@@ -16,9 +16,16 @@ from support.assertions import wait_for_worker_ready
 from support.client import McpClient
 from support.checkpoints import FifoCheckpoint
 from support.normalization import code
-from support.python import write_test_wheel
+from support.python import isolated_python, write_test_wheel
 from support.records import Transcript
-from support.requirements import LINUX_SANDBOX, R, SANDBOX, command, requires
+from support.requirements import (
+    LINUX_SANDBOX,
+    R,
+    SANDBOX,
+    UNPRIVILEGED,
+    command,
+    requires,
+)
 from support.r import r_test_environment
 from support.resolvers import preseeded_duckdb_python, probing_uv
 
@@ -171,7 +178,7 @@ def test_configured_cache_directory_overrides_environment(binary: Path) -> Trans
     return cache_locations(
         binary,
         host=False,
-        sources=("path", "path_cli", "path_isolated"),
+        sources=("path", "path_cli", "path_isolated", "linked_path"),
         cache_override=True,
     )
 
@@ -216,14 +223,471 @@ def test_console_cache_directory_requires_absolute_path(binary: Path) -> Transcr
     return [{"relative_console_cache_directory_rejected": True}]
 
 
+@requires(SANDBOX)
+def test_symlinked_cache_directory_does_not_create_storage(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / "target"
+        target.mkdir()
+        (root / "shortcut").symlink_to(target, target_is_directory=True)
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "--no-config",
+                "-c",
+                "cache.directory=shortcut",
+                "-c",
+                "languages=[python]",
+                "-c",
+                f"python.existing={sys.executable}",
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            transcript = client.finish()
+        assert not (target / "dependencies").exists()
+    return transcript
+
+
+@requires(SANDBOX, UNPRIVILEGED)
+def test_existing_python_starts_with_inaccessible_duckdb_cache(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        blocked = root / "blocked"
+        blocked.mkdir(mode=0)
+        env = environment(root)
+        env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(
+            blocked / "child/../extensions"
+        )
+        try:
+            with McpClient(
+                binary,
+                (
+                    "serve",
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    "languages=[python]",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    "-c",
+                    'resolver.sandbox.filesystem={"read_only":["/"]}',
+                ),
+                env,
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect("42\n", python="21 + 21")
+                return client.finish()
+        finally:
+            blocked.chmod(0o700)
+
+
+@requires(SANDBOX)
+def test_existing_python_inspects_managed_cache_target(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        target = root / "storage"
+        target.mkdir()
+        (root / "cache;alias").symlink_to(target, target_is_directory=True)
+        python, site = isolated_python(root)
+        evidence = root / "inspection"
+        evidence.mkdir()
+        (site / "sitecustomize.py").write_text(
+            # fmt: python
+            code("""
+                import os
+                import sys
+                from pathlib import Path
+
+                if sys.flags.isolated and sys.argv[0] == "-c":
+                    Path("inspection/cache").write_text(os.environ["RENV_PATHS_CACHE"])
+                """)
+        )
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "--writable-root",
+                "inspection",
+                "-c",
+                "cache.directory=cache;alias",
+                "-c",
+                "languages=[python]",
+                "-c",
+                f"python.existing={python}",
+                "-c",
+                'resolver.sandbox.filesystem={"read_only":["/"],"read_write":["storage"]}',
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "True\n",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    print(
+                        Path(os.environ["RENV_PATHS_CACHE"])
+                        == Path.cwd() / "storage/dependencies/renv/cache"
+                    )
+                    """),
+            )
+            assert (
+                Path((evidence / "cache").read_text())
+                == target / "dependencies/renv/cache"
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
+def test_resolver_prepares_replaced_cache_directory(binary: Path) -> Transcript:
+    return replaced_cache_directory(binary, explicit_entries=False)
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
+def test_resolver_prepares_only_its_cache_with_explicit_entries(
+    binary: Path,
+) -> Transcript:
+    return replaced_cache_directory(binary, explicit_entries=True)
+
+
+def replaced_cache_directory(binary: Path, *, explicit_entries: bool) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / "target"
+        target.mkdir()
+        cache = root / "cache"
+        cache.symlink_to(target, target_is_directory=True)
+        tools = root / "bin"
+        tools.mkdir()
+        python, _ = isolated_python(root)
+        probing_uv(
+            root,
+            python,
+            # fmt: python
+            code("""
+                import os
+                from pathlib import Path
+
+                directory = Path(os.environ["XDG_CACHE_HOME"])
+                if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ and not Path("cache").is_symlink():
+                    _ = (directory / "prepared").write_text("ready")
+                    uv = Path(os.environ["UV_CACHE_DIR"])
+                    uv.parent.mkdir(exist_ok=True)
+                    if not uv.exists():
+                        uv.symlink_to("..", target_is_directory=True)
+                """),
+        )
+        config = {
+            "cache": {"directory": "cache/unused/../storage"},
+            "languages": ["python"],
+            "python": {"managed": {"packages": []}},
+        }
+        if explicit_entries:
+            config["resolver"] = {
+                "sandbox": {
+                    "filesystem": {
+                        "read_only": ["/"],
+                        "read_write": ["cache/storage/dependencies", "other"],
+                    }
+                }
+            }
+        path = root / "config.json"
+        path.write_text(json.dumps(config))
+        with McpClient(
+            binary, ("serve", "--config-file", str(path)), environment(tools), root
+        ) as client:
+            client.initialize_and_list_tools()
+            result = client.expect(None, python="print('first session ready')")
+            assert result["content"][0]["text"].endswith("first session ready\n"), (
+                result
+            )
+            assert not (target / "storage").exists()
+            cache.unlink()
+            cache.mkdir()
+            client.expect(
+                "second session ready\n",
+                session="second",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    directory = Path.cwd() / "cache/storage/dependencies"
+                    assert (
+                        Path(os.environ["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"])
+                        == directory / "duckdb/extensions"
+                    )
+                    assert Path(os.environ["UV_CACHE_DIR"]) == directory / "uv/cache"
+                    assert (directory / "uv/cache/prepared").read_text() == "ready"
+                    prepared = Path(os.environ["XDG_DATA_HOME"]).parent / "prepared"
+                    assert prepared.read_text() == "ready"
+                    print("second session ready")
+                    """),
+            )
+            assert (cache / "storage/dependencies/prepared").read_text() == "ready"
+            assert not (cache / "unused").exists()
+            assert not (root / "other").exists()
+            transcript = client.finish()
+    return json.loads(json.dumps(transcript).replace(str(root), "<workspace>"))
+
+
 @requires(SANDBOX, command("uv"), command("rustc"))
 def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("explicit_entries",))
 
 
+def renv_test_environment(tools: Path, cache: Path) -> dict[str, str]:
+    return environment(tools) | {
+        name: str(cache / name)
+        for name in (*CACHE_VARIABLES, "XDG_CACHE_HOME", "MPLCONFIGDIR")
+    }
+
+
+@requires(SANDBOX, command("uv"), command("rustc"))
+def test_preserves_renv_cache_list(binary: Path) -> Transcript:
+    for explicit in (False, True):
+        with TemporaryDirectory(dir=Path.home()) as directory:
+            root = Path(directory).resolve()
+            tools = root / "bin"
+            tools.mkdir()
+            python, _ = isolated_python(root)
+            env = renv_test_environment(tools, root / "caches")
+            env.update(
+                RENV_PATHS_ROOT=str(root / "renv;root"),
+                RENV_PATHS_CACHE=f"{root / 'shared'};;stage/../local{os.pathsep}{root / 'last'}",
+                EXPECTED_CACHE=f"{root / 'shared'};;{root / 'local'}{os.pathsep}{root / 'last'}",
+                IR_LIBRARY_ROOT="stage/../libraries",
+            )
+            probing_uv(
+                root,
+                python,
+                # fmt: python
+                code("""
+                    import errno
+                    import os
+                    from pathlib import Path
+
+                    assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"]
+                    if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
+                        assert Path(os.environ["IR_LIBRARY_ROOT"]) == Path.cwd() / "libraries"
+                        assert Path(os.environ["RENV_PATHS_SOURCE"]) == Path.cwd() / "resolver-source"
+                        Path("local/prepared").touch()
+                        try:
+                            Path("beside-caches").touch()
+                        except OSError as error:
+                            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                        else:
+                            raise AssertionError("empty cache entry granted workspace writes")
+                    """),
+            )
+            config = {
+                "cache": "host",
+                "languages": ["python"],
+                "python": {"managed": {"packages": []}},
+            }
+            if explicit:
+                (root / "local").mkdir()
+                (root / "first").mkdir()
+                (root / "stage").symlink_to(root / "first", target_is_directory=True)
+                config["resolver"] = {
+                    "sandbox": {
+                        "filesystem": {"read_only": ["/"], "read_write": ["local"]}
+                    }
+                }
+            config.setdefault("resolver", {})["environment"] = {
+                "RENV_PATHS_SOURCE": "stage/../resolver-source"
+            }
+            path = root / "config.json"
+            path.write_text(json.dumps(config))
+            with McpClient(
+                binary, ("serve", "--config-file", str(path)), env, root
+            ) as client:
+                client.initialize_and_list_tools()
+                for restart in (False, True):
+                    if restart:
+                        if explicit:
+                            (root / "stage").unlink()
+                        nested = root / "other/nested"
+                        nested.mkdir(parents=True)
+                        (root / "stage").symlink_to(nested, target_is_directory=True)
+                        client.send(control="restart")
+                    client.expect(
+                        # fmt: python
+                        python=code("""
+                            import os
+                            from pathlib import Path
+
+                            assert os.environ["RENV_PATHS_CACHE"] == os.environ["EXPECTED_CACHE"], os.environ[
+                                "RENV_PATHS_CACHE"
+                            ]
+                            assert Path(os.environ["IR_LIBRARY_ROOT"]) == Path.cwd() / "libraries"
+                            assert Path(os.environ["RENV_PATHS_SOURCE"]) == Path.cwd() / "caches/RENV_PATHS_SOURCE"
+                            assert Path("local/prepared").exists()
+                            """),
+                    )
+                client.finish()
+            assert (root / "shared").is_dir() == (not explicit)
+            assert (root / "last").is_dir() == (not explicit)
+    return [
+        {
+            "renv_cache_order": ["shared", "local", "last"],
+            "explicit_grants_respected": True,
+        }
+    ]
+
+
+@requires(SANDBOX)
+def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transcript:
+    error = "RENV_PATHS_CACHE cannot represent '<expanded cache path>': path contains a list separator"
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        env = renv_test_environment(root, root / "caches")
+        env.pop("RENV_PATHS_CACHE")
+        env.pop("RENV_PATHS_ROOT")
+        valid = root / "data"
+        (valid / "renv").mkdir(parents=True)
+        for separator in dict.fromkeys((";", os.pathsep)):
+            workspace = root / f"study{separator}2026"
+            workspace.mkdir()
+            alias = root / f"alias-{ord(separator)}"
+            alias.symlink_to(workspace, target_is_directory=True)
+            grant = "resolver.sandbox.filesystem=" + json.dumps(
+                {"read_only": ["/"], "read_write": [str(workspace)]}
+            )
+            modern = workspace / "modern"
+            legacy = workspace / "legacy"
+            (modern / "R/renv").mkdir(parents=True)
+            (legacy / "renv").mkdir(parents=True)
+            skipped = workspace / "skipped"
+            skipped.symlink_to(root / "absent", target_is_directory=True)
+            hidden = "resolver.sandbox.filesystem=" + json.dumps(
+                {"read_only": ["/"], "deny": [str(modern)]}
+            )
+            for cwd, cache, variables, options in (
+                (
+                    root,
+                    Path("~") / workspace.name / "R/renv/cache",
+                    {
+                        "HOME": str(root / "account"),
+                        "R_USER_CACHE_DIR": f"~/{workspace.name}",
+                        "XDG_DATA_HOME": str(valid),
+                    },
+                    ("-c", "cache=host"),
+                ),
+                (
+                    root,
+                    legacy / "renv/cache",
+                    {
+                        "HOME": "./absent",
+                        "XDG_CACHE_HOME": "",
+                        "R_USER_CACHE_DIR": "",
+                        "XDG_DATA_HOME": str(legacy),
+                    },
+                    ("-c", "cache=host", "-c", grant),
+                ),
+                (
+                    root,
+                    legacy / "renv/cache",
+                    {"R_USER_CACHE_DIR": str(skipped), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    root,
+                    modern / "R/renv/cache",
+                    {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host", "-c", grant),
+                ),
+                (
+                    root,
+                    legacy / "renv/cache",
+                    {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host", "-c", hidden),
+                ),
+                (
+                    workspace,
+                    workspace / "renv/cache",
+                    {"RENV_PATHS_ROOT": "stage/../renv"},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    workspace,
+                    workspace / "r-base/R/renv/cache",
+                    {"R_USER_CACHE_DIR": "stage/../r-base"},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    workspace,
+                    workspace / "local",
+                    {"RENV_PATHS_CACHE": "local"},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    root,
+                    workspace / "dependencies/renv/cache",
+                    {},
+                    ("-c", f"cache.directory={alias}", "-c", grant),
+                ),
+                (
+                    root,
+                    workspace / "dependencies/renv/cache",
+                    {},
+                    ("-c", f"cache.directory={workspace}"),
+                ),
+            ):
+                arguments = (
+                    "serve",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    *options,
+                )
+                with McpClient(binary, arguments, env | variables, cwd) as client:
+                    client.initialize_and_list_tools()
+                    result = client.send(python="21 + 21")
+                    assert result.get("isError"), result
+                    diagnostic = error.replace("<expanded cache path>", str(cache))
+                    assert result["content"][0]["text"] == diagnostic, result
+                    _, errors = client.finish_with_standard_error(
+                        expected_exit_status=1
+                    )
+                    assert errors == diagnostic + "\n", errors
+                assert not (root / "account" / workspace.name).exists()
+                assert not (workspace / "dependencies").exists()
+                assert not cache.exists(), cache
+                assert not Path(env["UV_CACHE_DIR"]).exists()
+            with McpClient(
+                binary,
+                (
+                    "serve",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    hidden,
+                ),
+                env | {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(valid)},
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect("42\n", python="21 + 21")
+                client.finish()
+    return [{"error": error}]
+
+
 @requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_cache_opt_out(binary: Path) -> Transcript:
-    return cache_locations(binary, host=True, sources=("direct", "config", "cli"))
+    return cache_locations(
+        binary, host=True, sources=("direct", "config", "cli", "parent_traversal")
+    )
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))
@@ -585,14 +1049,30 @@ def cache_locations(
                         "environment": {"MCP_CONSOLE_CACHE_DIR": str(console_base)}
                     }
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
-                elif source in ("path", "path_cli", "path_isolated"):
+                elif source in ("path", "path_cli", "path_isolated", "linked_path"):
                     settings["cache"] = {"directory": str(console_base)}
+                    if source in ("path", "linked_path"):
+                        settings["cache"]["directory"] = "unused/../custom cache"
+                    if source == "linked_path":
+                        (root / "first").mkdir()
+                        (root / "unused").symlink_to(
+                            root / "first", target_is_directory=True
+                        )
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
             elif source == "empty":
                 env["MCP_CONSOLE_CACHE_DIR"] = ""
             console_root = console_base / "dependencies"
-            if source == "config":
+            if source in ("config", "parent_traversal"):
                 settings["cache"] = "host"
+            if source == "parent_traversal":
+                env["HOME"] = str(root / "account")
+                env["UV_CACHE_DIR"] = str(root / "missing/../host/UV_CACHE_DIR")
+                env["UV_TOOL_DIR"] = "~/missing/../uv-tools"
+                env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "~/missing/../extensions"
+                )
+                # XDG bases must be absolute. Preserve the meaning of a relative value.
+                env["XDG_DATA_HOME"] = "unused/../relative-data"
             if source in ("isolated", "path_isolated"):
                 settings.update(inherit_environment=False, environment=dict(env))
             if source == "xdg_without_home":
@@ -600,7 +1080,7 @@ def cache_locations(
             if source == "without_home":
                 for name in ("HOME", "USERPROFILE", "LOCALAPPDATA", "XDG_CACHE_HOME"):
                     env.pop(name, None)
-            if source == "explicit_entries":
+            if source in ("explicit_entries", "linked_path"):
                 settings["resolver"] = {
                     "sandbox": {
                         "filesystem": {
@@ -610,11 +1090,19 @@ def cache_locations(
                     }
                 }
                 assert not console_root.exists()
+                if source == "linked_path":
+                    console_root.mkdir(parents=True)
             config.write_text(json.dumps(settings))
             expected = {
                 name: env[name] if host else str(console_root)
                 for name in CACHE_VARIABLES
             }
+            if source == "parent_traversal":
+                expected["UV_CACHE_DIR"] = str(root / "host/UV_CACHE_DIR")
+                expected["UV_TOOL_DIR"] = str(root / "~/uv-tools")
+                expected["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(
+                    root / "~/extensions"
+                )
             env["CACHE_TEST_EXPECTED"] = json.dumps(expected)
             if metadata:
                 metadata_root = Path(env["UV_CACHE_DIR"]) if host else console_root
@@ -642,6 +1130,8 @@ def cache_locations(
                     expected = json.loads(os.environ["CACHE_TEST_EXPECTED"])
                     for name, value in expected.items():
                         actual = Path(os.environ[name])
+                        if {source == "linked_path"!r}:
+                            actual = actual.resolve()
                         assert actual == Path(value) if {host!r} else actual.is_relative_to(value), (name, actual, value)
                     cache = Path(os.environ["UV_CACHE_DIR"])
                     cache.mkdir(parents=True, exist_ok=True)
@@ -710,11 +1200,21 @@ def cache_locations(
                 client.initialize_and_list_tools()
                 if not host:
                     assert console_root.is_dir(), console_root
+                    if source == "path":
+                        assert not (root / "unused").exists()
                 for restart in (False, True):
                     if restart:
                         config.write_text(
                             "cache: host\n" if not host else "cache: console\n"
                         )
+                        if source in ("path", "linked_path"):
+                            if source == "linked_path":
+                                (root / "unused").unlink()
+                            nested = root / "other" / "nested"
+                            nested.mkdir(parents=True)
+                            (root / "unused").symlink_to(
+                                nested, target_is_directory=True
+                            )
                         client.send(control="restart")
                     # fmt: python
                     check = code(f"""
@@ -723,10 +1223,12 @@ def cache_locations(
                         from pathlib import Path
 
                         expected = json.loads(os.environ["CACHE_TEST_EXPECTED"])
-                        # Extension preparation has its own cache coverage.
-                        expected.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
+                        if {source != "parent_traversal"!r}:
+                            expected.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
                         for name, value in expected.items():
                             actual = Path(os.environ[name])
+                            if {source == "linked_path"!r}:
+                                actual = actual.resolve()
                             assert actual == Path(value) if {host!r} else actual.is_relative_to(value), (name, actual, value)
                         assert Path(os.environ["UV_CACHE_DIR"]).joinpath("resolver-probe").read_text() == "prepared"
                         if {metadata!r}:
@@ -738,6 +1240,11 @@ def cache_locations(
                         """)
                     client.expect("cache selection retained\n", python=check)
                 client.finish()
+            if source == "parent_traversal":
+                assert not (root / "missing").exists()
+                assert not (root / "~/missing").exists()
+                assert (root / "~/extensions").is_dir()
+                assert not (root / "account/extensions").exists()
             assert not (root / "host-write").exists()
             if metadata:
                 assert (metadata_root / ".git/keep").read_text() == "cache contents"
