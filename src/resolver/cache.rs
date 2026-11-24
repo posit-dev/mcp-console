@@ -213,6 +213,15 @@ pub(super) fn validate_default_renv_cache(
                 .all(|part| matches!(part, Normal(_) | CurDir))
     };
     let mut base = r_cache_base(settings, None);
+    #[cfg(windows)]
+    if base.is_none() {
+        // R_user_dir uses LOCALAPPDATA verbatim. file.path("", "R", "cache")
+        // yields "/R/cache" when the variable is absent or empty.
+        let local =
+            environment_path(settings, "LOCALAPPDATA").unwrap_or_else(|| PathBuf::from("/"));
+        base = Some(local.join("R/cache"));
+    }
+    #[cfg(not(windows))]
     if base.is_none()
         && let Some(home) = &home
     {
@@ -652,6 +661,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
     if !home.is_absolute() {
         return Err("resolver sandbox requires an absolute HOME".into());
     }
+    #[cfg(unix)]
     let xdg_cache = env("XDG_CACHE_HOME").unwrap_or_else(|| home.join(".cache"));
     #[cfg(windows)]
     let local = env("LOCALAPPDATA")
