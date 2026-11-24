@@ -946,6 +946,33 @@ class WindowsConsole(unittest.TestCase):
                         [str(home / "private")],
                     )
 
+    def test_verbatim_permission_paths_require_backslashes(self):
+        from nt import _getfinalpathname
+
+        with tempfile.TemporaryDirectory() as temporary:
+            for base in (_getfinalpathname(temporary), r"\\?\UNC\localhost\share"):
+                path = base + r"\ordinary/child"
+                with self.subTest(path=path):
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "config",
+                            "resolve",
+                            "--no-config",
+                            "-c",
+                            "sandbox.filesystem.read_write=" + json.dumps([path]),
+                        ],
+                        cwd=temporary,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(result.returncode, 1, result)
+                    self.assertEqual(result.stdout, "", result)
+                    self.assertIn(
+                        "verbatim Windows paths must use backslashes", result.stderr
+                    )
+
     def test_verbatim_home_opens_config_and_retains_policy_parent_traversals(self):
         from nt import _getfinalpathname
 

@@ -1024,6 +1024,8 @@ impl PermissionPath<'_> {
             Self::Declared(path) => (path, true),
             Self::LinkTarget(path) => (path, false),
         };
+        #[cfg(windows)]
+        crate::console_paths::validate_verbatim_path(path)?;
         // lstat("link/") follows the link. Strip trailing separators and '.'
         // while preserving every '..' for the component checks below.
         let mut prefixes: Vec<_> = path.components().as_path().ancestors().collect();

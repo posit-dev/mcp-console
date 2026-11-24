@@ -110,6 +110,7 @@ This also applies when the exception reaches the ignored root through another sy
 If both paths cross the same link and their missing components leave the relationship uncertain, Console rejects the launch.
 Name the exception using the target path, for example `output/locked`.
 The same rule applies to directory junctions on Windows.
+Use backslashes throughout verbatim Windows permission paths (`\\?\...`) so Console and the native runner inspect the same components.
 On macOS, grants may use the standard `/tmp`, `/var`, and `/etc` aliases as long as any `..` components stay within the aliased directory.
 Console also checks write grants for host temporary directories and dependency caches.
 

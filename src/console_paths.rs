@@ -45,6 +45,8 @@ pub(crate) fn expand_permission_home(path: &Path) -> Result<PathBuf, String> {
 /// Capture an absolute path whose parent traversals can still be inspected at launch.
 pub(crate) fn absolute_preserving_parents(base: &Path, path: &Path) -> std::io::Result<PathBuf> {
     #[cfg(windows)]
+    validate_verbatim_path(path)?;
+    #[cfg(windows)]
     if path.components().any(|part| part == Component::ParentDir) {
         // GetFullPathNameW folds `..`, as does PathBuf::push on a verbatim
         // base. Resolve only the drive or UNC root, then append the components.
@@ -65,6 +67,20 @@ pub(crate) fn absolute_preserving_parents(base: &Path, path: &Path) -> std::io::
         return Ok(root);
     }
     std::path::absolute(base.join(path))
+}
+
+#[cfg(windows)]
+pub(crate) fn validate_verbatim_path(path: &Path) -> std::io::Result<()> {
+    // Rust treats '/' literally after this prefix. The runner strips the
+    // prefix on drive and UNC paths and would see different components.
+    let bytes = path.as_os_str().as_encoded_bytes();
+    if bytes.starts_with(br"\\?\") && bytes.contains(&b'/') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "verbatim Windows paths must use backslashes",
+        ));
+    }
+    Ok(())
 }
 
 /// Match the runner's lexical normalization, including absent/.. paths.
