@@ -432,8 +432,14 @@ fn project_globs_supply_library(
         ])
         .env("R_LIBS", std::env::join_paths(paths)?)
         .env("R_LIBS_USER", "NULL")
-        .env("R_LIBS_SITE", "NULL")
-        .output()?;
+        .env("R_LIBS_SITE", "NULL");
+    let output = interrupt::with_inspection_interrupt("R library inspection", |started| {
+        let resolver = ResolverProcess::new();
+        let invocation = resolver
+            .spawn(&mut command, None)
+            .map_err(|error| format!("cannot start Rscript library inspection: {error}"))?;
+        resolver.collect(invocation, &executable, "R library inspection", started)
+    })?;
     match (output.status.success(), output.stdout.as_slice()) {
         (true, b"TRUE") => Ok(true),
         (true, b"FALSE") => Ok(false),

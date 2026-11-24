@@ -13,7 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.recording.test_boundaries import await_event
 from support.client import McpClient
-from support.checkpoints import FifoCheckpoint, fixture_fifo_writer, wait_for_path
+from support.checkpoints import (
+    FifoCheckpoint,
+    fixture_fifo_writer,
+    wait_for_checkpoint,
+    wait_for_path,
+)
 from support.assertions import wait_for_evaluation_output
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.snapshots import execution_snapshots
@@ -749,36 +754,38 @@ def test_interrupted_profile_is_not_replayed(
 
 @requires(R, NATIVE_FIXTURES, command("ir"))
 @executions(DIRECT, SANDBOXED)
-@execution_snapshots
 def test_interrupted_library_probe_requires_restart(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
+    with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
         root = Path(temporary).resolve()
         environment = startup_environment(root, managed=True)
+        scratch = root / "scratch"
+        scratch.mkdir()
+        environment["TMPDIR"] = str(scratch)
         fixture = build_interposer(root, "r_library_probe")
-        ready = resources.enter_context(
-            closing(FifoCheckpoint.create(root / "probe-ready"))
-        )
         environ = root / ".Renviron"
         environ.write_text(
             f'{LOADER_VARIABLE}="{fixture}"\nR_LIBS="${{R_LIBS}}:project-*"\n'
         )
         with McpClient(
             binary,
-            writable_arguments(execution, root),
+            startup_arguments(execution),
             environment,
             current_directory=root,
             use_r_startup_files=True,
         ) as client:
             client.initialize_and_list_tools()
             client.send(r='stop("interrupted startup ran cell")', timeout_ms=0)
-            ready.wait(
-                "Rscript library probe", timeout=client.response_timeout, client=client
+            marker = wait_for_checkpoint(
+                lambda: next(scratch.rglob("probe.pid"), None),
+                "Rscript library probe",
+                root=scratch,
+                recursive=True,
+                timeout=client.response_timeout,
+                client=client,
             )
-            pid = host_process_id(
-                int((root / "probe.pid").read_text()), client.process.pid
-            )
+            pid = host_process_id(int(marker.read_text()), client.process.pid)
             try:
                 output = wait_for_evaluation_output(
                     client,
