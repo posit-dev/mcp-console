@@ -209,6 +209,7 @@ impl Preparation {
     pub(crate) fn inspect<T: serde::de::DeserializeOwned>(
         operation: Operation,
         mut settings: crate::settings::SandboxSettings,
+        cache_environment: Option<&crate::resolver::cache::Environment>,
         no_sandbox: bool,
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
@@ -217,9 +218,8 @@ impl Preparation {
         let mut command = std::process::Command::new(&executable);
         // Windows inspection uses the resolver launcher below, including its
         // platform environment during trusted installation warmup.
-        #[cfg(unix)]
-        if !no_sandbox {
-            crate::resolver::cache::resolve_environment(&mut settings)?;
+        if cfg!(unix) && !no_sandbox {
+            crate::resolver::cache::apply_worker_environment(&mut settings, cache_environment)?;
         }
         if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
             crate::settings::configure_environment(&mut command, &settings);

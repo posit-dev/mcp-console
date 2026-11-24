@@ -334,11 +334,7 @@ impl WorkerRuntime {
             if let Some(transport) = &startup_transport {
                 transport.preserve_access(&mut settings)?;
             }
-            if let Some(environment) = cache_environment {
-                environment.apply(&mut settings)?;
-            } else {
-                crate::resolver::cache::resolve_environment(&mut settings)?;
-            }
+            crate::resolver::cache::apply_worker_environment(&mut settings, cache_environment)?;
             crate::settings::preserve_environment(&mut settings, command.get_envs())?;
             command.env(
                 crate::settings::ENVIRONMENT,

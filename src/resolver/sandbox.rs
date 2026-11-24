@@ -75,8 +75,8 @@ pub(crate) fn command(
 
 fn materialize(settings: &mut SandboxSettings, declared: &SandboxSettings) -> Result<(), String> {
     let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
-    let managed = settings
-        .remove(super::cache::MANAGED_DIRECTORY)
+    let managed = declared
+        .get(super::cache::MANAGED_DIRECTORY)
         .map(|path| PathBuf::from(path.as_str().expect("captured managed cache directory")));
     // Explicit entries replace the default permissions for both cache modes.
     let caches = if settings

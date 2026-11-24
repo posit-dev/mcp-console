@@ -18,7 +18,14 @@ from support.checkpoints import FifoCheckpoint
 from support.normalization import code
 from support.python import isolated_python, write_test_wheel
 from support.records import Transcript
-from support.requirements import LINUX_SANDBOX, R, SANDBOX, command, requires
+from support.requirements import (
+    LINUX_SANDBOX,
+    R,
+    SANDBOX,
+    UNPRIVILEGED,
+    command,
+    requires,
+)
 from support.r import r_test_environment
 from support.resolvers import preseeded_duckdb_python, probing_uv
 
@@ -242,6 +249,102 @@ def test_symlinked_cache_directory_does_not_create_storage(binary: Path) -> Tran
             transcript = client.finish()
         assert not (target / "dependencies").exists()
     return transcript
+
+
+@requires(SANDBOX, UNPRIVILEGED)
+def test_existing_python_starts_with_inaccessible_duckdb_cache(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        blocked = root / "blocked"
+        blocked.mkdir(mode=0)
+        env = environment(root)
+        env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(
+            blocked / "child/../extensions"
+        )
+        try:
+            with McpClient(
+                binary,
+                (
+                    "serve",
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    "languages=[python]",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    "-c",
+                    'resolver.sandbox.filesystem={"read_only":["/"]}',
+                ),
+                env,
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect("42\n", python="21 + 21")
+                return client.finish()
+        finally:
+            blocked.chmod(0o700)
+
+
+@requires(SANDBOX)
+def test_existing_python_inspects_managed_cache_target(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir=Path.home()) as directory:
+        root = Path(directory).resolve()
+        target = root / "storage"
+        target.mkdir()
+        (root / "cache;alias").symlink_to(target, target_is_directory=True)
+        python, site = isolated_python(root)
+        evidence = root / "inspection"
+        evidence.mkdir()
+        (site / "sitecustomize.py").write_text(
+            # fmt: python
+            code("""
+                import os
+                import sys
+                from pathlib import Path
+
+                if sys.flags.isolated and sys.argv[0] == "-c":
+                    Path("inspection/cache").write_text(os.environ["RENV_PATHS_CACHE"])
+                """)
+        )
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "--writable-root",
+                "inspection",
+                "-c",
+                "cache.directory=cache;alias",
+                "-c",
+                "languages=[python]",
+                "-c",
+                f"python.existing={python}",
+                "-c",
+                'resolver.sandbox.filesystem={"read_only":["/"],"read_write":["storage"]}',
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "True\n",
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    print(
+                        Path(os.environ["RENV_PATHS_CACHE"])
+                        == Path.cwd() / "storage/dependencies/renv/cache"
+                    )
+                    """),
+            )
+            assert (
+                Path((evidence / "cache").read_text())
+                == target / "dependencies/renv/cache"
+            )
+            return client.finish()
 
 
 @requires(SANDBOX, command("uv"), command("rustc"))

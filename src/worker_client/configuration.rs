@@ -153,6 +153,7 @@ impl ClientConfiguration {
                         executable: executable.clone(),
                     },
                     inspection_settings.clone(),
+                    None,
                     no_sandbox,
                     diagnostics.clone(),
                     on_started,
@@ -256,6 +257,7 @@ impl ClientConfiguration {
                             executable: executable.to_owned(),
                         },
                         inspection_settings.clone(),
+                        Some(&preparation.caches.environment),
                         no_sandbox,
                         diagnostics.clone(),
                         started,
@@ -374,6 +376,7 @@ impl ClientConfiguration {
                         crate::resolver::preparation::Preparation::inspect(
                             crate::resolver::preparation::Operation::InspectPython { executable },
                             inspection_settings.clone(),
+                            Some(&preparation.caches.environment),
                             no_sandbox,
                             diagnostics.clone(),
                             on_started,

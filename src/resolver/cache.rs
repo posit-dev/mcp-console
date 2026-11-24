@@ -126,13 +126,13 @@ pub(crate) fn configure(
         .copied()
         .filter(|(name, _)| *name != "PYTHONUSERBASE" || !explicit_python)
         .collect();
-    for settings in [&mut *resolver, &mut *worker] {
+    for settings in [resolver, worker] {
         for &(name, relative) in &variables {
             set_cache_variable(settings, name, &grant.join(relative))?;
         }
         retain_environment_path(settings, &grant, &variables)?;
+        settings.insert(MANAGED_DIRECTORY.into(), json!(grant));
     }
-    resolver.insert(MANAGED_DIRECTORY.into(), json!(grant));
     Ok(())
 }
 
@@ -262,7 +262,8 @@ impl Environment {
         }
     }
 
-    pub(crate) fn apply(&self, settings: &mut SandboxSettings) -> Result<(), String> {
+    fn apply(&self, settings: &mut SandboxSettings) -> Result<(), String> {
+        settings.remove(MANAGED_DIRECTORY);
         settings.remove(HOST_RENV_CACHE_LIST);
         settings.remove(CACHE_ENVIRONMENT_PATHS);
         // An independently configured worker keeps its own cache choices.
@@ -272,6 +273,17 @@ impl Environment {
             }
         }
         validate_renv_cache(settings)
+    }
+}
+
+/// Inspections and workers attached to a resolver share its selected cache paths.
+pub(crate) fn apply_worker_environment(
+    settings: &mut SandboxSettings,
+    retained: Option<&Environment>,
+) -> Result<(), String> {
+    match retained {
+        Some(environment) => environment.apply(settings),
+        None => resolve_environment(settings).map(drop),
     }
 }
 
@@ -326,17 +338,16 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<Envi
     Ok(environment)
 }
 
-/// Select a stable tool path while permission checks retain the declaration.
+/// Retain a visible target for tool use. Provisioning and permission checks
+/// independently inspect the declaration and report errors for actual grants.
 pub(crate) fn selected_tool_directory(path: &Path) -> Result<PathBuf, String> {
-    retained_cache_target(&tool_directory(path)?)
-}
-
-fn retained_cache_target(directory: &Path) -> Result<PathBuf, String> {
-    if crate::settings::has_untrusted_symlink(directory)? {
-        return crate::console_paths::canonicalize_existing_prefix(directory)
-            .map_err(|error| format!("cannot resolve cache '{}': {error}", directory.display()));
+    let directory = tool_directory(path)?;
+    if crate::settings::has_untrusted_symlink(&directory).unwrap_or(false)
+        && let Ok(target) = crate::console_paths::canonicalize_existing_prefix(&directory)
+    {
+        return Ok(target);
     }
-    Ok(directory.to_owned())
+    Ok(directory)
 }
 
 // A host override must be representable in JSON. If the physical target
@@ -374,7 +385,7 @@ pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
     if let Some(prefix) = absolute
         .ancestors()
         .find(|prefix| prefix.components().next_back() == Some(std::path::Component::ParentDir))
-        && crate::settings::has_untrusted_symlink(prefix)?
+        && crate::settings::has_untrusted_symlink(prefix).unwrap_or(true)
     {
         // Unix follows the link before '..'. Keep that target for this resolver's
         // lifetime; an inaccessible host cache keeps the tool's native behavior.
@@ -473,11 +484,7 @@ pub(super) fn matplotlib_directory(settings: &SandboxSettings) -> Result<Option<
                 .map(default_matplotlib_cache)
         })
         .as_deref()
-        .map(|path| {
-            let directory = tool_directory(path)?;
-            // Matplotlib can use temporary storage when its font cache is inaccessible.
-            Ok(retained_cache_target(&directory).unwrap_or(directory))
-        })
+        .map(selected_tool_directory)
         .transpose()
 }
 
