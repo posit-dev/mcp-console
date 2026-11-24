@@ -153,7 +153,9 @@ See [R startup and libraries](ENVIRONMENT.md#r-startup-and-libraries) for the re
 
 Console attaches its bridges and managed graphics after native startup, so startup plots use R's native device.
 A profile diagnostic that R survives does not make the session unusable.
-If R fails initialization or is interrupted, fix the startup file externally and explicitly restart; ordinary calls do not retry initialization.
+If Console reports that R needs a [temporary directory without whitespace](SANDBOX_CONFIGURATION.md#temporary-storage), you can set `TMPDIR` to a suitable directory in a live Python cell and retry R.
+R resumes in the same worker without rereading its environment files.
+For other failures or interruptions during native initialization, correct the cause and explicitly restart.
 Edits to `.Rprofile` take effect on runtime restart because R reads the file again, even though YAML configuration remains captured for the server connection.
 
 On Windows ARM64, reticulate 1.47.0 reports R's architecture as `Unknown` during native R startup and rejects even an explicitly selected ARM64 Python interpreter.
