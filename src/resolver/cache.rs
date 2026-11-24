@@ -386,9 +386,10 @@ pub(crate) fn resolve_environment(
 /// Retain a visible target for tool use. Provisioning and permission checks
 /// independently inspect the declaration and report errors for actual grants.
 pub(crate) fn selected_tool_directory(path: &Path) -> Result<PathBuf, String> {
-    let directory = tool_directory(path)?;
+    let directory = host_environment_directory(path)?;
     if crate::settings::has_untrusted_symlink(&directory).unwrap_or(false)
         && let Ok(target) = crate::console_paths::canonicalize_existing_prefix(&directory)
+        && target.to_str().is_some()
     {
         return Ok(target);
     }

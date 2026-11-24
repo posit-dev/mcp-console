@@ -12,7 +12,15 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import POSIX, R, SANDBOX, SQL, command, requires
+from support.requirements import (
+    NON_UTF8_FILENAMES,
+    POSIX,
+    R,
+    SANDBOX,
+    SQL,
+    command,
+    requires,
+)
 from support.assertions import (
     last_result_text,
     last_tool_text,
@@ -538,6 +546,37 @@ def test_omits_r_removed_by_resolver_environment(binary: Path) -> Transcript:
             )
             client.finish()
         return [{"ambient_r_removed": True, "python_prepared": True}]
+
+
+@requires(SANDBOX, NON_UTF8_FILENAMES)
+def test_isolated_resolver_keeps_encodable_duckdb_alias(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        target = root / os.fsdecode(b"extensions-\xff")
+        (target / "stage").mkdir(parents=True)
+        (root / "shortcut").symlink_to(target)
+        override = {"MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY": "shortcut/stage/.."}
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "cache=host",
+                "-c",
+                f"python.existing={sys.executable}",
+                "-c",
+                "resolver.inherit_environment=false",
+                "-c",
+                "resolver.environment=" + json.dumps(override),
+                "-c",
+                'resolver.sandbox.filesystem={"read_only":["/"]}',
+            ),
+            environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("42\n", python="21 + 21")
+            return client.finish()
 
 
 @requires(SANDBOX)
