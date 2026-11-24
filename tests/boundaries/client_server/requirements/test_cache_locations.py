@@ -561,7 +561,34 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
             grant = "resolver.sandbox.filesystem=" + json.dumps(
                 {"read_only": ["/"], "read_write": [str(workspace)]}
             )
+            modern = workspace / "modern"
+            legacy = workspace / "legacy"
+            (modern / "R/renv").mkdir(parents=True)
+            (legacy / "renv").mkdir(parents=True)
+            skipped = workspace / "skipped"
+            skipped.symlink_to(root / "absent", target_is_directory=True)
+            hidden = "resolver.sandbox.filesystem=" + json.dumps(
+                {"read_only": ["/"], "deny": [str(modern)]}
+            )
             for cwd, cache, variables, options in (
+                (
+                    root,
+                    legacy / "renv/cache",
+                    {"R_USER_CACHE_DIR": str(skipped), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host"),
+                ),
+                (
+                    root,
+                    modern / "R/renv/cache",
+                    {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host", "-c", grant),
+                ),
+                (
+                    root,
+                    legacy / "renv/cache",
+                    {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(legacy)},
+                    ("-c", "cache=host", "-c", hidden),
+                ),
                 (
                     workspace,
                     workspace / "renv/cache",
@@ -612,6 +639,25 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                 assert not (workspace / "dependencies").exists()
                 assert not cache.exists(), cache
                 assert not Path(env["UV_CACHE_DIR"]).exists()
+            valid = root / "data"
+            (valid / "renv").mkdir(parents=True, exist_ok=True)
+            with McpClient(
+                binary,
+                (
+                    "serve",
+                    "-c",
+                    f"python.existing={sys.executable}",
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    hidden,
+                ),
+                env | {"R_USER_CACHE_DIR": str(modern), "XDG_DATA_HOME": str(valid)},
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect("42\n", python="21 + 21")
+                client.finish()
     return [{"error": error}]
 
 

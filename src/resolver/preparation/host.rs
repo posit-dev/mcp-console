@@ -363,6 +363,7 @@ pub(super) fn run() -> Result<(), String> {
         mode,
         installation,
         matplotlib_cache,
+        check_renv_cache,
     } = first
     else {
         return Err("expected resolver open".into());
@@ -415,7 +416,15 @@ pub(super) fn run() -> Result<(), String> {
         let mut context = perform(
             0,
             &job_events,
-            |started| Context::discover(mode, installation, matplotlib_cache, started),
+            |started| {
+                if check_renv_cache {
+                    resolver::cache::validate_default_renv_cache(
+                        &crate::settings::SandboxSettings::default(),
+                        None,
+                    )?;
+                }
+                Context::discover(mode, installation, matplotlib_cache, started)
+            },
             |(_, discovery)| serde_json::to_value(discovery).expect("discovery serializes"),
         )?
         .0;

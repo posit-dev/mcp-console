@@ -147,17 +147,20 @@ An explicit resolver filesystem replaces those generated entries.
 `MCP_CONSOLE_HOME` does not move caches.
 The principal host-cache overrides are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
 Without overrides, uv uses its XDG or home cache/data locations; R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
-For host caches derived from an absolute `HOME` containing `..`, Console uses the normalized home when it preserves symlink traversal.
+For sandboxed host caches derived from an absolute `HOME` containing `..`, Console uses the normalized home when it preserves symlink traversal.
 This keeps the cache reachable if an intermediate directory is removed.
 R accepts a relative `XDG_CACHE_HOME`.
 With a value such as `unused/../rcache`, R can use the provisioned `rcache` directory while uv continues to use its platform default.
 Console resolves a home-relative R cache path containing `..` against the same launch home used for its filesystem grant.
-For a list in `RENV_PATHS_CACHE`, the default resolver policy grants each nonempty directory separately.
+For sandboxed preparation, the default resolver policy grants each nonempty directory in `RENV_PATHS_CACHE` separately.
 The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Relative entries use the launch directory, and a leading `~` uses the launch home even when the resolver has its own `HOME`.
 Console reports an error if an expanded entry, the cache derived from renv’s root, or the selected managed renv cache directory contains a list separator.
 Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
 Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
+
+With `--no-sandbox`, Console passes `RENV_PATHS_CACHE` through as supplied.
+renv interprets relative entries and `~` using its own working directory and home.
 
 Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user cache setting in host mode.
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.

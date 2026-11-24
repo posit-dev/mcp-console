@@ -132,6 +132,8 @@ enum Input {
         installation: Option<crate::local_runtime::RInstallation>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         matplotlib_cache: Option<std::ffi::OsString>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        check_renv_cache: bool,
     },
     Run {
         id: u64,

@@ -257,6 +257,7 @@ impl Preparation {
                 mode: Mode::PythonOnly,
                 installation: None,
                 matplotlib_cache: None,
+                check_renv_cache: false,
             },
             Default::default(),
             diagnostics,
@@ -329,6 +330,7 @@ impl Preparation {
             mode,
             installation,
             matplotlib_cache: caches.matplotlib.clone().map(Into::into),
+            check_renv_cache: !no_sandbox,
         };
         Self::open_with(
             command,

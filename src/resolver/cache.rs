@@ -164,28 +164,69 @@ fn renv_cache_entry(directory: &Path) -> Result<&str, String> {
     Ok(directory)
 }
 
-// renv splits its selected cache after deriving it from the root. An explicitly
-// empty cache list overrides the root just like any other explicit list.
-fn validate_renv_cache(settings: &SandboxSettings) -> Result<(), String> {
-    let value = |name| crate::settings::environment_path_value(settings, name);
-    if value(RENV_CACHE).is_none()
-        && let Some(root) = value("RENV_PATHS_ROOT").or_else(|| {
-            // With explicit grants Console doesn't provision R's default;
-            // renv can select an existing legacy root instead.
-            if settings
-                .get("filesystem")
-                .and_then(|fs| fs.get("entries"))
-                .is_some()
-            {
-                return None;
-            }
-            r_cache_base(settings).map(|base| base.join("R/renv"))
-        })
-        && root.to_str().is_some()
-    {
+// Generated grants validate native-only paths when serializing resolver policy.
+fn validate_renv_root(root: &Path) -> Result<(), String> {
+    if root.to_str().is_some() {
         renv_cache_entry(&root.join("cache"))?;
     }
     Ok(())
+}
+
+// Generated grants normally provision the modern root. When that grant contains
+// a symlink, or when grants are explicit, renv chooses by filesystem visibility.
+pub(super) fn validate_default_renv_cache(
+    settings: &SandboxSettings,
+    generated: Option<&SandboxSettings>,
+) -> Result<(), String> {
+    let value = |name| crate::settings::environment_path_value(settings, name);
+    if value(RENV_CACHE).is_some() || value("RENV_PATHS_ROOT").is_some() {
+        return Ok(());
+    }
+    let Some(base) = r_cache_base(settings, |home| home.canonicalize().unwrap_or(home)) else {
+        return Ok(());
+    };
+    let modern = base.join("R/renv");
+    if let Some(raw) = generated.and_then(|raw| r_cache_base(raw, std::convert::identity)) {
+        let grant = crate::console_paths::expand_permission_home(&raw.join("R/renv"))?;
+        if !crate::settings::has_untrusted_symlink(&grant)? {
+            return validate_renv_root(&modern);
+        }
+    }
+
+    // renv checks existence with tilde expansion but splits the original spelling.
+    let exists = |path: &Path| match path.strip_prefix("~") {
+        Ok(suffix) => {
+            let home = environment_path(settings, "HOME");
+            #[cfg(windows)]
+            let home = environment_path(settings, "R_USER")
+                .or(home)
+                .or_else(|| environment_path(settings, "USERPROFILE"));
+            home.is_some_and(|home| home.join(suffix).exists())
+        }
+        Err(_) => path.exists(),
+    };
+    if exists(&modern) {
+        return validate_renv_root(&modern);
+    }
+    #[cfg(windows)]
+    let base = value("LOCALAPPDATA")
+        .or_else(|| value("APPDATA"))
+        .unwrap_or_default();
+    #[cfg(not(windows))]
+    let base = value("XDG_DATA_HOME").unwrap_or_else(|| {
+        if cfg!(target_os = "macos") {
+            "~/Library/Application Support"
+        } else {
+            "~/.local/share"
+        }
+        .into()
+    });
+    let legacy = if base.as_os_str().is_empty() {
+        PathBuf::from("/renv")
+    } else {
+        base.join("renv")
+    };
+    validate_renv_root(if exists(&legacy) { &legacy } else { &modern })
 }
 
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
@@ -272,7 +313,14 @@ impl Environment {
                 set_cache_variable(settings, name, selected)?;
             }
         }
-        validate_renv_cache(settings)
+        // An explicitly empty list also overrides the root.
+        let value = |name| crate::settings::environment_path_value(settings, name);
+        if value(RENV_CACHE).is_none()
+            && let Some(root) = value("RENV_PATHS_ROOT")
+        {
+            validate_renv_root(&root)?;
+        }
+        Ok(())
     }
 }
 
@@ -485,7 +533,10 @@ pub(super) fn matplotlib_directory(settings: &SandboxSettings) -> Result<Option<
         .transpose()
 }
 
-fn r_cache_base(settings: &SandboxSettings) -> Option<PathBuf> {
+fn r_cache_base(
+    settings: &SandboxSettings,
+    select_home: impl FnOnce(PathBuf) -> PathBuf,
+) -> Option<PathBuf> {
     let env = |name| environment_path(settings, name);
     env("R_USER_CACHE_DIR")
         .or_else(|| env("XDG_CACHE_HOME"))
@@ -497,7 +548,7 @@ fn r_cache_base(settings: &SandboxSettings) -> Option<PathBuf> {
             let home = env("HOME").filter(|path| path.is_absolute());
             #[cfg(windows)]
             let home = home.or_else(|| env("USERPROFILE").filter(|path| path.is_absolute()));
-            home.map(|home| {
+            home.map(select_home).map(|home| {
                 home.join(if cfg!(windows) {
                     "AppData/Local/R/cache"
                 } else if cfg!(target_os = "macos") {
@@ -548,7 +599,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         .unwrap_or_else(|| home.join(".local/share"));
     #[cfg(windows)]
     let xdg_data = roaming;
-    let r_cache = r_cache_base(settings).expect("absolute resolver home");
+    let r_cache = r_cache_base(settings, std::convert::identity).expect("absolute resolver home");
     let mut caches = vec![
         env("UV_CACHE_DIR")
             .unwrap_or_else(|| uv_cache_base.join(if cfg!(windows) { "cache" } else { "uv" })),
