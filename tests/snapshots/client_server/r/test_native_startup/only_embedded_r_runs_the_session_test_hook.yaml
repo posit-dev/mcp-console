@@ -5,6 +5,10 @@ send:
   r: |
     stopifnot(
       identical(readLines(marker), as.character(Sys.getpid())),
+      identical(
+        normalizePath(dirname(tempdir()), winslash = "/"),
+        normalizePath(Sys.getenv("TMP"), winslash = "/")
+      ),
       normalizePath("project-library", winslash = "/") %in% .libPaths()
     )
 result:

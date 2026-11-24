@@ -596,6 +596,50 @@ def test_later_project_alias_survives_two_preparations_before_r_startup(
 
 
 @requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_later_glob_preserves_the_replaced_library_position(binary: Path) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        (root / "libs").mkdir()
+        with paused_project_library(binary, root, "libs/*") as client:
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    import subprocess
+                    from pathlib import Path
+
+                    old = os.environ["MCP_CONSOLE_R_LIBRARY"]
+                    Path("libs/pkg").symlink_to(old)
+                    os.environ["R_LIBS_SITE"] = str(Path("project-last").resolve())
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(
+                # fmt: python
+                python=code("""
+                    paths = subprocess.check_output(["printenv", "R_LIBS"], text=True).strip()
+                    os.environ["R_LIBS"] = paths + ":unmatched-*"
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(python='del os.environ["TMPDIR"]')
+            client.expect(
+                # fmt: r
+                r=code("""
+                    project <- normalizePath(c("libs/pkg", "project-first", "project-last"))
+                    paths <- .libPaths()
+                    stopifnot(
+                      identical(paths[paths %in% project], project),
+                      !normalizePath("resolved-r-libraries/consolefirst") %in% paths,
+                      consolefirst::fixture(),
+                      consolesecond::fixture()
+                    )
+                    """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
 def test_replaced_library_expires_when_relative_alias_points_elsewhere(
     binary: Path,
 ) -> Transcript:

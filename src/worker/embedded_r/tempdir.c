@@ -31,22 +31,22 @@ static int contains_whitespace(const char *path) {
 }
 
 /* R_reInitTempDir in R's src/main/sysutils.c selects the first writable
-   directory before checking its spelling. R calls R_Suicide on whitespace. */
-int mcp_r_tempdir_has_whitespace(char *(*environment)(const char *)) {
+   directory before checking its spelling. */
+const char *mcp_r_tempdir_variable(char *(*environment)(const char *)) {
     const char *variables[] = {"TMPDIR", "TMP", "TEMP"};
+    for (size_t i = 0; i < sizeof(variables) / sizeof(variables[0]); ++i)
+        if (writable_directory(environment(variables[i]))) return variables[i];
 #ifdef _WIN32
     /* R_SetParams has set R_USER by this point. */
-    const char *path = environment("R_USER");
+    return "R_USER";
 #else
-    const char *path = "/tmp";
+    return NULL; /* R uses /tmp. */
 #endif
-    for (size_t i = 0; i < sizeof(variables) / sizeof(variables[0]); ++i) {
-        const char *candidate = environment(variables[i]);
-        if (writable_directory(candidate)) {
-            path = candidate;
-            break;
-        }
-    }
+}
+
+int mcp_r_tempdir_has_whitespace(char *(*environment)(const char *)) {
+    const char *variable = mcp_r_tempdir_variable(environment);
+    const char *path = variable ? environment(variable) : "/tmp";
     if (!path || !contains_whitespace(path)) return 0;
 #ifdef _WIN32
     DWORD size = GetShortPathNameA(path, NULL, 0);

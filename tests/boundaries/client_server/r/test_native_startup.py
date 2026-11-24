@@ -201,7 +201,7 @@ def test_recovers_from_renviron_tempdir_without_rereading_it(
 
 
 @requires(R, command("ir"))
-@executions(RUNTIME)
+@executions(DIRECT, SANDBOXED)
 def test_only_embedded_r_runs_the_session_test_hook(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -213,12 +213,14 @@ def test_only_embedded_r_runs_the_session_test_hook(
         environment["TMPDIR"] = str(root)
         (root / "project-library").mkdir()
         (root / ".Renviron").write_text(
-            f'R_LIBS="${{R_LIBS}}{os.pathsep}project-*"\nR_TESTS=library-hook.R\n'
+            f'R_LIBS="${{R_LIBS}}{os.pathsep}project-*"\n'
+            'TMP="${TMPDIR}"\nTMPDIR="${TMP}/missing"\n'
+            "R_TESTS=library-hook.R\nR_BATCH=1\n"
         )
         (root / "library-hook.R").write_text(
             # fmt: r
             code(r"""
-                marker <- file.path(Sys.getenv("TMPDIR"), "r-tests-pids")
+                marker <- file.path(Sys.getenv("TMP"), "r-tests-pids")
                 cat(Sys.getpid(), file = marker, sep = "\n", append = TRUE)
                 if (!interactive()) {
                   cat("R_TESTS ran in noninteractive R\n")
@@ -238,6 +240,10 @@ def test_only_embedded_r_runs_the_session_test_hook(
                 r=code("""
                     stopifnot(
                       identical(readLines(marker), as.character(Sys.getpid())),
+                      identical(
+                        normalizePath(dirname(tempdir()), winslash = "/"),
+                        normalizePath(Sys.getenv("TMP"), winslash = "/")
+                      ),
                       normalizePath("project-library", winslash = "/") %in% .libPaths()
                     )
                     """)

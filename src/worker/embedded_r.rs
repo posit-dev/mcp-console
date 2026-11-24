@@ -265,11 +265,9 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     }
 }
 
-pub(super) fn rejects_tempdir(_r_home: &Path) -> Result<bool, Box<dyn Error>> {
-    type GetEnv = unsafe extern "C" fn(*const c_char) -> *mut c_char;
-    unsafe extern "C" {
-        fn mcp_r_tempdir_has_whitespace(environment: GetEnv) -> c_int;
-    }
+type GetEnv = unsafe extern "C" fn(*const c_char) -> *mut c_char;
+
+fn native_getenv() -> Result<GetEnv, Box<dyn Error>> {
     #[cfg(unix)]
     let environment = libc::getenv;
     // R and CPython share the system UCRT. Console's static CRT retains its
@@ -278,7 +276,30 @@ pub(super) fn rejects_tempdir(_r_home: &Path) -> Result<bool, Box<dyn Error>> {
     let runtime = libloading::os::windows::Library::open_already_loaded("ucrtbase.dll")?;
     #[cfg(windows)]
     let environment = unsafe { *runtime.get::<GetEnv>(b"getenv\0")? };
-    if unsafe { mcp_r_tempdir_has_whitespace(environment) } == 0 {
+    Ok(environment)
+}
+
+pub(super) fn tempdir_parent() -> Result<PathBuf, Box<dyn Error>> {
+    unsafe extern "C" {
+        fn mcp_r_tempdir_variable(environment: GetEnv) -> *const c_char;
+    }
+    let variable = unsafe { mcp_r_tempdir_variable(native_getenv()?) };
+    if variable.is_null() {
+        return Ok("/tmp".into());
+    }
+    // The C helper returns a static variable name. Read the native path
+    // without converting Windows Unicode or Unix filesystem bytes.
+    let variable = unsafe { CStr::from_ptr(variable) }.to_str()?;
+    Ok(std::env::var_os(variable)
+        .ok_or_else(|| format!("R's temporary directory variable {variable} is unset"))?
+        .into())
+}
+
+pub(super) fn rejects_tempdir(_r_home: &Path) -> Result<bool, Box<dyn Error>> {
+    unsafe extern "C" {
+        fn mcp_r_tempdir_has_whitespace(environment: GetEnv) -> c_int;
+    }
+    if unsafe { mcp_r_tempdir_has_whitespace(native_getenv()?) } == 0 {
         return Ok(false);
     }
     // R 4.3 extended its Windows whitespace restriction to Unix. The base

@@ -309,8 +309,20 @@ struct PreparedLibrary {
 #[derive(Clone)]
 struct RetainedLibrary {
     path: PathBuf,
-    // Later project spellings that supplied this slot at preparation.
+    // Later project entries that supplied this slot or may expand to it.
     aliases: Vec<PathBuf>,
+}
+
+impl RetainedLibrary {
+    fn slot(&self, paths: &[PathBuf]) -> Option<usize> {
+        let index = paths.iter().position(|entry| *entry == self.path)?;
+        // .Renviron can replace the later aliases with an explicit absolute
+        // entry. Only a slot still accompanied by a recorded alias is conditional.
+        paths[index + 1..]
+            .iter()
+            .any(|entry| self.aliases.contains(entry))
+            .then_some(index)
+    }
 }
 
 const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
@@ -345,69 +357,29 @@ impl StartupLibraries {
             .as_ref()
             .filter(|prepared| self.paths.contains(&prepared.entry))
             .filter(|prepared| prepared.resolved.is_dir());
-        if let Some(previous) = &previous {
-            self.recheck_retained_libraries(&previous.retained)?;
-        }
-        if let Some(prepared) = pending {
-            self.prepare(&prepared.resolved, Some(prepared))?;
-        }
-        let Some(managed) = std::env::var_os(MANAGED_LIBRARY).filter(|path| !path.is_empty())
-        else {
-            return Ok(());
-        };
-        if let Some(owned) = self.owned {
-            self.paths.remove(owned);
-        }
-        // A native profile can create or remove matches after R has initialized
-        // .libPaths(). Record the project's ownership before profiles run.
-        let project_supplies_library = if self.has_patterns() {
-            project_globs_supply_library(installation, &self.paths)?
-        } else if pending.is_none() && !self.paths.is_empty() {
-            // A pending preparation already checked these literal entries.
-            let target = Path::new(&managed).canonicalize()?;
-            self.paths
-                .iter()
-                .any(|path| is_literal_library(path, &target))
-        } else {
-            false
-        };
-        if project_supplies_library {
-            embedded_r::set_environment(&[(MANAGED_LIBRARY, "".as_ref())])?;
-        }
-        Ok(())
-    }
-
-    fn has_patterns(&self) -> bool {
-        self.paths
+        let mut retained: Vec<_> = previous
             .iter()
-            .any(|path| literal_library_path(path).is_none())
-    }
-
-    fn recheck_retained_libraries(
-        &mut self,
-        retained: &[RetainedLibrary],
-    ) -> Result<(), Box<dyn std::error::Error>> {
+            .flat_map(|prepared| &prepared.retained)
+            .filter_map(|library| library.slot(&self.paths))
+            .filter(|index| Some(*index) != self.owned)
+            .collect();
+        let active = pending
+            .map(|prepared| prepared.resolved.clone())
+            .or_else(|| {
+                std::env::var_os(MANAGED_LIBRARY)
+                    .filter(|path| !path.is_empty())
+                    .map(PathBuf::from)
+            });
+        let candidates: Vec<_> = retained
+            .iter()
+            .map(|&index| self.paths[index].clone())
+            .chain(active.iter().cloned())
+            .collect();
+        let supplied = self.project_supplied_libraries(installation, &retained, &candidates)?;
+        retained.sort_unstable();
         let count = self.paths.len();
-        for library in retained {
-            let Some(index) = self.paths.iter().position(|entry| *entry == library.path) else {
-                continue;
-            };
-            // .Renviron may replace the aliases with the absolute path itself.
-            // Only the earlier slot inherited with a later alias is conditional.
-            if self.owned == Some(index)
-                || !self.paths[index + 1..]
-                    .iter()
-                    .any(|entry| library.aliases.contains(entry))
-            {
-                continue;
-            }
-            // A chdir or a symlink change can give the same spelling a new target.
-            if library.path.canonicalize().is_ok_and(|target| {
-                self.paths
-                    .iter()
-                    .enumerate()
-                    .any(|(other, entry)| other != index && is_literal_library(entry, &target))
-            }) {
+        for index in retained.into_iter().rev() {
+            if supplied.contains(&self.paths[index]) {
                 continue;
             }
             self.paths.remove(index);
@@ -420,7 +392,45 @@ impl StartupLibraries {
         if self.paths.len() != count {
             embedded_r::set_environment(&[("R_LIBS", &std::env::join_paths(&self.paths)?)])?;
         }
+        if let Some(prepared) = pending {
+            self.prepare(&prepared.resolved, Some(prepared))?;
+        }
+        if active.is_some_and(|path| supplied.contains(&path)) {
+            embedded_r::set_environment(&[(MANAGED_LIBRARY, "".as_ref())])?;
+        }
         Ok(())
+    }
+
+    fn project_supplied_libraries(
+        &self,
+        installation: &RInstallation,
+        retained: &[usize],
+        candidates: &[PathBuf],
+    ) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        // A provisional slot cannot prove ownership of another library. Check
+        // the project's entries together before native profiles can change them.
+        let project: Vec<_> = self
+            .paths
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| Some(*index) != self.owned && !retained.contains(index))
+            .map(|(_, path)| path.clone())
+            .collect();
+        if has_library_patterns(&project) {
+            return project_glob_libraries(installation, &project, candidates);
+        }
+        Ok(candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.canonicalize().is_ok_and(|target| {
+                    project.iter().any(|path| is_literal_library(path, &target))
+                })
+            })
+            .cloned()
+            .collect())
     }
 
     fn prepare(
@@ -439,6 +449,10 @@ impl StartupLibraries {
             let aliases: Vec<_> = self.paths[index + 1..]
                 .iter()
                 .filter(|path| {
+                    // Defer wildcard ownership until R's final startup directory.
+                    if literal_library_path(path).is_none() {
+                        return self.paths[index] != library;
+                    }
                     // A relative entry that starts matching after a chdir keeps
                     // its project slot when we remove the earlier fallback.
                     !prepared.is_some_and(|p| {
@@ -482,7 +496,7 @@ impl StartupLibraries {
         let marker = if project.is_some() {
             Path::new("")
         } else {
-            let position = if self.has_patterns() {
+            let position = if has_library_patterns(&self.paths) {
                 self.paths.len()
             } else {
                 previous.unwrap_or(0)
@@ -495,6 +509,12 @@ impl StartupLibraries {
         embedded_r::set_environment(&[("R_LIBS", &paths), (MANAGED_LIBRARY, marker.as_os_str())])?;
         Ok(project.unwrap_or_else(|| library.to_owned()))
     }
+}
+
+fn has_library_patterns(paths: &[PathBuf]) -> bool {
+    paths
+        .iter()
+        .any(|path| literal_library_path(path).is_none())
 }
 
 fn literal_library_path(path: &Path) -> Option<std::borrow::Cow<'_, Path>> {
@@ -510,14 +530,21 @@ fn is_literal_library(path: &Path, target: &Path) -> bool {
         == Some(target)
 }
 
-fn project_globs_supply_library(
+fn project_glob_libraries(
     installation: &RInstallation,
     paths: &[PathBuf],
-) -> Result<bool, Box<dyn std::error::Error>> {
+    candidates: &[PathBuf],
+) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     use crate::resolver::process::{ResolverProcess, resolver_command};
+    use crate::resolver::result_file::ResultFile;
 
     // Let the selected R expand just the project's R_LIBS in the worker's
     // startup directory. R's base library is always on the search path.
+    let temporary = match crate::worker::managed_tempdir() {
+        Some(path) => PathBuf::from(path),
+        None => embedded_r::tempdir_parent()?,
+    };
+    let result = ResultFile::create(&temporary)?;
     let executable = crate::local_runtime::rscript_in(&installation.home);
     let mut command = resolver_command(&executable);
     installation.configure(&mut command)?;
@@ -526,8 +553,14 @@ fn project_globs_supply_library(
             "--vanilla",
             "--default-packages=NULL",
             "-e",
-            "cat(normalizePath(Sys.getenv('MCP_CONSOLE_R_LIBRARY'), '/') %in% .libPaths())",
+            concat!(
+                "args <- commandArgs(TRUE); ",
+                "libraries <- normalizePath(args[-1L], winslash='/', mustWork=FALSE); ",
+                "writeBin(as.raw(libraries %in% .libPaths()), args[[1L]])"
+            ),
         ])
+        .arg(result.path())
+        .args(candidates)
         // R's base profile sources R_TESTS even with --vanilla. The hook
         // belongs to the embedded session and must run there only.
         .env_remove("R_TESTS")
@@ -541,14 +574,24 @@ fn project_globs_supply_library(
             .map_err(|error| format!("cannot start Rscript library inspection: {error}"))?;
         resolver.collect(invocation, &executable, "R library inspection", started)
     })?;
-    match (output.status.success(), output.stdout.as_slice()) {
-        (true, b"TRUE") => Ok(true),
-        (true, b"FALSE") => Ok(false),
-        _ => Err(format!(
-            "cannot inspect project R library patterns with Rscript ({}): {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        )
-        .into()),
+    if !output.status.success() {
+        return Err(output
+            .failure(format!(
+                "cannot inspect project R library patterns with Rscript ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ))
+            .into());
     }
+    // R_BATCH and native shutdown hooks can write to stdout on success.
+    let matches = result.read(candidates.len() as u64)?;
+    if matches.len() != candidates.len() || matches.iter().any(|&found| found > 1) {
+        return Err("Rscript returned an invalid project library result".into());
+    }
+    Ok(candidates
+        .iter()
+        .zip(matches)
+        .filter(|(_, found)| *found == 1)
+        .map(|(candidate, _)| candidate.clone())
+        .collect())
 }

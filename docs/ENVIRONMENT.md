@@ -160,7 +160,7 @@ R interprets `R_ENVIRON`, `R_ENVIRON_USER`, `R_PROFILE`, `R_PROFILE_USER`, `R_LI
 `r.vanilla: true` suppresses normal startup files/workspace restoration; it is not general environment clearing.
 
 Managed preparation prepends its library to captured `R_LIBS`; native startup or user code can alter `.libPaths()` afterward.
-If `.Renviron` lists the same directory twice, R keeps its first position in the search path.
+R keeps the first occurrence of a directory in `R_LIBS`, including when a later wildcard matches it.
 When requirements change before R finishes starting, Console replaces its previous directory in the current `R_LIBS`, preserving the order of project libraries added by `.Renviron`.
 If Console needs to add a prepared directory to an `R_LIBS` that contains wildcard patterns, it appends the directory so R searches the project's entries first.
 Directories supplied by a pattern at native startup remain in the search path across later requirements changes, even if a site or user profile changes which paths match.
