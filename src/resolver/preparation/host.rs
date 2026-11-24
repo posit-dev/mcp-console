@@ -122,6 +122,7 @@ impl Context {
     fn execute(
         &mut self,
         operation: Operation,
+        check_renv_cache: bool,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
         report: &dyn Fn(String) -> Result<(), String>,
     ) -> Result<serde_json::Value, String> {
@@ -154,7 +155,12 @@ impl Context {
                     requirements,
                     defaults,
                     |requirements, started| {
-                        resolver::resolve_r_with(configuration, requirements, started)
+                        resolver::resolve_r_with(
+                            configuration,
+                            requirements,
+                            check_renv_cache,
+                            started,
+                        )
                     },
                     on_started,
                     report,
@@ -163,11 +169,21 @@ impl Context {
             }
             Operation::ResolveRStandalone { requirements } => {
                 let r = if let Some(configuration) = &self.r {
-                    resolver::resolve_r_with(configuration, requirements, on_started)?
+                    resolver::resolve_r_with(
+                        configuration,
+                        requirements,
+                        check_renv_cache,
+                        on_started,
+                    )?
                 } else {
-                    resolver::resolve_r(requirements, on_started, |configuration| {
-                        self.r = Some(configuration);
-                    })?
+                    resolver::resolve_r(
+                        requirements,
+                        check_renv_cache,
+                        on_started,
+                        |configuration| {
+                            self.r = Some(configuration);
+                        },
+                    )?
                 };
                 self.rscript = Some(r.rscript().to_path_buf());
                 serde_json::to_value(r).map_err(|error| error.to_string())
@@ -420,7 +436,7 @@ pub(super) fn run() -> Result<(), String> {
                 if check_renv_cache {
                     resolver::cache::validate_default_renv_cache(
                         &crate::settings::SandboxSettings::default(),
-                        None,
+                        resolver::cache::RenvLookup::Resolver,
                     )?;
                 }
                 Context::discover(mode, installation, matplotlib_cache, started)
@@ -433,7 +449,7 @@ pub(super) fn run() -> Result<(), String> {
                 id,
                 &job_events,
                 |started| {
-                    context.execute(operation, started, &|text| {
+                    context.execute(operation, check_renv_cache, started, &|text| {
                         job_events
                             .send(Event::Diagnostic { id, text })
                             .map_err(|_| "preparation owner stopped".into())

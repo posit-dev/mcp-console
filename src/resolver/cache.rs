@@ -172,42 +172,58 @@ fn validate_renv_root(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// Generated grants normally provision the modern root. When that grant contains
-// a symlink, or when grants are explicit, renv chooses by filesystem visibility.
+pub(super) enum RenvLookup<'a> {
+    Generated(&'a SandboxSettings),
+    Resolver,
+    Preparation(&'a Path),
+}
+
+// Generated grants normally provision the modern root. For explicit or skipped
+// grants, renv chooses the first candidate visible to ir.
 pub(super) fn validate_default_renv_cache(
     settings: &SandboxSettings,
-    generated: Option<&SandboxSettings>,
+    lookup: RenvLookup<'_>,
 ) -> Result<(), String> {
     let value = |name| crate::settings::environment_path_value(settings, name);
     if value(RENV_CACHE).is_some() || value("RENV_PATHS_ROOT").is_some() {
         return Ok(());
     }
-    let Some(base) = r_cache_base(settings, |home| home.canonicalize().unwrap_or(home)) else {
-        return Ok(());
-    };
-    let modern = base.join("R/renv");
-    if let Some(raw) = generated.and_then(|raw| r_cache_base(raw, std::convert::identity)) {
-        let grant = crate::console_paths::expand_permission_home(&raw.join("R/renv"))?;
-        if !crate::settings::has_untrusted_symlink(&grant)? {
-            return validate_renv_root(&modern);
+    let home = value("HOME").or_else(std::env::home_dir);
+    #[cfg(windows)]
+    let home = environment_path(settings, "R_USER").or(home);
+    let home = home.map(|path| {
+        if path.as_os_str().is_empty() {
+            PathBuf::from("/")
+        } else {
+            path
         }
-    }
-
-    // renv checks existence with tilde expansion but splits the original spelling.
-    let exists = |path: &Path| match path.strip_prefix("~") {
-        Ok(suffix) => {
-            let home = environment_path(settings, "HOME");
-            #[cfg(windows)]
-            let home = environment_path(settings, "R_USER")
-                .or(home)
-                .or_else(|| environment_path(settings, "USERPROFILE"));
-            home.is_some_and(|home| home.join(suffix).exists())
-        }
-        Err(_) => path.exists(),
+    });
+    let locate = |path: &Path| match lookup {
+        _ if path.is_absolute() => Some(path.to_owned()),
+        RenvLookup::Preparation(cwd) => Some(cwd.join(path)),
+        _ => None,
     };
-    if exists(&modern) {
-        return validate_renv_root(&modern);
+    // Ordinary descendants of ir's fresh working directory cannot exist.
+    // Other relative paths (for example ../cache) need its actual location.
+    let absent_in_fresh_directory = |path: &Path| {
+        use std::path::Component::{CurDir, Normal};
+        path.file_name().is_some()
+            && path
+                .components()
+                .all(|part| matches!(part, Normal(_) | CurDir))
+    };
+    let mut base = r_cache_base(settings, None);
+    if base.is_none()
+        && let Some(home) = &home
+    {
+        let resolved = match locate(home) {
+            Some(path) => path.canonicalize().unwrap_or_else(|_| home.clone()),
+            None if absent_in_fresh_directory(home) => home.clone(),
+            None => return Ok(()),
+        };
+        base = r_cache_base(settings, Some(&resolved));
     }
+    let modern = base.map(|base| base.join("R/renv"));
     #[cfg(windows)]
     let base = value("LOCALAPPDATA")
         .or_else(|| value("APPDATA"))
@@ -226,7 +242,48 @@ pub(super) fn validate_default_renv_cache(
     } else {
         base.join("renv")
     };
-    validate_renv_root(if exists(&legacy) { &legacy } else { &modern })
+    let modern_check = modern.as_deref().map_or(Ok(()), validate_renv_root);
+    let legacy_check = validate_renv_root(&legacy);
+    if modern_check.is_ok() && legacy_check.is_ok() {
+        return Ok(());
+    }
+    if let RenvLookup::Generated(raw) = lookup
+        && modern.as_ref().is_some_and(|path| path.is_absolute())
+    {
+        let home = environment_path(raw, "HOME");
+        #[cfg(windows)]
+        let home = home
+            .filter(|path| path.is_absolute())
+            .or_else(|| environment_path(raw, "USERPROFILE"));
+        if let Some(raw) = r_cache_base(raw, home.as_deref()) {
+            let grant = crate::console_paths::expand_permission_home(&raw.join("R/renv"))?;
+            if !crate::settings::has_untrusted_symlink(&grant)? {
+                return modern_check;
+            }
+        }
+    }
+    // renv checks existence with tilde expansion but splits the original spelling.
+    let visible = |path: &Path| {
+        let expanded = match (path.strip_prefix("~"), &home) {
+            (Ok(suffix), Some(home)) => home.join(suffix),
+            _ => path.to_owned(),
+        };
+        locate(&expanded)
+            .map(|path| path.exists())
+            .or_else(|| absent_in_fresh_directory(&expanded).then_some(false))
+    };
+    if let Some(modern) = &modern {
+        match visible(modern) {
+            Some(true) => return modern_check,
+            Some(false) => (),
+            None => return Ok(()),
+        }
+    }
+    match visible(&legacy) {
+        Some(true) => legacy_check,
+        Some(false) => modern_check,
+        None => Ok(()),
+    }
 }
 
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
@@ -548,10 +605,7 @@ pub(super) fn matplotlib_directory(settings: &SandboxSettings) -> Result<Option<
         .transpose()
 }
 
-fn r_cache_base(
-    settings: &SandboxSettings,
-    select_home: impl FnOnce(PathBuf) -> PathBuf,
-) -> Option<PathBuf> {
+fn r_cache_base(settings: &SandboxSettings, home: Option<&Path>) -> Option<PathBuf> {
     let env = |name| environment_path(settings, name);
     env("R_USER_CACHE_DIR")
         .or_else(|| env("XDG_CACHE_HOME"))
@@ -560,10 +614,7 @@ fn r_cache_base(
             if let Some(local) = env("LOCALAPPDATA").filter(|path| path.is_absolute()) {
                 return Some(local.join("R/cache"));
             }
-            let home = env("HOME").filter(|path| path.is_absolute());
-            #[cfg(windows)]
-            let home = home.or_else(|| env("USERPROFILE").filter(|path| path.is_absolute()));
-            home.map(select_home).map(|home| {
+            home.map(|home| {
                 home.join(if cfg!(windows) {
                     "AppData/Local/R/cache"
                 } else if cfg!(target_os = "macos") {
@@ -614,7 +665,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         .unwrap_or_else(|| home.join(".local/share"));
     #[cfg(windows)]
     let xdg_data = roaming;
-    let r_cache = r_cache_base(settings, std::convert::identity).expect("absolute resolver home");
+    let r_cache = r_cache_base(settings, Some(&home)).expect("absolute resolver home");
     let mut caches = vec![
         env("UV_CACHE_DIR")
             .unwrap_or_else(|| uv_cache_base.join(if cfg!(windows) { "cache" } else { "uv" })),

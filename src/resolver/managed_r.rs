@@ -177,6 +177,7 @@ pub(crate) fn discover(
 
 pub(crate) fn resolve_r(
     requirements: Vec<String>,
+    check_renv_cache: bool,
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
     on_configured: impl FnOnce(ManagedRResolverConfiguration),
 ) -> Result<ManagedR, String> {
@@ -187,17 +188,30 @@ pub(crate) fn resolve_r(
         .ok_or_else(|| "dynamic environment resolution requires `ir` or `uv`".to_string())?;
     // Retain the selected executables even when this first manifest fails.
     on_configured(configuration.clone());
-    resolve_r_with_process(&configuration, requirements, &resolver, &mut on_started)
+    resolve_r_with_process(
+        &configuration,
+        requirements,
+        check_renv_cache,
+        &resolver,
+        &mut on_started,
+    )
 }
 
 pub(crate) fn resolve_r_with(
     configuration: &ManagedRResolverConfiguration,
     requirements: Vec<String>,
+    check_renv_cache: bool,
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
 ) -> Result<ManagedR, String> {
     let resolver = ResolverProcess::new();
     let mut on_started = Some(on_started);
-    resolve_r_with_process(configuration, requirements, &resolver, &mut on_started)
+    resolve_r_with_process(
+        configuration,
+        requirements,
+        check_renv_cache,
+        &resolver,
+        &mut on_started,
+    )
 }
 
 fn discover_r_resolver_with(
@@ -411,6 +425,7 @@ fn finish_uv_resolution(
 fn resolve_r_with_process(
     configuration: &ManagedRResolverConfiguration,
     requirements: Vec<String>,
+    check_renv_cache: bool,
     resolver: &ResolverProcess,
     on_started: &mut Option<impl FnOnce(ResolverStopHandle) -> Result<(), String>>,
 ) -> Result<ManagedR, String> {
@@ -424,6 +439,12 @@ fn resolve_r_with_process(
         .prefix("mcp-console-r-preparation-")
         .tempdir()
         .map_err(|error| error.to_string())?;
+    if check_renv_cache {
+        super::cache::validate_default_renv_cache(
+            &crate::settings::SandboxSettings::default(),
+            super::cache::RenvLookup::Preparation(directory.path()),
+        )?;
+    }
     command.current_dir(directory.path());
     command.arg("run").arg("--rscript");
     let _rscript = super::r_program::Rscript::append(&mut command, &configuration.rscript)?;

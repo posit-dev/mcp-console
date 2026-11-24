@@ -574,6 +574,17 @@ def test_rejects_renv_separators_in_expanded_cache_paths(binary: Path) -> Transc
                 (
                     root,
                     legacy / "renv/cache",
+                    {
+                        "HOME": "./absent",
+                        "XDG_CACHE_HOME": "",
+                        "R_USER_CACHE_DIR": "",
+                        "XDG_DATA_HOME": str(legacy),
+                    },
+                    ("-c", "cache=host", "-c", grant),
+                ),
+                (
+                    root,
+                    legacy / "renv/cache",
                     {"R_USER_CACHE_DIR": str(skipped), "XDG_DATA_HOME": str(legacy)},
                     ("-c", "cache=host"),
                 ),

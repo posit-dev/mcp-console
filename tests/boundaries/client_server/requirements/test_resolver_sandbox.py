@@ -854,6 +854,52 @@ def test_r_prepares_packages_in_the_declared_renv_cache(binary: Path) -> Transcr
 
 
 @requires(SANDBOX, R, command("ir"))
+def test_r_preparation_selects_legacy_renv_cache_outside_project(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        caches = root / "caches"
+        legacy = caches / "data/renv"
+        legacy.mkdir(parents=True)
+        modern = Path("modern;unused")
+        (root / modern / "R/renv").mkdir(parents=True)
+        env, _ = r_test_environment()
+        for name in ("RENV_PATHS_ROOT", "RENV_PATHS_CACHE", "IR_LIBRARY_ROOT"):
+            env.pop(name, None)
+        env.update(
+            R_USER_CACHE_DIR=str(modern),
+            XDG_DATA_HOME=str(legacy.parent),
+            IR_CACHE_DIR=str(caches / "ir"),
+            MCP_CONSOLE_LANGUAGES="r",
+        )
+        filesystem = json.dumps({"read_only": ["/"], "read_write": [str(caches)]})
+        with McpClient(
+            binary,
+            (
+                "serve",
+                "-c",
+                "cache=host",
+                "-c",
+                f"python.existing={sys.executable}",
+                "-c",
+                f"resolver.sandbox.filesystem={filesystem}",
+            ),
+            env,
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "TRUE\n",
+                requirements={"action": "set", "r": ["utf8"]},
+                r='cat(utf8::utf8_valid("ok"), "\\n", sep = "")',
+            )
+            client.finish()
+        assert list((legacy / "cache").rglob("utf8/DESCRIPTION"))
+        return [{"prepared_r_package": "utf8", "renv_cache": "legacy"}]
+
+
+@requires(SANDBOX, R, command("ir"))
 def test_cold_r_cache_resolution(binary: Path) -> Transcript:
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()

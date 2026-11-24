@@ -115,7 +115,10 @@ fn materialize(settings: &mut SandboxSettings, declared: &SandboxSettings) -> Re
         // A managed cache may have been missing or symlinked at server startup.
         super::cache::prepare_directory(&directory)?;
     } else if create_caches {
-        super::cache::validate_default_renv_cache(settings, Some(declared))?;
+        super::cache::validate_default_renv_cache(
+            settings,
+            super::cache::RenvLookup::Generated(declared),
+        )?;
         // Linux cannot bind absent roots. Create only the surviving cache grants.
         for entry in settings["filesystem"]["entries"]
             .as_array()

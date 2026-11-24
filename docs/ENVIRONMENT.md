@@ -157,6 +157,7 @@ For sandboxed preparation, the default resolver policy grants each nonempty dire
 The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Relative entries use the launch directory, and a leading `~` uses the launch home even when the resolver has its own `HOME`.
 Console reports an error if an expanded entry, the cache derived from renv’s root, or the selected managed renv cache directory contains a list separator.
+When choosing between its default and legacy directories, renv looks up relative paths from the private working directory used for R preparation.
 Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
 Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
 
