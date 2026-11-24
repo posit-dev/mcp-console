@@ -542,14 +542,26 @@ def test_omits_r_removed_by_resolver_environment(binary: Path) -> Transcript:
 
 @requires(SANDBOX)
 def test_rejects_non_utf8_cache_paths(binary: Path) -> Transcript:
-    for name in ("UV_CACHE_DIR", "HOME"):
+    for name, spelling in (
+        ("UV_CACHE_DIR", b"unused/../cache-\xff"),
+        ("UV_CACHE_DIR", b"cache-\xff"),
+        ("HOME", b"cache-\xff"),
+    ):
         with TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             tools = root / "bin"
             tools.mkdir()
             (tools / "uv").symlink_to(shutil.which("uv"))
             invalid = root / os.fsdecode(b"cache-\xff")
-            env = dict(environment(tools), **{name: str(invalid)})
+            env = environment(tools)
+            for override in (
+                "R_USER_CACHE_DIR",
+                "XDG_CACHE_HOME",
+                "RENV_PATHS_ROOT",
+                "RENV_PATHS_CACHE",
+            ):
+                env.pop(override, None)
+            env[name] = str(root / os.fsdecode(spelling))
             with McpClient(binary, ("serve", "-c", "cache=host"), env, root) as client:
                 client.initialize_and_list_tools()
                 failure = client.send(requirements={"action": "get"})

@@ -62,9 +62,9 @@ pub(crate) fn configure(
             if !no_sandbox {
                 let r_cache = environment_path(resolver, "R_USER_CACHE_DIR")
                     .or_else(|| environment_path(resolver, "XDG_CACHE_HOME"));
-                if let Some(path) =
-                    r_cache.filter(|path| path.is_relative() && has_parent_traversal(path))
-                {
+                if let Some(path) = r_cache.filter(|path| {
+                    path.is_relative() && has_parent_traversal(path) && path.to_str().is_some()
+                }) {
                     // R uses relative XDG bases verbatim; uv ignores them. Give
                     // R its own variable so each tool keeps its cache selection.
                     if environment_path(resolver, "R_USER_CACHE_DIR").is_none() {
@@ -181,6 +181,7 @@ fn validate_renv_cache(settings: &SandboxSettings) -> Result<(), String> {
             }
             r_cache_base(settings).map(|base| base.join("R/renv"))
         })
+        && root.to_str().is_some()
     {
         renv_cache_entry(&root.join("cache"))?;
     }
@@ -188,12 +189,15 @@ fn validate_renv_cache(settings: &SandboxSettings) -> Result<(), String> {
 }
 
 fn retain_host_path(settings: &mut SandboxSettings, name: &str, path: &Path) -> Result<(), String> {
-    if name == RENV_CACHE
-        && let Some(list) = path.to_str()
-    {
+    // Non-UTF-8 host values stay in the native environment. Generated
+    // filesystem grants validate their paths when the resolver launches.
+    let Some(value) = path.to_str() else {
+        return Ok(());
+    };
+    if name == RENV_CACHE {
         // ir runs in a private working directory. Even a single relative
         // cache must be anchored to the directory used to capture its grant.
-        settings.insert(HOST_RENV_CACHE_LIST.into(), list.into());
+        settings.insert(HOST_RENV_CACHE_LIST.into(), value.into());
         return Ok(());
     }
     if has_parent_traversal(path) {
