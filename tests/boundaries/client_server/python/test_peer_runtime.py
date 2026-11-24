@@ -268,7 +268,9 @@ def test_late_r_preserves_python_runtime(
     return records
 
 
-def rpy2_environment(root: Path) -> tuple[dict[str, str], Path]:
+def rpy2_environment(
+    root: Path, *, robjects: bool = False
+) -> tuple[dict[str, str], Path]:
     environment, _ = r_test_environment()
     environment["RPY2_CFFI_MODE"] = "ABI"
     prefix = root / "venv"
@@ -278,8 +280,9 @@ def rpy2_environment(root: Path) -> tuple[dict[str, str], Path]:
         capture_output=True,
     )
     executable = virtualenv_python(prefix)
+    package = "rpy2-robjects" if robjects else "rpy2-rinterface"
     subprocess.run(
-        ["uv", "pip", "install", "--python", executable, "numpy", "rpy2-rinterface"],
+        ["uv", "pip", "install", "--python", executable, "numpy", package],
         env=environment,
         check=True,
         capture_output=True,
@@ -288,18 +291,29 @@ def rpy2_environment(root: Path) -> tuple[dict[str, str], Path]:
     profile = root / ".Rprofile"
     # rpy2 also launches noninteractive Rscript children to discover R settings.
     # Only the worker's interactive profile exercises reentrant attachment.
-    # fmt: python
-    source = code("""
-        from rpy2 import rinterface
-        from rpy2.rinterface_lib import embedded
+    if robjects:
+        # fmt: python
+        source = code("""
+            from rpy2.robjects import r as profile_r
 
-        assert embedded.is_r_externally_initialized()
-        _ = rinterface.initr()
-        profile_evalr = rinterface.evalr
-        _ = profile_evalr("profile_value <- 42L")
-        """)
+            _ = profile_r("profile_value <- 42L")
+            """)
+    else:
+        # fmt: python
+        source = code("""
+            from rpy2 import rinterface
+            from rpy2.rinterface_lib import embedded
+
+            assert embedded.is_r_externally_initialized()
+            _ = rinterface.initr()
+            profile_evalr = rinterface.evalr
+            _ = profile_evalr("profile_value <- 42L")
+            """)
+    # robjects looks up the attached utils and methods packages. R normally
+    # attaches its default packages after the user profile returns.
+    setup = "library(utils)\nlibrary(methods)\n" if robjects else ""
     profile.write_text(
-        f"if (interactive()) reticulate::py_run_string({json.dumps(source)})\n"
+        f"if (interactive()) {{\n{setup}reticulate::py_run_string({json.dumps(source)})\n}}\n"
     )
     environment["R_PROFILE_USER"] = str(profile)
     return environment, executable
@@ -379,6 +393,41 @@ def test_r_attachment_waits_for_a_usable_interpreter(binary: Path) -> Transcript
                     assert rinterface.evalr is profile_evalr
                     assert rinterface.evalr("Sys.getpid()")[0] == os.getpid()
                     _ = rinterface.evalr("attached_value <- profile_value")
+                    """)
+            )
+            client.expect("[1] 42\n", r="attached_value")
+            return client.finish()
+
+
+@requires(R, command("uv"))
+@executions(RUNTIME)
+def test_rpy2_robjects_import_can_run_a_profile_using_robjects(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        environment, executable = rpy2_environment(root, robjects=True)
+        modules = root / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environment["RETICULATE_PYTHONPATH"] = str(modules)
+        with McpClient(
+            binary,
+            execution.serve("-c", "python=" + json.dumps(str(executable))),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            defer_r_bootstrap(client)
+            client.expect(
+                # fmt: python
+                python=code("""
+                    from rpy2.robjects import r
+
+                    assert r is profile_r
+                    assert r("profile_value")[0] == 42
+                    _ = r("attached_value <- profile_value")
                     """)
             )
             client.expect("[1] 42\n", r="attached_value")

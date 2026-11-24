@@ -126,7 +126,7 @@ class _Rpy2Loader:
 class _Rpy2Import:
     @staticmethod
     def find_spec(fullname, path=None, target=None):
-        if fullname != "rpy2.rinterface" or os.getpid() != _pid:
+        if fullname not in {"rpy2.rinterface", "rpy2.robjects"} or os.getpid() != _pid:
             return None
         specification = PathFinder.find_spec(fullname, path, target)
         if specification is not None and specification.loader is not None:

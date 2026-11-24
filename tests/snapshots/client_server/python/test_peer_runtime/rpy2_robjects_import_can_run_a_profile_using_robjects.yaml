@@ -1,0 +1,24 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    from rpy2.robjects import r
+
+    assert r is profile_r
+    assert r("profile_value")[0] == 42
+    _ = r("attached_value <- profile_value")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: attached_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
