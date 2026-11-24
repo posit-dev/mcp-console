@@ -108,6 +108,7 @@ impl ManagedRBootstrap {
         Ok(ManagedRResolverConfiguration {
             ir,
             rscript: self.rscript.clone(),
+            forbidden_library_characters: Some(crate::r_environment::LIBRARY_GLOB_CHARACTERS),
         })
     }
 }
@@ -116,6 +117,9 @@ impl ManagedRBootstrap {
 pub(crate) struct ManagedRResolverConfiguration {
     ir: IrCommand,
     rscript: PathBuf,
+    // Built-in workers seed R_LIBS on restart. Standalone preparation only
+    // needs the canonical identity of the library selected by ir.
+    forbidden_library_characters: Option<&'static str>,
 }
 
 impl ManagedRResolverConfiguration {
@@ -218,7 +222,11 @@ fn discover_r_resolver_with(
         }
     };
     validate_ir_version(resolver, on_started, &ir)?;
-    Ok(Some(ManagedRResolverConfiguration { ir, rscript }))
+    Ok(Some(ManagedRResolverConfiguration {
+        ir,
+        rscript,
+        forbidden_library_characters: None,
+    }))
 }
 
 fn select_ir_command(python: &super::ManagedPythonResolverConfiguration) -> Option<IrCommand> {
@@ -443,6 +451,7 @@ fn resolve_r_with_process(
     let _program =
         super::r_program::RProgram::append(&mut command, MANAGED_R_LIBRARY_RESOLVER_SOURCE)?;
     command
+        .args(configuration.forbidden_library_characters)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

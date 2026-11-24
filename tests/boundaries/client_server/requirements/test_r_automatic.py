@@ -170,6 +170,11 @@ def test_resolves_missing_r_packages_during_evaluation(
         directory = Path(temporary)
         packages = ("mcpfirst", "mcpsecond")
         environment, _ = recording_fixture_r_environment(directory, packages)
+        storage = directory / "resolved-r-libraries"
+        storage.mkdir()
+        alias = directory / "library alias"
+        alias.symlink_to(storage, target_is_directory=True)
+        environment["MCP_CONSOLE_TEST_IR_LIBRARY_ROOT"] = str(alias)
         client = McpClient(binary, execution.serve("-c", "cache=host"), environment)
         client.initialize_and_list_tools()
 

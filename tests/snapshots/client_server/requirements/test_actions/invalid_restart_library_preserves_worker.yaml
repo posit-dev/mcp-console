@@ -6,7 +6,7 @@ send:
   requirements:
     action: set
     r:
-      - praise
+      - jsonlite
     python: []
     duckdb: []
   r: worker_pid <- Sys.getpid(); libraries <- .libPaths()
@@ -45,7 +45,7 @@ result:
         {
           "requirements": {
             "r": [
-              "praise"
+              "jsonlite"
             ],
             "python": [],
             "duckdb": [],
@@ -70,7 +70,7 @@ result:
   structuredContent:
     requirements:
       r:
-        - praise
+        - jsonlite
       python: []
       duckdb: []
       python_version: []

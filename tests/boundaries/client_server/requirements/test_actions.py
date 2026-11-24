@@ -54,12 +54,14 @@ def test_invalid_restart_library_preserves_worker(
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         environment, _ = recording_fixture_r_environment(root, ("consolefirst",))
+        (root / "storage").mkdir()
+        (root / "lib[1]").symlink_to(root / "storage", target_is_directory=True)
         environment["MCP_CONSOLE_TEST_IR_LIBRARY_ROOT"] = str(root / "lib[1]")
         with McpClient(
             binary, execution.serve("-c", "cache=host"), environment, root
         ) as client:
             client.initialize_and_list_tools()
-            accepted = {"action": "set", "r": ["praise"], "python": [], "duckdb": []}
+            accepted = {"action": "set", "r": ["jsonlite"], "python": [], "duckdb": []}
             result = client.send(
                 control="restart",
                 requirements=accepted,
@@ -78,7 +80,7 @@ def test_invalid_restart_library_preserves_worker(
                     "Use a library directory without glob syntax",
                 }
             ], result
-            assert inspect(client)["requirements"]["r"] == ["praise"]
+            assert inspect(client)["requirements"]["r"] == ["jsonlite"]
             client.expect(
                 r="stopifnot(identical(Sys.getpid(), worker_pid), identical(.libPaths(), libraries))"
             )
