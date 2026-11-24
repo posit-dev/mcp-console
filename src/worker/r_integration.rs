@@ -279,6 +279,7 @@ impl Integration {
                 PREPARED_LIBRARY.set(Some(PreparedLibrary {
                     entry,
                     resolved: library.into(),
+                    retained: libraries.retained,
                     relative_entries: libraries
                         .paths
                         .into_iter()
@@ -302,6 +303,8 @@ struct PreparedLibrary {
     resolved: PathBuf,
     // These project spellings can start supplying the candidate after a chdir.
     relative_entries: Vec<PathBuf>,
+    // Former managed entries kept in place while project aliases supply them.
+    retained: Vec<PathBuf>,
 }
 
 const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
@@ -309,6 +312,7 @@ const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
 struct StartupLibraries {
     paths: Vec<PathBuf>,
     owned: Option<usize>,
+    retained: Vec<PathBuf>,
 }
 
 impl StartupLibraries {
@@ -320,17 +324,25 @@ impl StartupLibraries {
             .collect();
         let owned = std::env::var_os(MANAGED_LIBRARY)
             .and_then(|managed| paths.iter().position(|path| path.as_os_str() == managed));
-        Self { paths, owned }
+        Self {
+            paths,
+            owned,
+            retained: Vec::new(),
+        }
     }
 
     fn settle(mut self, installation: &RInstallation) -> Result<(), Box<dyn std::error::Error>> {
         // Recheck the accepted library in R's final startup directory unless
         // .Renviron deliberately removed its supplying entry.
-        let pending = PREPARED_LIBRARY
-            .take()
+        let previous = PREPARED_LIBRARY.take();
+        let pending = previous
+            .as_ref()
             .filter(|prepared| self.paths.contains(&prepared.entry))
             .filter(|prepared| prepared.resolved.is_dir());
-        if let Some(prepared) = &pending {
+        if let Some(previous) = &previous {
+            self.recheck_retained_libraries(&previous.retained)?;
+        }
+        if let Some(prepared) = pending {
             self.prepare(&prepared.resolved, Some(prepared))?;
         }
         let Some(managed) = std::env::var_os(MANAGED_LIBRARY).filter(|path| !path.is_empty())
@@ -342,7 +354,7 @@ impl StartupLibraries {
         }
         // A native profile can create or remove matches after R has initialized
         // .libPaths(). Record the project's ownership before profiles run.
-        let project_supplies_library = if self.paths.iter().any(|path| is_library_pattern(path)) {
+        let project_supplies_library = if self.has_patterns() {
             project_globs_supply_library(installation, &self.paths)?
         } else if pending.is_none() && !self.paths.is_empty() {
             // A pending preparation already checked these literal entries.
@@ -359,12 +371,56 @@ impl StartupLibraries {
         Ok(())
     }
 
+    fn has_patterns(&self) -> bool {
+        self.paths
+            .iter()
+            .any(|path| literal_library_path(path).is_none())
+    }
+
+    fn recheck_retained_libraries(
+        &mut self,
+        retained: &[PathBuf],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let count = self.paths.len();
+        for path in retained {
+            let Some(index) = self.paths.iter().position(|entry| entry == path) else {
+                continue;
+            };
+            if self.owned == Some(index) {
+                continue;
+            }
+            // R resolves relative spellings in its final directory. Keep the
+            // old absolute slot only while another project entry supplies it.
+            if path.canonicalize().is_ok_and(|target| {
+                self.paths
+                    .iter()
+                    .enumerate()
+                    .any(|(other, entry)| other != index && is_literal_library(entry, &target))
+            }) {
+                continue;
+            }
+            self.paths.remove(index);
+            if let Some(owned) = &mut self.owned
+                && *owned > index
+            {
+                *owned -= 1;
+            }
+        }
+        if self.paths.len() != count {
+            embedded_r::set_environment(&[("R_LIBS", &std::env::join_paths(&self.paths)?)])?;
+        }
+        Ok(())
+    }
+
     fn prepare(
         &mut self,
         library: &Path,
         prepared: Option<&PreparedLibrary>,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {
         let target = library.canonicalize()?;
+        if let Some(prepared) = prepared {
+            self.retained.clone_from(&prepared.retained);
+        }
         let previous = self.owned;
         if let Some(index) = previous
             && let Ok(current) = self.paths[index].canonicalize()
@@ -378,6 +434,9 @@ impl StartupLibraries {
         {
             // A later spelling introduced by the project makes the first
             // occurrence project-owned too. Keep native R's search order.
+            if !self.retained.contains(&self.paths[index]) {
+                self.retained.push(self.paths[index].clone());
+            }
             self.owned = None;
         }
         let project = self
@@ -403,7 +462,7 @@ impl StartupLibraries {
         let marker = if project.is_some() {
             Path::new("")
         } else {
-            let position = if self.paths.iter().any(|path| is_library_pattern(path)) {
+            let position = if self.has_patterns() {
                 self.paths.len()
             } else {
                 previous.unwrap_or(0)
@@ -418,13 +477,17 @@ impl StartupLibraries {
     }
 }
 
+fn literal_library_path(path: &Path) -> Option<std::borrow::Cow<'_, Path>> {
+    // .libPaths() expands the home before Sys.glob interprets the resulting path.
+    let expanded = embedded_r::expand_library_home(path);
+    (!is_library_pattern(&expanded)).then_some(expanded)
+}
+
 fn is_literal_library(path: &Path, target: &Path) -> bool {
-    !is_library_pattern(path)
-        && embedded_r::expand_library_home(path)
-            .canonicalize()
-            .ok()
-            .as_deref()
-            == Some(target)
+    literal_library_path(path)
+        .and_then(|path| path.canonicalize().ok())
+        .as_deref()
+        == Some(target)
 }
 
 fn project_globs_supply_library(

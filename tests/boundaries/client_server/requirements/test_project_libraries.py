@@ -516,6 +516,51 @@ def test_later_project_alias_survives_two_preparations_before_r_startup(
 
 
 @requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_replaced_library_expires_when_relative_alias_points_elsewhere(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        (root / "child/local").mkdir(parents=True)
+        with paused_project_library(binary, root, "local") as client:
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    original = os.environ["MCP_CONSOLE_R_LIBRARY"]
+                    Path("local").symlink_to(original)
+                    os.environ["ORIGINAL_LIBRARY"] = original
+                    os.environ["R_LIBS_SITE"] = str(Path("project-last").resolve())
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: python
+                python=code("""
+                    os.chdir("child")
+                    del os.environ["TMPDIR"]
+                    """),
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    project <- normalizePath(c("../project-first", "local", "../project-last"))
+                    paths <- .libPaths()
+                    stopifnot(
+                      !normalizePath(Sys.getenv("ORIGINAL_LIBRARY")) %in% paths,
+                      identical(paths[paths %in% project], project),
+                      consolefirst::fixture(),
+                      consolesecond::fixture()
+                    )
+                    """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
 def test_prepared_relative_library_survives_a_directory_change(
     binary: Path,
 ) -> Transcript:
@@ -604,6 +649,52 @@ def test_home_relative_project_library_survives_native_activation(
                     )
                     cat("project library retained across native activation\n")
                     """),
+            )
+            return client.finish()
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_home_expansion_can_turn_a_library_entry_into_a_glob(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        home = root / "person[1]"
+        home.mkdir()
+        (home / "local").symlink_to(root / "resolved-r-libraries/consolefirst")
+        (root / "person1/local").mkdir(parents=True)
+        with paused_project_library(binary, root, "~/local") as client:
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import os
+                    from pathlib import Path
+
+                    os.environ["HOME"] = str(Path.cwd() / "person[1]")
+                    """)
+            )
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect(python='del os.environ["TMPDIR"]')
+            client.expect(
+                # fmt: r
+                r=code("""
+                    project <- normalizePath(Sys.glob("~/local"))
+                    candidate <- file.path(getwd(), "resolved-r-libraries", "consolefirst")
+                    stopifnot(
+                      identical(project, file.path(getwd(), "person1", "local")),
+                      identical(dirname(find.package("consolefirst")), candidate),
+                      identical(
+                        .libPaths()[2:5],
+                        c(
+                          file.path(getwd(), "project-first"),
+                          project,
+                          file.path(getwd(), "project-last"),
+                          candidate
+                        )
+                      ),
+                      consolefirst::fixture()
+                    )
+                    """)
             )
             return client.finish()
 
