@@ -445,6 +445,9 @@ fn project_globs_supply_library(
             "-e",
             "cat(normalizePath(Sys.getenv('MCP_CONSOLE_R_LIBRARY'), '/') %in% .libPaths())",
         ])
+        // R's base profile sources R_TESTS even with --vanilla. The hook
+        // belongs to the embedded session and must run there only.
+        .env_remove("R_TESTS")
         .env("R_LIBS", std::env::join_paths(paths)?)
         .env("R_LIBS_USER", "NULL")
         .env("R_LIBS_SITE", "NULL");

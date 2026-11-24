@@ -20,7 +20,7 @@ from support.checkpoints import (
     wait_for_path,
 )
 from support.assertions import wait_for_evaluation_output
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
@@ -196,6 +196,51 @@ def test_recovers_from_renviron_tempdir_without_rereading_it(
                     """),
             )
             client.expect("42\n", python="print(answer)")
+            return client.finish()
+
+
+@requires(R, command("ir"))
+@executions(RUNTIME)
+def test_only_embedded_r_runs_the_session_test_hook(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp" if os.name == "posix" else None
+    ) as temporary:
+        root = Path(temporary).resolve()
+        environment = startup_environment(root, managed=True)
+        environment["TMPDIR"] = str(root)
+        (root / "project-library").mkdir()
+        (root / ".Renviron").write_text(
+            f'R_LIBS="${{R_LIBS}}{os.pathsep}project-*"\nR_TESTS=library-hook.R\n'
+        )
+        (root / "library-hook.R").write_text(
+            # fmt: r
+            code(r"""
+                marker <- file.path(Sys.getenv("TMPDIR"), "r-tests-pids")
+                cat(Sys.getpid(), file = marker, sep = "\n", append = TRUE)
+                if (!interactive()) {
+                  cat("R_TESTS ran in noninteractive R\n")
+                }
+                """)
+        )
+        with McpClient(
+            binary,
+            startup_arguments(execution),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code("""
+                    stopifnot(
+                      identical(readLines(marker), as.character(Sys.getpid())),
+                      normalizePath("project-library", winslash = "/") %in% .libPaths()
+                    )
+                    """)
+            )
             return client.finish()
 
 
