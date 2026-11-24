@@ -6,7 +6,10 @@ send:
     import os
     from pathlib import Path
 
-    print(Path(os.environ["RENV_PATHS_CACHE"]) == Path.cwd() / "storage/dependencies/renv/cache")
+    print(
+        Path(os.environ["RENV_PATHS_CACHE"])
+        == Path.cwd() / "storage/dependencies/renv/cache"
+    )
 result:
   content:
     - type: text
