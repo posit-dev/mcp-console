@@ -79,10 +79,12 @@ pub(crate) fn configure(
                         set_cache_variable(worker, "R_USER_CACHE_DIR", &path)?;
                     }
                 }
-                for &(name, _) in CACHE_ENVIRONMENT {
+                // Host tools derive their platform cache defaults from HOME.
+                for &(name, _) in CACHE_ENVIRONMENT.iter().chain(&[("HOME", "")]) {
                     if let Some(path) = environment_path(resolver, name) {
-                        // Leave relative XDG values alone for tools such as uv.
-                        if matches!(name, "XDG_CACHE_HOME" | "XDG_DATA_HOME") && path.is_relative()
+                        // uv ignores relative XDG values. Host defaults require an absolute HOME.
+                        if path.is_relative()
+                            && matches!(name, "XDG_CACHE_HOME" | "XDG_DATA_HOME" | "HOME")
                         {
                             continue;
                         }
@@ -245,11 +247,18 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<(), 
         for (name, relative) in path.variables {
             // A runtime selection may explicitly replace or remove one of the
             // environment variables before launch. Preserve that selection.
+            let value = |base: &Path| {
+                if relative.is_empty() {
+                    base.to_owned()
+                } else {
+                    base.join(&relative)
+                }
+            };
             if root != path.directory
-                && environment_path(settings, &name).as_ref()
-                    == Some(&path.directory.join(&relative))
+                && environment_path(settings, &name) == Some(value(&path.directory))
+                && !(name == "HOME" && path.directory.is_dir())
             {
-                set_cache_variable(settings, &name, &root.join(relative))?;
+                set_cache_variable(settings, &name, &value(&root))?;
             }
         }
     }

@@ -590,13 +590,37 @@ def test_ignores_relative_uv_xdg_directories(binary: Path) -> Transcript:
 
 @requires(SANDBOX, R, command("ir"))
 def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
-    with TemporaryDirectory() as directory:
+    return r_user_cache_lookup(binary, relative_xdg=True)
+
+
+@requires(SANDBOX, R, command("ir"))
+def test_r_user_cache_uses_provisioned_home_base(binary: Path) -> Transcript:
+    return r_user_cache_lookup(binary, relative_xdg=False)
+
+
+def r_user_cache_lookup(binary: Path, *, relative_xdg: bool) -> Transcript:
+    # The host tempdir is writable. Keep the cache fixture outside that grant.
+    with TemporaryDirectory(dir=Path.home()) as directory:
         root = Path(directory).resolve()
         env, _ = r_test_environment()
         env.update(r_library_cache_environment(env))
         env.pop("R_USER_CACHE_DIR", None)
-        env.update(XDG_CACHE_HOME="unused/../rcache", MCP_CONSOLE_LANGUAGES="r")
+        env["MCP_CONSOLE_LANGUAGES"] = "r"
         arguments = ("serve", "-c", "cache=host", "-c", "sandbox.tempdir=read_write")
+        if relative_xdg:
+            env["XDG_CACHE_HOME"] = "unused/../rcache"
+            base = Path("rcache")
+        else:
+            env.pop("XDG_CACHE_HOME", None)
+            workload = json.dumps({"HOME": str(root / "unused/../account")})
+            arguments += ("-c", "environment=" + workload)
+            base = Path("account") / (
+                "Library/Caches/org.R-project.R"
+                if sys.platform == "darwin"
+                else ".cache"
+            )
+        env["EXPECTED_R_CACHE"] = str(base / "R/reticulate")
+        env["EXPECTED_XDG"] = env.get("XDG_CACHE_HOME", "")
         with McpClient(binary, arguments, env, root) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -604,9 +628,9 @@ def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
                 r=code(r"""
                     cache <- tools::R_user_dir("reticulate", "cache")
                     stopifnot(
-                      Sys.getenv("XDG_CACHE_HOME") == "unused/../rcache",
+                      Sys.getenv("XDG_CACHE_HOME") == Sys.getenv("EXPECTED_XDG"),
                       dir.exists(cache),
-                      normalizePath(cache) == normalizePath("rcache/R/reticulate")
+                      normalizePath(cache) == normalizePath(Sys.getenv("EXPECTED_R_CACHE"))
                     )
                     """),
             )
@@ -614,8 +638,10 @@ def test_r_user_cache_uses_relative_xdg_base(binary: Path) -> Transcript:
         assert not (root / "unused").exists()
         return [
             {
-                "r_cache_found": "rcache/R/reticulate",
-                "xdg_cache_home": "unused/../rcache",
+                "r_cache_found": "rcache/R/reticulate"
+                if relative_xdg
+                else "platform default",
+                "xdg_cache_home": env.get("XDG_CACHE_HOME", ""),
             }
         ]
 
