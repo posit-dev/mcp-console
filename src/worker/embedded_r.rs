@@ -346,7 +346,7 @@ pub(super) fn configure_installation(
     installation: &crate::local_runtime::RInstallation,
 ) -> Result<(), Box<dyn Error>> {
     set_environment(&installation.environment())?;
-    crate::python::refresh_r_installation()?;
+    crate::python::refresh_r_installation(installation)?;
     Ok(())
 }
 

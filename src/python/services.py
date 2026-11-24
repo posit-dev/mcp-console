@@ -140,21 +140,8 @@ def guard_rpy2_import():
     sys.meta_path.insert(sys.meta_path.index(PathFinder), _Rpy2Import)
 
 
-def refresh_r_installation():
-    # Native startup has restored these paths. CPython's os.environ still
-    # holds any values assigned by Python before R started or resumed.
-    import ctypes
-
-    if os.name == "nt":
-        getenv = ctypes.PyDLL("ucrtbase.dll")._wgetenv
-        text, key = ctypes.c_wchar_p, str
-    else:
-        getenv = ctypes.PyDLL(None).getenv
-        text, key = ctypes.c_char_p, os.fsencode
-    getenv.argtypes = [text]
-    getenv.restype = text
-    for name in ("R_HOME", "R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR"):
-        os.environ[name] = os.fsdecode(getenv(key(name)))
+def set_r_installation_path(name: str, path: str) -> None:
+    os.environ[name] = path
 
 
 def publish_r_session():

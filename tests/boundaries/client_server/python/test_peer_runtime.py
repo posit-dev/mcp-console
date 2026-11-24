@@ -268,6 +268,51 @@ def test_late_r_preserves_python_runtime(
     return records
 
 
+@requires(R)
+@executions(RUNTIME)
+def test_starts_r_with_a_workspace_ctypes_module(
+    binary: Path, execution: Execution
+) -> Transcript:
+    environment, _ = r_test_environment()
+    environment["RETICULATE_PYTHON"] = sys.executable
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory).resolve()
+        (workspace / "ctypes.py").write_text("workspace_module = True\n")
+        modules = workspace / "modules"
+        modules.mkdir()
+        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+        environment["RETICULATE_PYTHONPATH"] = str(modules)
+        with McpClient(
+            binary,
+            execution.serve("-c", "python=" + json.dumps(sys.executable)),
+            environment,
+            workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            defer_r_bootstrap(client)
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import sys
+                    from pathlib import Path
+
+                    _ = sys.modules.pop("ctypes", None)
+                    assert Path(importlib.util.find_spec("ctypes").origin) == Path.cwd() / "ctypes.py"
+                    """)
+            )
+            client.expect("[1] 42\n", r="42L")
+            client.expect(
+                # fmt: python
+                python=code("""
+                    import sys
+
+                    assert not getattr(sys.modules.get("ctypes"), "workspace_module", False)
+                    """)
+            )
+            return client.finish()
+
+
 def rpy2_environment(
     root: Path, *, robjects: bool = False
 ) -> tuple[dict[str, str], Path]:

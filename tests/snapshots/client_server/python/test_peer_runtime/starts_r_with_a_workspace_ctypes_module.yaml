@@ -1,0 +1,36 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    _ = sys.modules.pop("ctypes", None)
+    assert Path(importlib.util.find_spec("ctypes").origin) == Path.cwd() / "ctypes.py"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import sys
+
+    assert not getattr(sys.modules.get("ctypes"), "workspace_module", False)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
