@@ -98,12 +98,44 @@ def test_symlink_to_managed_library_keeps_native_search_order(
     )
 
 
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_symlink_to_prepared_library_keeps_native_search_order(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return unchanged_library_order(
+        binary,
+        execution,
+        "project-root${MCP_CONSOLE_R_LIBRARY}",
+        start_after_preparation_in=".",
+    )
+
+
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_later_absolute_alias_keeps_native_search_order_after_chdir(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return unchanged_library_order(
+        binary,
+        execution,
+        "${PROJECT_ROOT}/project-root${MCP_CONSOLE_R_LIBRARY}",
+        start_after_preparation_in="child",
+    )
+
+
 def unchanged_library_order(
-    binary: Path, execution: Execution, project_entry: str
+    binary: Path,
+    execution: Execution,
+    project_entry: str,
+    *,
+    start_after_preparation_in: str | None = None,
 ) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
-        environment, _ = recording_fixture_r_environment(root, ("consolesecond",))
+        environment, _ = recording_fixture_r_environment(
+            root, ("consolefirst", "consolesecond")
+        )
         (root / "project-lib").mkdir()
         (root / "project-root").symlink_to("/")
         environ = root / ".Renviron"
@@ -111,7 +143,18 @@ def unchanged_library_order(
             'ORIGINAL_LIBRARY="${MCP_CONSOLE_R_LIBRARY}"\n'
             'R_LIBS="${R_LIBS}:project-lib:' + project_entry + '"\n'
         )
-        environment["R_ENVIRON_USER"] = str(environ)
+        environment.update(R_ENVIRON_USER=str(environ), PROJECT_ROOT=str(root))
+        if start_after_preparation_in is not None:
+            if start_after_preparation_in != ".":
+                child = root / start_after_preparation_in
+                child.mkdir()
+                (child / "project-lib").symlink_to(root / "project-lib")
+            modules = root / "modules"
+            modules.mkdir()
+            (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
+            environment.update(
+                RETICULATE_PYTHON=sys.executable, RETICULATE_PYTHONPATH=str(modules)
+            )
         with McpClient(
             binary,
             execution.serve("-c", "cache=host"),
@@ -123,6 +166,14 @@ def unchanged_library_order(
             client.transcript.append(
                 {"fixture": {".Renviron": environ.read_text().strip()}}
             )
+            if start_after_preparation_in is not None:
+                defer_r_bootstrap(client)
+                client.expect(python="pass")
+                client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+                if start_after_preparation_in != ".":
+                    client.expect(
+                        python=f"import os; os.chdir({start_after_preparation_in!r})"
+                    )
             client.expect(
                 # fmt: r
                 r=code("""
@@ -434,6 +485,34 @@ def paused_project_library(
         output = client.expect(None, r="1L")["content"][0]["text"]
         assert "R requires a temporary directory without whitespace" in output, output
         yield client
+
+
+@requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))
+def test_later_project_alias_survives_two_preparations_before_r_startup(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as temporary:
+        root = Path(temporary).resolve()
+        (root / "project-root").symlink_to("/")
+        project_entry = str(root / "project-root") + "${MCP_CONSOLE_R_LIBRARY}"
+        with paused_project_library(binary, root, project_entry) as client:
+            client.expect("[prepared]", requirements={"r": ["consolefirst"]})
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(python='import os; del os.environ["TMPDIR"]')
+            client.expect(
+                # fmt: r
+                r=code("""
+                    original <- normalizePath(Sys.getenv("R_LIBS_SITE"))
+                    project <- normalizePath(c("project-first", "project-last"))
+                    paths <- .libPaths()
+                    stopifnot(
+                      identical(paths[paths %in% c(original, project)], c(original, project)),
+                      consolefirst::fixture(),
+                      consolesecond::fixture()
+                    )
+                    """),
+            )
+            return client.finish()
 
 
 @requires(SANDBOX, command("ir"), posix_r_tempdir_whitespace(accepted=False))

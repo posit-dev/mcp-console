@@ -23,7 +23,7 @@ pub(super) fn record_initialization_interrupt() {
 }
 thread_local! {
     static RUNTIME: RefCell<Option<Rc<embedded_r::Runtime>>> = const { RefCell::new(None) };
-    static PREPARED_LIBRARY: Cell<Option<PreparedLibrary>> = const { Cell::new(None) };
+    static PREPARED_LIBRARY: RefCell<Option<PreparedLibrary>> = const { RefCell::new(None) };
     static FAILED: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -271,12 +271,19 @@ impl Integration {
         }
         // R may already have read .Renviron. Update its live search path
         // without running profiles or initializing an unused interpreter.
-        let prepared = StartupLibraries::read().prepare(Path::new(library));
+        let mut libraries = StartupLibraries::read();
+        let prepared = PREPARED_LIBRARY
+            .with_borrow(|previous| libraries.prepare(Path::new(library), previous.as_ref()));
         Ok(match prepared {
             Ok(entry) => {
                 PREPARED_LIBRARY.set(Some(PreparedLibrary {
                     entry,
                     resolved: library.into(),
+                    relative_entries: libraries
+                        .paths
+                        .into_iter()
+                        .filter(|entry| entry.is_relative())
+                        .collect(),
                 }));
                 crate::r_environment::PreparationOutcome::Prepared {
                     library: library.into(),
@@ -293,6 +300,8 @@ impl Integration {
 struct PreparedLibrary {
     entry: PathBuf,
     resolved: PathBuf,
+    // These project spellings can start supplying the candidate after a chdir.
+    relative_entries: Vec<PathBuf>,
 }
 
 const MANAGED_LIBRARY: &str = "MCP_CONSOLE_R_LIBRARY";
@@ -315,15 +324,14 @@ impl StartupLibraries {
     }
 
     fn settle(mut self, installation: &RInstallation) -> Result<(), Box<dyn std::error::Error>> {
-        // R interprets relative entries in its final startup directory. Recheck
-        // the accepted library only if .Renviron retained its supplying entry.
-        let candidate = PREPARED_LIBRARY
+        // Recheck the accepted library in R's final startup directory unless
+        // .Renviron deliberately removed its supplying entry.
+        let pending = PREPARED_LIBRARY
             .take()
             .filter(|prepared| self.paths.contains(&prepared.entry))
-            .map(|prepared| prepared.resolved)
-            .filter(|path| path.is_dir());
-        if let Some(candidate) = &candidate {
-            self.prepare(candidate)?;
+            .filter(|prepared| prepared.resolved.is_dir());
+        if let Some(prepared) = &pending {
+            self.prepare(&prepared.resolved, Some(prepared))?;
         }
         let Some(managed) = std::env::var_os(MANAGED_LIBRARY).filter(|path| !path.is_empty())
         else {
@@ -336,7 +344,7 @@ impl StartupLibraries {
         // .libPaths(). Record the project's ownership before profiles run.
         let project_supplies_library = if self.paths.iter().any(|path| is_library_pattern(path)) {
             project_globs_supply_library(installation, &self.paths)?
-        } else if candidate.is_none() && !self.paths.is_empty() {
+        } else if pending.is_none() && !self.paths.is_empty() {
             // A pending preparation already checked these literal entries.
             let target = Path::new(&managed).canonicalize()?;
             self.paths
@@ -351,10 +359,27 @@ impl StartupLibraries {
         Ok(())
     }
 
-    fn prepare(&mut self, library: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        // Remove only Console's own spelling. Aliases and duplicate entries
-        // remain available for the project to supply the requested directory.
+    fn prepare(
+        &mut self,
+        library: &Path,
+        prepared: Option<&PreparedLibrary>,
+    ) -> Result<PathBuf, Box<dyn std::error::Error>> {
         let target = library.canonicalize()?;
+        let previous = self.owned;
+        if let Some(index) = previous
+            && let Ok(current) = self.paths[index].canonicalize()
+            && self.paths[index + 1..].iter().any(|entry| {
+                // A retained relative entry can now resolve in a different
+                // directory. Drop its old fallback so it keeps its project slot.
+                !prepared.is_some_and(|p| {
+                    p.resolved == self.paths[index] && p.relative_entries.contains(entry)
+                }) && is_literal_library(entry, &current)
+            })
+        {
+            // A later spelling introduced by the project makes the first
+            // occurrence project-owned too. Keep native R's search order.
+            self.owned = None;
+        }
         let project = self
             .paths
             .iter()
@@ -363,17 +388,8 @@ impl StartupLibraries {
             .map(|(_, entry)| entry.clone());
         // Preserve the native R_LIBS spelling (including empty entries) when
         // the same entry still supplies the candidate after .Renviron.
-        if let Some(index) = self.owned
-            && self.paths[index] == library
-        {
-            if project.is_none() {
-                return Ok(library.to_owned());
-            }
-            // Native R deduplicates at the first occurrence. When .Renviron
-            // repeats our spelling, keep both entries in their original order.
-            if self.paths[index + 1..].contains(&self.paths[index]) {
-                self.owned = None;
-            }
+        if project.is_none() && self.owned.is_some_and(|index| self.paths[index] == library) {
+            return Ok(library.to_owned());
         }
         if let Some(entry) = &project
             && self.owned.is_none()
@@ -381,8 +397,7 @@ impl StartupLibraries {
             embedded_r::set_environment(&[(MANAGED_LIBRARY, "".as_ref())])?;
             return Ok(entry.clone());
         }
-        let previous = self.owned.take();
-        if let Some(index) = previous {
+        if let Some(index) = self.owned.take() {
             self.paths.remove(index);
         }
         let marker = if project.is_some() {
