@@ -288,7 +288,7 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<Envi
                 resolved.push_str(entry);
                 continue;
             }
-            let directory = tool_directory(Path::new(path))?;
+            let directory = host_environment_directory(Path::new(path))?;
             resolved.push_str(renv_cache_entry(&directory)?);
             resolved.push_str(&entry[path.len()..]);
         }
@@ -301,7 +301,7 @@ pub(crate) fn resolve_environment(settings: &mut SandboxSettings) -> Result<Envi
             let root = if settings.contains_key(MANAGED_DIRECTORY) {
                 selected_tool_directory(&path.directory)?
             } else {
-                tool_directory(&path.directory)?
+                host_environment_directory(&path.directory)?
             };
             for (name, relative) in path.variables {
                 let value = |base: &Path| {
@@ -339,19 +339,37 @@ fn retained_cache_target(directory: &Path) -> Result<PathBuf, String> {
     Ok(directory.to_owned())
 }
 
+// A host override must be representable in JSON. If the physical target
+// contains native-only bytes, keep the absolute spelling that reaches it.
+fn host_environment_directory(path: &Path) -> Result<PathBuf, String> {
+    let selected = tool_directory(path)?;
+    if selected.to_str().is_some() {
+        return Ok(selected);
+    }
+    let absolute = absolute_tool_directory(path)?;
+    Ok(if absolute.to_str().is_some() {
+        absolute
+    } else {
+        path.to_owned()
+    })
+}
+
+fn absolute_tool_directory(path: &Path) -> Result<PathBuf, String> {
+    // Use the same launch home as the declared filesystem grant.
+    let expanded = crate::console_paths::expand_permission_home(path)?;
+    crate::console_paths::absolute_preserving_parents(Path::new("."), &expanded).map_err(|error| {
+        format!(
+            "cannot resolve cache directory '{}': {error}",
+            path.display()
+        )
+    })
+}
+
 pub(crate) fn tool_directory(path: &Path) -> Result<PathBuf, String> {
     if path.is_absolute() && !has_parent_traversal(path) {
         return Ok(path.to_owned());
     }
-    // Use the same launch home as the declared filesystem grant.
-    let expanded = crate::console_paths::expand_permission_home(path)?;
-    let absolute = crate::console_paths::absolute_preserving_parents(Path::new("."), &expanded)
-        .map_err(|error| {
-            format!(
-                "cannot resolve cache directory '{}': {error}",
-                path.display()
-            )
-        })?;
+    let absolute = absolute_tool_directory(path)?;
     #[cfg(unix)]
     if let Some(prefix) = absolute
         .ancestors()
