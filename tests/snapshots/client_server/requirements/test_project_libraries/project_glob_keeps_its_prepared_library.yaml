@@ -48,6 +48,7 @@ send:
       file.path(getwd(), "project-last")
     )
     stopifnot(
+      !file.exists("child[1]/lib1"),
       identical(dirname(find.package("consolefirst")), matched[[1L]]),
       identical(.libPaths()[2:5], project)
     )

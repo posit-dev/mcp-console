@@ -82,6 +82,75 @@ def test_replaces_console_layer_at_its_native_profile_position(
 
 @requires(POSIX, R, command("ir"))
 @executions(DIRECT, SANDBOXED)
+def test_duplicate_managed_library_keeps_native_search_order(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return unchanged_library_order(binary, execution, "${R_LIBS}")
+
+
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
+def test_symlink_to_managed_library_keeps_native_search_order(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return unchanged_library_order(
+        binary, execution, "project-root${MCP_CONSOLE_R_LIBRARY}"
+    )
+
+
+def unchanged_library_order(
+    binary: Path, execution: Execution, project_entry: str
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(root, ("consolesecond",))
+        (root / "project-lib").mkdir()
+        (root / "project-root").symlink_to("/")
+        environ = root / ".Renviron"
+        environ.write_text(
+            'ORIGINAL_LIBRARY="${MCP_CONSOLE_R_LIBRARY}"\n'
+            'R_LIBS="${R_LIBS}:project-lib:' + project_entry + '"\n'
+        )
+        environment["R_ENVIRON_USER"] = str(environ)
+        with McpClient(
+            binary,
+            execution.serve("-c", "cache=host"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.transcript.append(
+                {"fixture": {".Renviron": environ.read_text().strip()}}
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    original <- normalizePath(Sys.getenv("ORIGINAL_LIBRARY"))
+                    project <- normalizePath("project-lib")
+                    paths <- .libPaths()
+                    stopifnot(identical(
+                      paths[paths %in% c(original, project)],
+                      c(original, project)
+                    ))
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    paths <- .libPaths()
+                    stopifnot(
+                      identical(paths[paths %in% c(original, project)], c(original, project)),
+                      consolesecond::fixture()
+                    )
+                    """),
+            )
+            return client.finish()
+
+
+@requires(POSIX, R, command("ir"))
+@executions(DIRECT, SANDBOXED)
 def test_preserves_project_copy_of_candidate_across_requirement_changes(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -497,7 +566,7 @@ def test_project_glob_keeps_its_prepared_library(binary: Path) -> Transcript:
         (child / "lib1").symlink_to(root / "resolved-r-libraries/consolefirst")
         (root / "project-glob-second").mkdir()
         (child / "lib2").symlink_to(root / "project-glob-second")
-        (root / "return.R").write_text('setwd("..")\n')
+        (root / "return.R").write_text('stopifnot(file.remove("lib1"))\nsetwd("..")\n')
         with paused_project_library(binary, root, "lib[12]") as client:
             client.expect("[prepared]", requirements={"r": ["consolefirst"]})
             client.expect(
@@ -524,6 +593,7 @@ def test_project_glob_keeps_its_prepared_library(binary: Path) -> Transcript:
                       file.path(getwd(), "project-last")
                     )
                     stopifnot(
+                      !file.exists("child[1]/lib1"),
                       identical(dirname(find.package("consolefirst")), matched[[1L]]),
                       identical(.libPaths()[2:5], project)
                     )
@@ -535,6 +605,54 @@ def test_project_glob_keeps_its_prepared_library(binary: Path) -> Transcript:
                 r=code("""
                     replacement <- dirname(find.package("consolesecond"))
                     stopifnot(identical(.libPaths()[2:6], c(replacement, project)))
+                    """),
+            )
+            return client.finish()
+
+
+@requires(POSIX, R, command("ir"))
+@executions(SANDBOXED)
+def test_glob_created_by_profile_does_not_retain_previous_library(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        environment, _ = recording_fixture_r_environment(root, ("consolesecond",))
+        (root / "projectlibs").mkdir()
+        (root / ".Renviron").write_text('R_LIBS="${R_LIBS}:projectlibs/*"\n')
+        (root / ".Rprofile").write_text(
+            'previous <- dirname(find.package("jsonlite"))\n'
+            'stopifnot(file.symlink(previous, "projectlibs/pkg"))\n'
+        )
+        environment.update(
+            R_ENVIRON_USER=str(root / ".Renviron"),
+            R_PROFILE_USER=str(root / ".Rprofile"),
+        )
+        with McpClient(
+            binary,
+            execution.serve("--writable-root", str(root), "-c", "cache=host"),
+            environment,
+            root,
+            use_r_startup_files=True,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code("""
+                    stopifnot(
+                      previous %in% .libPaths(),
+                      identical(normalizePath(Sys.glob("projectlibs/*")), previous)
+                    )
+                    """),
+            )
+            client.expect("[prepared]", requirements={"r": ["consolesecond"]})
+            client.expect(
+                # fmt: r
+                r=code("""
+                    stopifnot(
+                      !previous %in% .libPaths(),
+                      consolesecond::fixture()
+                    )
                     """),
             )
             return client.finish()

@@ -155,17 +155,7 @@ impl RInstallation {
             #[cfg(windows)]
             let resources =
                 ["share", "include", "doc"].map(|name| home.join(name).into_os_string());
-            let rscript = home.join(if cfg!(windows) {
-                "bin/Rscript.exe"
-            } else {
-                "bin/Rscript"
-            });
-            #[cfg(windows)]
-            let rscript = if rscript.is_file() {
-                rscript
-            } else {
-                home.join("bin/x64/Rscript.exe")
-            };
+            let rscript = super::rscript_in(&home);
             #[cfg(windows)]
             let library = harp::sys::library::find_r_shared_library_folder(&home).join("R.dll");
             #[cfg(unix)]

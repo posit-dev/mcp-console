@@ -1,0 +1,36 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(
+      previous %in% .libPaths(),
+      identical(normalizePath(Sys.glob("projectlibs/*")), previous)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !previous %in% .libPaths(),
+      consolesecond::fixture()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

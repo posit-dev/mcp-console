@@ -276,6 +276,20 @@ pub(crate) struct RInstallation {
     resource_targets: Vec<OsString>,
 }
 
+pub(crate) fn rscript_in(home: &Path) -> PathBuf {
+    #[cfg(unix)]
+    return home.join("bin/Rscript");
+    #[cfg(windows)]
+    {
+        let executable = home.join("bin/Rscript.exe");
+        if executable.is_file() {
+            executable
+        } else {
+            home.join("bin/x64/Rscript.exe")
+        }
+    }
+}
+
 impl RInstallation {
     pub(crate) fn environment(&self) -> [(&'static str, &OsStr); 4] {
         let [share, include, doc] = &self.resources;

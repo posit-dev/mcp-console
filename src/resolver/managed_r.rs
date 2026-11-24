@@ -1,3 +1,4 @@
+use crate::local_runtime::rscript_in;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -293,20 +294,6 @@ fn discover_rscript(
         return Err("worker R returned an empty home path".to_string());
     }
     Ok(rscript_in(Path::new(r_home)))
-}
-
-fn rscript_in(home: &Path) -> PathBuf {
-    #[cfg(unix)]
-    return home.join("bin/Rscript");
-    #[cfg(windows)]
-    {
-        let executable = home.join("bin/Rscript.exe");
-        if executable.is_file() {
-            executable
-        } else {
-            home.join("bin/x64/Rscript.exe")
-        }
-    }
 }
 
 fn resolve_uv_with_rscript(

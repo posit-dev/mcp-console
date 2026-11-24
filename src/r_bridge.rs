@@ -177,36 +177,6 @@ impl Bridge {
         function: &CStr,
         argument: &str,
     ) -> Result<Option<String>, String> {
-        self.call1_encoded_string(function, argument.as_bytes(), libr::cetype_t_CE_UTF8)
-    }
-
-    pub(crate) fn call1_path(
-        &self,
-        function: &CStr,
-        path: &std::path::Path,
-    ) -> Result<Option<String>, String> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStrExt;
-            self.call1_encoded_string(
-                function,
-                path.as_os_str().as_bytes(),
-                libr::cetype_t_CE_NATIVE,
-            )
-        }
-        #[cfg(windows)]
-        self.call1_string(
-            function,
-            path.to_str().ok_or("R library pattern is not Unicode")?,
-        )
-    }
-
-    fn call1_encoded_string(
-        &self,
-        function: &CStr,
-        argument: &[u8],
-        encoding: libr::cetype_t,
-    ) -> Result<Option<String>, String> {
         let argument_length = c_int::try_from(argument.len()).map_err(|_| {
             format!(
                 "{} bridge argument exceeds R's maximum string size",
@@ -219,9 +189,7 @@ impl Bridge {
             // raised while calling the private environment's fixed function.
             unsafe {
                 let function = libr::Rf_install(function.as_ptr());
-                let element =
-                    libr::Rf_mkCharLenCE(argument.as_ptr().cast(), argument_length, encoding);
-                let argument = libr::Rf_protect(libr::Rf_ScalarString(element));
+                let argument = libr::Rf_protect(r_string(argument, argument_length));
                 let call = libr::Rf_protect(libr::Rf_lang2(function, argument));
                 let mut evaluation_error = 0;
                 let value = (self.try_eval)(call, self.state, &mut evaluation_error);
