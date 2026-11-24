@@ -152,6 +152,7 @@ This keeps the cache reachable if an intermediate directory is removed.
 R accepts a relative `XDG_CACHE_HOME`.
 With a value such as `unused/../rcache`, R can use the provisioned `rcache` directory while uv continues to use its platform default.
 Console resolves a home-relative R cache path containing `..` against the same launch home used for its filesystem grant.
+In host settings such as `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` and `MPLCONFIGDIR`, a leading `~` is a literal directory name.
 For sandboxed preparation, the default resolver policy grants each nonempty directory in `RENV_PATHS_CACHE` separately.
 The list keeps its order and separators (`;` on all platforms, or `:` on Unix).
 Relative entries use the launch directory, and a leading `~` uses the launch home even when the resolver has its own `HOME`.

@@ -70,7 +70,9 @@ def uses_resolver_font_cache(
             else "cache/mcp-console/dependencies/matplotlib"
         )
         if with_r:
-            env["MPLCONFIGDIR"] = str(cache)
+            env["HOME"] = str(root / "account")
+            env["MPLCONFIGDIR"] = "~/plots"
+            cache = root / "~/plots"
         config = root / "matplotlibrc"
         config.write_text("lines.linewidth: 7.25\n", encoding="utf-8")
         env["MATPLOTLIBRC"] = str(config)

@@ -355,11 +355,10 @@ pub(crate) fn resolve_environment(
         let paths: Vec<EnvironmentPath> =
             serde::Deserialize::deserialize(paths).map_err(|error| error.to_string())?;
         for path in paths {
-            let root = if settings.contains_key(MANAGED_DIRECTORY) {
-                selected_tool_directory(&path.directory)?
-            } else {
-                host_environment_directory(&path.directory)?
-            };
+            let managed = settings
+                .contains_key(MANAGED_DIRECTORY)
+                .then(|| selected_tool_directory(&path.directory))
+                .transpose()?;
             for (name, relative) in path.variables {
                 let value = |base: &Path| {
                     if relative.is_empty() {
@@ -370,7 +369,10 @@ pub(crate) fn resolve_environment(
                 };
                 let declared = value(&path.directory);
                 if environment_path(settings, &name).as_ref() == Some(&declared) {
-                    let selected = value(&root);
+                    let selected = match &managed {
+                        Some(root) => value(root),
+                        None => host_environment_directory(&cache_path(&name, declared.clone()))?,
+                    };
                     if name == RENV_CACHE {
                         renv_cache_entry(&selected)?;
                     }
@@ -411,8 +413,20 @@ fn host_environment_directory(path: &Path) -> Result<PathBuf, String> {
     })
 }
 
+// R expands a leading tilde. Other cache settings name a literal directory.
+// The leading './' preserves both its spelling and the relative-grant check.
+fn cache_path(name: &str, path: PathBuf) -> PathBuf {
+    let expands_home = name.starts_with("R_")
+        || name.starts_with("RENV_")
+        || matches!(name, "IR_LIBRARY_ROOT" | "PKG_CACHE_DIR");
+    if path.starts_with("~") && !expands_home {
+        Path::new(".").join(path)
+    } else {
+        path
+    }
+}
+
 fn absolute_tool_directory(path: &Path) -> Result<PathBuf, String> {
-    // Use the same launch home as the declared filesystem grant.
     let expanded = crate::console_paths::expand_permission_home(path)?;
     crate::console_paths::absolute_preserving_parents(Path::new("."), &expanded).map_err(|error| {
         format!(
@@ -511,7 +525,7 @@ pub(crate) fn matplotlib_cache_override(settings: &SandboxSettings) -> Option<Pa
     let path = path.or_else(|| {
         environment_path(settings, "XDG_CACHE_HOME").map(|base| base.join("matplotlib"))
     });
-    path
+    path.map(|path| cache_path("MPLCONFIGDIR", path))
 }
 
 fn default_matplotlib_cache(home: &Path) -> PathBuf {
@@ -567,7 +581,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
     // own trusted YAML overrides. Worker environment settings do not reach here.
     // Config-file cache paths need explicit resolver grants; this covers only
     // default locations and direct environment overrides.
-    let env = |name| environment_path(settings, name);
+    let env = |name| environment_path(settings, name).map(|path| cache_path(name, path));
     let home = env("HOME");
     #[cfg(windows)]
     let home = home

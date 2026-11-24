@@ -1043,7 +1043,12 @@ def cache_locations(
             if source in ("config", "parent_traversal"):
                 settings["cache"] = "host"
             if source == "parent_traversal":
+                env["HOME"] = str(root / "account")
                 env["UV_CACHE_DIR"] = str(root / "missing/../host/UV_CACHE_DIR")
+                env["UV_TOOL_DIR"] = "~/missing/../uv-tools"
+                env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = (
+                    "~/missing/../extensions"
+                )
                 # XDG bases must be absolute. Preserve the meaning of a relative value.
                 env["XDG_DATA_HOME"] = "unused/../relative-data"
             if source in ("isolated", "path_isolated"):
@@ -1072,6 +1077,10 @@ def cache_locations(
             }
             if source == "parent_traversal":
                 expected["UV_CACHE_DIR"] = str(root / "host/UV_CACHE_DIR")
+                expected["UV_TOOL_DIR"] = str(root / "~/uv-tools")
+                expected["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(
+                    root / "~/extensions"
+                )
             env["CACHE_TEST_EXPECTED"] = json.dumps(expected)
             if metadata:
                 metadata_root = Path(env["UV_CACHE_DIR"]) if host else console_root
@@ -1192,8 +1201,8 @@ def cache_locations(
                         from pathlib import Path
 
                         expected = json.loads(os.environ["CACHE_TEST_EXPECTED"])
-                        # Extension preparation has its own cache coverage.
-                        expected.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
+                        if {source != "parent_traversal"!r}:
+                            expected.pop("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
                         for name, value in expected.items():
                             actual = Path(os.environ[name])
                             if {source == "linked_path"!r}:
@@ -1211,6 +1220,9 @@ def cache_locations(
                 client.finish()
             if source == "parent_traversal":
                 assert not (root / "missing").exists()
+                assert not (root / "~/missing").exists()
+                assert (root / "~/extensions").is_dir()
+                assert not (root / "account/extensions").exists()
             assert not (root / "host-write").exists()
             if metadata:
                 assert (metadata_root / ".git/keep").read_text() == "cache contents"
